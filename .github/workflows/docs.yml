@@ -7,8 +7,6 @@ on:
   # Temporarily respond to PRs for testing
   pull_request:
 
-env:
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
