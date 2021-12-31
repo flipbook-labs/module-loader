@@ -1,1 +1,0 @@
-"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([[418],{97868:function(s){s.exports=JSON.parse('{"sourceUrl":"https://github-actions[bot]:ghs_yH2kRg0WOwxSFtjL6Bd1CwdHBkcVut0hwzqX@github.com/vocksel/module-loader/blob/master","baseUrl":"/module-loader/","classOrder":[],"apiCategories":[]}')}}]);
