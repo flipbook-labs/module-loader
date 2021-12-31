@@ -1,6 +1,5 @@
 local bind = require(script.bind)
 local getEnv = require(script.getEnv)
-local generateScriptHeader = require(script.generateScriptHeader)
 
 --[=[
 	Module loader class that bypasses Roblox's require cache.
@@ -58,19 +57,6 @@ function ModuleLoader:_loadCachedModule(module: ModuleScript)
 	return result
 end
 
-function ModuleLoader:_require(module: ModuleScript)
-	if self._cache[module] then
-		return self:_loadCachedModule(module)
-	end
-
-	local moduleFn = self.requireOnce(module)
-	local returnValues = { pcall(moduleFn) }
-
-	self._cache[module] = returnValues
-
-	return self:_loadCachedModule(module)
-end
-
 --[=[
 	Require a module with a fresh ModuleScript require cache.
 
@@ -78,14 +64,21 @@ end
 	be loaded, however the usual cache that Roblox keeps is not respected.
 ]=]
 function ModuleLoader:load(module: ModuleScript)
-	local moduleFn = loadstring(generateScriptHeader(module) .. module.Source)
+	if self._cache[module] then
+		return self:_loadCachedModule(module)
+	end
+
+	local moduleFn = loadstring(module.Source, module:GetFullName())
 
 	local env = getEnv(module)
-	env.require = bind(self, self._require)
-
+	env.require = bind(self, self.load)
 	setfenv(moduleFn, env)
 
-	return moduleFn()
+	local success, result = pcall(moduleFn)
+
+	self._cache[module] = { success, result }
+
+	return self:_loadCachedModule(module)
 end
 
 --[=[
