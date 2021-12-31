@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-  # Temporarily respond to PRs for testing
-  pull_request:
 
 jobs:
   deploy:
