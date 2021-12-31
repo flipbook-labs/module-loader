@@ -38,6 +38,7 @@ function ModuleLoader:_validateValues(returnValues: { any })
 			return false
 		end
 	end
+	return returnValues[2] and true or false
 end
 
 function ModuleLoader:_loadCachedModule(module: ModuleScript)
