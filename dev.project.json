@@ -1,0 +1,19 @@
+{
+    "name": "module-loader (dev)",
+    "tree": {
+        "$className": "DataModel",
+        "ReplicatedStorage": {
+            "Packages": {
+                "$path": "Packages",
+                "ModuleLoader": {
+                    "$path": "src"
+                }
+            }
+        },
+        "ServerScriptService": {
+            "Tests": {
+                "$path": "tests"
+            }
+        }
+    }
+}
