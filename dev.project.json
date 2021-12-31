@@ -9,11 +9,6 @@
                     "$path": "src"
                 }
             }
-        },
-        "ServerScriptService": {
-            "Tests": {
-                "$path": "tests"
-            }
         }
     }
 }
