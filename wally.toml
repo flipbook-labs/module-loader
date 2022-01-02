@@ -1,6 +1,6 @@
 [package]
 name = "vocksel/module-loader"
-version = "0.1.1"
+description = "Module loader class that bypasses Roblox's require cache"
 license = "MIT"
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
