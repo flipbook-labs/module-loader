@@ -39,11 +39,11 @@ jobs:
       - name: Check for ROBLOSECURITY secret
         shell: bash
         run: |
-          if [[ -z $ROBLOSECURITY ]]; then
-            echo "Found ROBLOSECURITY token. Continuing..."
+          if [[ -z "$ROBLOSECURITY" ]]; then
+              echo "Could not find ROBLOSECURITY token. Add a secret named 'ROBLOSECURITY' to the repo and try again"
+              exit 1
           else
-            echo "Could not find ROBLOSECURITY token. Add a secret named 'ROBLOSECURITY' to the repo and try again"
-            exit 1
+              echo "Found ROBLOSECURITY token. Continuing..."
           fi
         env:
           ROBLOSECURITY: ${{ secrets.ROBLOSECURITY }}
