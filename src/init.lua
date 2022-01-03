@@ -128,13 +128,24 @@ function ModuleLoader:require(module: ModuleScript)
 end
 
 --[=[
-	Clears out the cache.
+	Clears out the internal cache.
+
+	While this module bypasses Roblox's ModuleScript cache, one is still
+	maintained internally so that repeated requires to the same module return a
+	cached value.
+
+	This method should be called when you need to require a module again. i.e.
+	if the module's Source has been changed.
 
 	```lua
 	local loader = ModuleLoader.new()
 	loader:require(script.Parent.ModuleScript)
-	-- later...
+
+	-- Later...
+
+	-- Clear the cache and require the module again
 	loader:clear()
+	loader:require(script.Parent.ModuleScript)
 	```
 ]=]
 function ModuleLoader:clear()
