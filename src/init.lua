@@ -2,18 +2,13 @@ local bind = require(script.bind)
 local getEnv = require(script.getEnv)
 
 --[=[
-	Module loader class that bypasses Roblox's require cache.
+	ModuleScript loader that bypasses Roblox's require cache.
 
 	This class aims to solve a common problem where code needs to be run in
 	Studio, but once a change is made to an already required module the whole
 	place must be reloaded for the cache to be reset. With this class, the cache
 	is ignored when requiring a module so you are able to load a module, make
-	changes, and load it again without reloading.
-
-	Parts of this class were taken verbatim from
-	[OrbitalOwen/roblox-testservice-watcher](https://github.com/OrbitalOwen/roblox-testservice-watcher),
-	and other parts were rewritten to allow the module loading code to be
-	abstracted into a new package.
+	changes, and load it again without reloading the whole place.
 
 	@class ModuleLoader
 ]=]
