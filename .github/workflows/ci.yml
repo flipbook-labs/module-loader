@@ -37,8 +37,10 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Check for ROBLOSECURITY secret
-        if: ${{ env.SECRET_KEY != null }}
-        run: echo 'Found ROBLOSECURITY secret'
+        if: ${{ !env.ROBLOSECURITY }}
+        run: |
+          echo 'Could not find ROBLOSECURITY secret'
+          exit 1
         env:
           ROBLOSECURITY: ${{ secrets.ROBLOSECURITY }}
 
