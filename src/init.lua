@@ -58,12 +58,23 @@ function ModuleLoader:_loadCachedModule(module: ModuleScript)
 end
 
 --[=[
+	Set the cached value for a module before it is loaded.
+
+	This is useful is very specific situations. For example, this method is
+	used to cache a copy of Roact so that when a module is loaded with this
+	class it uses the same table instance.
+]=]
+function ModuleLoader:cache(module: ModuleScript, source: any)
+	self._cache[module] = { true, source }
+end
+
+--[=[
 	Require a module with a fresh ModuleScript require cache.
 
 	This function works similarly to `require()` in that the given module will
 	be loaded, however the usual cache that Roblox keeps is not respected.
 ]=]
-function ModuleLoader:load(module: ModuleScript)
+function ModuleLoader:require(module: ModuleScript)
 	if self._cache[module] then
 		return self:_loadCachedModule(module)
 	end
@@ -71,7 +82,7 @@ function ModuleLoader:load(module: ModuleScript)
 	local moduleFn = loadstring(module.Source, module:GetFullName())
 
 	local env = getEnv(module)
-	env.require = bind(self, self.load)
+	env.require = bind(self, self.require)
 	setfenv(moduleFn, env)
 
 	local success, result = pcall(moduleFn)
