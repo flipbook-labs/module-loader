@@ -36,6 +36,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
+      - name: Check for ROBLOSECURITY secret
+        if: ${{ env.SECRET_KEY != null }}
+        run: echo 'Found ROBLOSECURITY secret'
+        env:
+          ROBLOSECURITY: ${{ secrets.ROBLOSECURITY }}
+
       - name: Install toolchain
         uses: Roblox/setup-foreman@v1
         with:
