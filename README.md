@@ -13,7 +13,7 @@ This class aims to solve a common problem where code needs to be run in Studio, 
 local ModuleLoader = require(ReplicatedStorage.Packages.ModuleLoader)
 
 local loader = ModuleLoader.new()
-loader:load(ReplicatedStorage.ModuleScript)
+loader:require(ReplicatedStorage.ModuleScript)
 ```
 
 ## Installation
