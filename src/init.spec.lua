@@ -2,10 +2,27 @@ return function()
 	local Mock = require(script.Parent.Parent.Mock)
 	local ModuleLoader = require(script.Parent)
 
-	local mockModuleInstance = script.Parent.Mocks.module
-	local mockModule = require(mockModuleInstance)
-
+	local mockLoadstring = Mock.new()
 	local loader: ModuleLoader.Class
+	local mockModuleInstance: ModuleScript
+	local mockModule = {}
+
+	beforeEach(function()
+		mockLoadstring:mockImplementation(function()
+			return function()
+				return true
+			end
+		end)
+
+		mockModuleInstance = Instance.new("ModuleScript")
+
+		loader = ModuleLoader.new()
+		loader._loadstring = mockLoadstring
+	end)
+
+	afterEach(function()
+		mockLoadstring:reset()
+	end)
 
 	local function countDict(dict: { [string]: any })
 		local count = 0
@@ -14,10 +31,6 @@ return function()
 		end
 		return count
 	end
-
-	beforeEach(function()
-		loader = ModuleLoader.new()
-	end)
 
 	describe("_getSource", function()
 		-- This test doesn't supply much value. Essentially, the "Source"
@@ -39,11 +52,64 @@ return function()
 		end)
 	end)
 
-	describe("cache", function()
-		beforeEach(function()
-			loader = ModuleLoader.new()
+	describe("loadedModuleChanged", function()
+		it("should fire when a required module has its ancestry changed", function()
+			local wasFired = false
+
+			-- Parent the ModuleScript somewhere in the DataModel so we can
+			-- listen for AncestryChanged.
+			mockModuleInstance.Parent = script
+
+			loader.loadedModuleChanged:Connect(function(other: ModuleScript)
+				if other == mockModuleInstance then
+					wasFired = true
+				end
+			end)
+
+			-- Require the module so that events get setup
+			loader:require(mockModuleInstance)
+
+			-- Trigger AncestryChanged to fire
+			mockModuleInstance.Parent = nil
+
+			expect(wasFired).to.equal(true)
 		end)
 
+		it("should fire when a required module has its Source property change", function()
+			local wasFired = false
+
+			mockModuleInstance = Mock.new()
+
+			-- This method needs to be stubbed out to suppress an error
+			mockModuleInstance.GetFullName:mockImplementation(function()
+				return "Path.To.ModuleScript"
+			end)
+
+			-- Need to stub out this event to suppress an error
+			mockModuleInstance.AncestryChanged = Instance.new("BindableEvent").Event
+
+			-- Setup mock Changed event since we can't modify the Source
+			-- property ourselves
+			local sourceChanged = Instance.new("BindableEvent")
+			mockModuleInstance.Changed = sourceChanged.Event
+
+			loader.loadedModuleChanged:Connect(function(other: ModuleScript)
+				if other == mockModuleInstance then
+					wasFired = true
+				end
+			end)
+
+			-- Require the module so that events get setup
+			loader:require(mockModuleInstance)
+
+			-- Trigger the mocked Changed event
+			sourceChanged:Fire("Source")
+
+			expect(wasFired).to.equal(true)
+		end)
+	end)
+
+	describe("cache", function()
 		it("should add a module and its source to the cache", function()
 			loader:cache(mockModuleInstance, mockModule)
 
@@ -55,23 +121,6 @@ return function()
 	end)
 
 	describe("require", function()
-		local mockLoadstring = Mock.new()
-
-		beforeEach(function()
-			mockLoadstring:mockImplementation(function()
-				return function()
-					return true
-				end
-			end)
-
-			loader._loadstring = mockLoadstring
-		end)
-
-		afterEach(function()
-			mockLoadstring:reset()
-			loader:clear()
-		end)
-
 		it("should use loadstring to load the module", function()
 			loader:require(mockModuleInstance)
 			expect(#mockLoadstring.mock.calls).to.equal(1)
