@@ -14,3 +14,7 @@ include = [
     "README.md",
     "wally.toml",
 ]
+
+[dependencies]
+TestEZ = "roblox/testez@0.4.1"
+Mock = "vocksel/mock@0.1.1"
