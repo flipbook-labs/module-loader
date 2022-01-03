@@ -39,8 +39,12 @@ jobs:
       - name: Check for ROBLOSECURITY secret
         if: ${{ !env.ROBLOSECURITY }}
         run: |
-          echo 'Could not find ROBLOSECURITY secret'
-          exit 1
+          if [[ $ROBLOSECURITY ]]; then
+            echo "Found ROBLOSECURITY token. Continuing..."
+          else
+            echo "Could not find ROBLOSECURITY token. Add a secret named 'ROBLOSECURITY' to the repo and try again"
+            exit 1
+          fi
         env:
           ROBLOSECURITY: ${{ secrets.ROBLOSECURITY }}
 
