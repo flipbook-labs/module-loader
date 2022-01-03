@@ -20,6 +20,8 @@ local getEnv = require(script.getEnv)
 local ModuleLoader = {}
 ModuleLoader.__index = ModuleLoader
 
+export type Class = typeof(ModuleLoader.new())
+
 --[=[
     Constructs a new ModuleLoader instance.
 ]=]
@@ -27,6 +29,7 @@ function ModuleLoader.new()
 	local self = {}
 
 	self._cache = {}
+	self._loadstring = loadstring
 
 	return setmetatable(self, ModuleLoader)
 end
@@ -58,6 +61,23 @@ function ModuleLoader:_loadCachedModule(module: ModuleScript)
 end
 
 --[=[
+	Gets the Source of a ModuleScript.
+
+	This method exists primarily so we can better write unit tests. Attempting
+	to index the Source property from a regular script context throws an error,
+	so this method allows us to safely fallback in tests.
+	
+	@private
+]=]
+function ModuleLoader:_getSource(module: ModuleScript): any?
+	local success, result = pcall(function()
+		return module.Source
+	end)
+
+	return if success then result else nil
+end
+
+--[=[
 	Set the cached value for a module before it is loaded.
 
 	This is useful is very specific situations. For example, this method is
@@ -79,7 +99,8 @@ function ModuleLoader:require(module: ModuleScript)
 		return self:_loadCachedModule(module)
 	end
 
-	local moduleFn = loadstring(module.Source, module:GetFullName())
+	local source = self:_getSource(module)
+	local moduleFn = self._loadstring(source, module:GetFullName())
 
 	local env = getEnv(module)
 	env.require = bind(self, self.require)
