@@ -1,3 +1,5 @@
+local Janitor = require(script.Parent.Janitor)
+local GoodSignal = require(script.Parent.GoodSignal)
 local bind = require(script.bind)
 local getEnv = require(script.getEnv)
 
@@ -30,6 +32,30 @@ function ModuleLoader.new()
 
 	self._cache = {}
 	self._loadstring = loadstring
+	self._janitor = Janitor.new()
+
+	--[=[
+		Fired when any ModuleScript required through this class has its ancestry
+		or `Source` property changed. This applies to the ModuleScript passed to
+		`ModuleLoader:require()` and every module that it subsequently requirs.
+
+		This event is useful for reloading a module when it or any of it
+		dependencies change.
+
+		```lua
+		local loader = ModuleLoader.new()
+		local result = loader:require(module)
+
+		loader.loadedModuleChanged:Connect(function()
+			loader:clear()
+			result = loader:require(module)
+		end)
+		```
+
+		@prop loadedModuleChanged RBXScriptSignal
+		@within ModuleLoader
+	]=]
+	self.loadedModuleChanged = GoodSignal.new()
 
 	return setmetatable(self, ModuleLoader)
 end
@@ -78,6 +104,27 @@ function ModuleLoader:_getSource(module: ModuleScript): any?
 end
 
 --[=[
+	Tracks the changes to a required module's ancestry and `Source`.
+
+	When ancestry or `Source` changes, the `loadedModuleChanged` event is fired.
+	When this happens, the user should clear the cache and require the root
+	module again to reload.
+
+	@private
+]=]
+function ModuleLoader:_trackChanges(module: ModuleScript)
+	self._janitor:Add(module.AncestryChanged:Connect(function()
+		self.loadedModuleChanged:Fire(module)
+	end))
+
+	self._janitor:Add(module.Changed:Connect(function(prop: string)
+		if prop == "Source" then
+			self.loadedModuleChanged:Fire(module)
+		end
+	end))
+end
+
+--[=[
 	Set the cached value for a module before it is loaded.
 
 	This is useful is very specific situations. For example, this method is
@@ -121,8 +168,9 @@ function ModuleLoader:require(module: ModuleScript)
 	setfenv(moduleFn, env)
 
 	local success, result = pcall(moduleFn)
-
 	self._cache[module] = { success, result }
+
+	self:_trackChanges(module)
 
 	return self:_loadCachedModule(module)
 end
@@ -150,6 +198,7 @@ end
 ]=]
 function ModuleLoader:clear()
 	self._cache = {}
+	self._janitor:Cleanup()
 end
 
 return ModuleLoader
