@@ -26,7 +26,7 @@ Add the following to your `wally.toml` and run `wally install` to download the p
 
 ```toml
 [dependencies]
-ModuleLoader = "vocksel/module-loader@0.2.0"
+ModuleLoader = "vocksel/module-loader@0.3.0"
 ```
 
 Make sure the resulting `Packages` folder is synced into your experience using a tool like [Rojo](https://github.com/rojo-rbx/rojo/).
