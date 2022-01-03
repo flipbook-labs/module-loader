@@ -37,7 +37,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Check for ROBLOSECURITY secret
-        if: ${{ !env.ROBLOSECURITY }}
+        shell: bash
         run: |
           if [[ -z $ROBLOSECURITY ]]; then
             echo "Found ROBLOSECURITY token. Continuing..."
