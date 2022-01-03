@@ -83,6 +83,14 @@ end
 	This is useful is very specific situations. For example, this method is
 	used to cache a copy of Roact so that when a module is loaded with this
 	class it uses the same table instance.
+
+	```lua
+	local moduleInstance = script.Parent.ModuleScript
+	local module = require(moduleInstance)
+
+	local loader = ModuleLoader.new()
+	loader:cache(moduleInstance, module)
+	```
 ]=]
 function ModuleLoader:cache(module: ModuleScript, source: any)
 	self._cache[module] = { true, source }
@@ -91,8 +99,14 @@ end
 --[=[
 	Require a module with a fresh ModuleScript require cache.
 
-	This function works similarly to `require()` in that the given module will
-	be loaded, however the usual cache that Roblox keeps is not respected.
+	This method is functionally the same as running `require(script.Parent.ModuleScript)`,
+	however in this case the module is not cached. As such, if a change occurs
+	to the module you can call this method again to get the latest changes.
+
+	```lua
+	local loader = ModuleLoader.new()
+	local module = loader:require(script.Parent.ModuleScript)
+	```
 ]=]
 function ModuleLoader:require(module: ModuleScript)
 	if self._cache[module] then
@@ -115,6 +129,13 @@ end
 
 --[=[
 	Clears out the cache.
+
+	```lua
+	local loader = ModuleLoader.new()
+	loader:require(script.Parent.ModuleScript)
+	-- later...
+	loader:clear()
+	```
 ]=]
 function ModuleLoader:clear()
 	self._cache = {}
