@@ -55,15 +55,6 @@ function ModuleLoader.new()
 	return setmetatable(self, ModuleLoader)
 end
 
-function ModuleLoader:_validateValues(returnValues: { any })
-	for index in ipairs(returnValues) do
-		if index ~= 1 and index ~= 2 then
-			return false
-		end
-	end
-	return returnValues[2] and true or false
-end
-
 function ModuleLoader:_loadCachedModule(module: ModuleScript)
 	local returnValues = self._cache[module]
 	local success = returnValues[1]
@@ -76,7 +67,6 @@ function ModuleLoader:_loadCachedModule(module: ModuleScript)
 			.. " - RESULT: "
 			.. tostring(result)
 	)
-	assert(self:_validateValues(returnValues), "Module code did not return exactly one value")
 
 	return result
 end
@@ -156,13 +146,22 @@ function ModuleLoader:require(module: ModuleScript)
 	end
 
 	local source = self:_getSource(module)
-	local moduleFn = self._loadstring(source, module:GetFullName())
+	local moduleFn, parseError = self._loadstring(source, module:GetFullName())
+
+	if not moduleFn then
+		error(("Could not parse %s: %s"):format(module:GetFullName(), parseError))
+	end
 
 	local env = getEnv(module)
 	env.require = bind(self, self.require)
 	setfenv(moduleFn, env)
 
-	local success, result = pcall(moduleFn)
+	local success, result = xpcall(moduleFn, debug.traceback)
+
+	if not success then
+		error(("Error requiring %s: %s"):format(module.Name, result))
+	end
+
 	self._cache[module] = { success, result }
 
 	self:_trackChanges(module)
