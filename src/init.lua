@@ -17,7 +17,12 @@ local getEnv = require(script.getEnv)
 local ModuleLoader = {}
 ModuleLoader.__index = ModuleLoader
 
-export type Class = typeof(ModuleLoader.new())
+export type CachedModule = {
+	module: ModuleScript,
+	isLoaded: boolean,
+	result: any,
+	consumers: { ModuleScript },
+}
 
 --[=[
     Constructs a new ModuleLoader instance.
@@ -27,6 +32,7 @@ function ModuleLoader.new()
 
 	self._cache = {}
 	self._loadstring = loadstring
+	self._debugInfo = debug.info
 	self._janitor = Janitor.new()
 
 	--[=[
@@ -56,19 +62,17 @@ function ModuleLoader.new()
 end
 
 function ModuleLoader:_loadCachedModule(module: ModuleScript)
-	local returnValues = self._cache[module]
-	local success = returnValues[1]
-	local result = returnValues[2]
+	local cachedModule: CachedModule = self._cache[module:GetFullName()]
 
 	assert(
-		success,
+		cachedModule.isLoaded,
 		"Requested module experienced an error while loading MODULE: "
 			.. module:GetFullName()
 			.. " - RESULT: "
-			.. tostring(result)
+			.. tostring(cachedModule.result)
 	)
 
-	return result
+	return cachedModule.result
 end
 
 --[=[
@@ -104,6 +108,8 @@ function ModuleLoader:_trackChanges(module: ModuleScript)
 
 	self._janitor:Add(module.Changed:Connect(function(prop: string)
 		if prop == "Source" then
+			-- TODO: Clear the cache of the module and anything that depends on
+			-- it
 			self.loadedModuleChanged:Fire(module)
 		end
 	end))
@@ -124,8 +130,42 @@ end
 	loader:cache(moduleInstance, module)
 	```
 ]=]
-function ModuleLoader:cache(module: ModuleScript, source: any)
-	self._cache[module] = { true, source }
+function ModuleLoader:cache(module: ModuleScript, result: any)
+	local cachedModule: CachedModule = {
+		module = module,
+		result = result,
+		isLoaded = true,
+		consumers = {},
+	}
+
+	self._cache[module:GetFullName()] = cachedModule
+end
+
+local LOADSTRING_PATH_PATTERN = '%[string "(.*)"%]'
+
+function ModuleLoader:_getCallerPath()
+	local level = 1
+
+	while true do
+		local path = self._debugInfo(level, "s")
+
+		if path then
+			-- Skip over any path that is a descendant of this package
+			if not path:match(script.Name) then
+				local pathFromLoadstring = path:match(LOADSTRING_PATH_PATTERN)
+
+				if pathFromLoadstring then
+					return pathFromLoadstring
+				else
+					return path
+				end
+			end
+		else
+			return nil
+		end
+
+		level += 1
+	end
 end
 
 --[=[
@@ -141,7 +181,9 @@ end
 	```
 ]=]
 function ModuleLoader:require(module: ModuleScript)
-	if self._cache[module] then
+	local cachedModule = self._cache[module:GetFullName()]
+
+	if cachedModule then
 		return self:_loadCachedModule(module)
 	end
 
@@ -152,17 +194,33 @@ function ModuleLoader:require(module: ModuleScript)
 		error(("Could not parse %s: %s"):format(module:GetFullName(), parseError))
 	end
 
+	-- Use the require stack to figure out which module came before the current
+	-- one being required. Then we can propagate the consumers array
+
+	local callerPath = self:_getCallerPath()
+
+	local newCachedModule: CachedModule = {
+		module = module,
+		result = nil,
+		isLoaded = false,
+		consumers = {
+			if self._cache[callerPath] then callerPath else nil,
+		},
+	}
+	self._cache[module:GetFullName()] = newCachedModule
+
 	local env = getEnv(module)
 	env.require = bind(self, self.require)
 	setfenv(moduleFn, env)
 
 	local success, result = xpcall(moduleFn, debug.traceback)
 
-	if not success then
+	if success then
+		newCachedModule.isLoaded = true
+		newCachedModule.result = result
+	else
 		error(("Error requiring %s: %s"):format(module.Name, result))
 	end
-
-	self._cache[module] = { success, result }
 
 	self:_trackChanges(module)
 
@@ -194,5 +252,7 @@ function ModuleLoader:clear()
 	self._cache = {}
 	self._janitor:Cleanup()
 end
+
+export type Class = typeof(ModuleLoader.new())
 
 return ModuleLoader

@@ -1,4 +1,6 @@
 return function()
+	local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 	local Mock = require(script.Parent.Parent.Mock)
 	local ModuleLoader = require(script.Parent)
 
@@ -110,13 +112,13 @@ return function()
 	end)
 
 	describe("cache", function()
-		it("should add a module and its source to the cache", function()
+		it("should add a module and its result to the cache", function()
 			loader:cache(mockModuleInstance, mockModule)
 
-			local cachedModule = loader._cache[mockModuleInstance]
+			local cachedModule = loader._cache[mockModuleInstance:GetFullName()]
 
 			expect(cachedModule).to.be.ok()
-			expect(cachedModule[2]).to.equal(mockModule)
+			expect(cachedModule.result).to.equal(mockModule)
 		end)
 	end)
 
@@ -128,7 +130,7 @@ return function()
 
 		it("should add the module to the cache", function()
 			loader:require(mockModuleInstance)
-			expect(loader._cache[mockModuleInstance]).to.be.ok()
+			expect(loader._cache[mockModuleInstance:GetFullName()]).to.be.ok()
 		end)
 	end)
 
@@ -142,5 +144,25 @@ return function()
 
 			expect(countDict(loader._cache)).to.equal(0)
 		end)
+	end)
+
+	describe("consumers", function()
+		fit("should keep track of the consumers for a module", function()
+			local moduleA = ReplicatedStorage.ConsumerTest.ModuleA
+			local moduleB = ReplicatedStorage.ConsumerTest.ModuleB
+
+			loader._loadstring = loadstring
+			loader:require(moduleA)
+
+			expect(loader._cache[moduleA:GetFullName()]).to.be.ok()
+
+			local cachedModuleB = loader._cache[moduleB:GetFullName()]
+
+			expect(cachedModuleB).to.be.ok()
+			expect(#cachedModuleB.consumers).to.equal(1)
+			expect(cachedModuleB.consumers[1]).to.equal(moduleA:GetFullName())
+		end)
+
+		it("should remove all consumers of a changed module from the cache", function() end)
 	end)
 end

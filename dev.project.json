@@ -3,6 +3,10 @@
     "tree": {
         "$className": "DataModel",
         "ReplicatedStorage": {
+            "ConsumerTest": {
+                "$path": "consumer-test"
+            },
+            
             "Packages": {
                 "$path": "Packages",
                 "ModuleLoader": {
