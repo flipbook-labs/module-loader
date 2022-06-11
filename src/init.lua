@@ -92,6 +92,19 @@ function ModuleLoader:_getSource(module: ModuleScript): any?
 	return if success then result else nil
 end
 
+function ModuleLoader:_clearConsumerFromCache(moduleFullName: string)
+	local cachedModule: CachedModule = self._cache[moduleFullName]
+
+	if cachedModule then
+		for _, consumer in ipairs(cachedModule.consumers) do
+			self._cache[consumer] = nil
+			self:_clearConsumerFromCache(consumer)
+		end
+
+		self._cache[moduleFullName] = nil
+	end
+end
+
 --[=[
 	Tracks the changes to a required module's ancestry and `Source`.
 
@@ -108,8 +121,7 @@ function ModuleLoader:_trackChanges(module: ModuleScript)
 
 	self._janitor:Add(module.Changed:Connect(function(prop: string)
 		if prop == "Source" then
-			-- TODO: Clear the cache of the module and anything that depends on
-			-- it
+			self:_clearConsumerFromCache(module:GetFullName())
 			self.loadedModuleChanged:Fire(module)
 		end
 	end))
@@ -193,9 +205,6 @@ function ModuleLoader:require(module: ModuleScript)
 	if not moduleFn then
 		error(("Could not parse %s: %s"):format(module:GetFullName(), parseError))
 	end
-
-	-- Use the require stack to figure out which module came before the current
-	-- one being required. Then we can propagate the consumers array
 
 	local callerPath = self:_getCallerPath()
 

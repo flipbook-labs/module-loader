@@ -147,11 +147,14 @@ return function()
 	end)
 
 	describe("consumers", function()
-		fit("should keep track of the consumers for a module", function()
+		beforeEach(function()
+			loader._loadstring = loadstring
+		end)
+
+		it("should keep track of the consumers for a module", function()
 			local moduleA = ReplicatedStorage.ConsumerTest.ModuleA
 			local moduleB = ReplicatedStorage.ConsumerTest.ModuleB
 
-			loader._loadstring = loadstring
 			loader:require(moduleA)
 
 			expect(loader._cache[moduleA:GetFullName()]).to.be.ok()
@@ -163,6 +166,20 @@ return function()
 			expect(cachedModuleB.consumers[1]).to.equal(moduleA:GetFullName())
 		end)
 
-		it("should remove all consumers of a changed module from the cache", function() end)
+		it("should remove all consumers of a changed module from the cache", function()
+			local moduleA = ReplicatedStorage.ConsumerTest.ModuleA
+			local moduleB = ReplicatedStorage.ConsumerTest.ModuleB
+
+			loader:require(moduleA)
+
+			expect(next(loader._cache)).to.be.ok()
+
+			task.defer(function()
+				moduleB.Source = 'return "ModuleB Reloaded"'
+			end)
+			loader.loadedModuleChanged:Wait()
+
+			expect(next(loader._cache)).never.to.be.ok()
+		end)
 	end)
 end
