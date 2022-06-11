@@ -1,6 +1,7 @@
 local Janitor = require(script.Parent.Janitor)
 local GoodSignal = require(script.Parent.GoodSignal)
 local bind = require(script.bind)
+local getCallerPath = require(script.getCallerPath)
 local getEnv = require(script.getEnv)
 
 --[=[
@@ -17,7 +18,12 @@ local getEnv = require(script.getEnv)
 local ModuleLoader = {}
 ModuleLoader.__index = ModuleLoader
 
-export type Class = typeof(ModuleLoader.new())
+export type CachedModule = {
+	module: ModuleScript,
+	isLoaded: boolean,
+	result: any,
+	consumers: { ModuleScript },
+}
 
 --[=[
     Constructs a new ModuleLoader instance.
@@ -27,6 +33,7 @@ function ModuleLoader.new()
 
 	self._cache = {}
 	self._loadstring = loadstring
+	self._debugInfo = debug.info
 	self._janitor = Janitor.new()
 
 	--[=[
@@ -56,19 +63,17 @@ function ModuleLoader.new()
 end
 
 function ModuleLoader:_loadCachedModule(module: ModuleScript)
-	local returnValues = self._cache[module]
-	local success = returnValues[1]
-	local result = returnValues[2]
+	local cachedModule: CachedModule = self._cache[module:GetFullName()]
 
 	assert(
-		success,
+		cachedModule.isLoaded,
 		"Requested module experienced an error while loading MODULE: "
 			.. module:GetFullName()
 			.. " - RESULT: "
-			.. tostring(result)
+			.. tostring(cachedModule.result)
 	)
 
-	return result
+	return cachedModule.result
 end
 
 --[=[
@@ -88,6 +93,19 @@ function ModuleLoader:_getSource(module: ModuleScript): any?
 	return if success then result else nil
 end
 
+function ModuleLoader:_clearConsumerFromCache(moduleFullName: string)
+	local cachedModule: CachedModule = self._cache[moduleFullName]
+
+	if cachedModule then
+		for _, consumer in ipairs(cachedModule.consumers) do
+			self._cache[consumer] = nil
+			self:_clearConsumerFromCache(consumer)
+		end
+
+		self._cache[moduleFullName] = nil
+	end
+end
+
 --[=[
 	Tracks the changes to a required module's ancestry and `Source`.
 
@@ -104,6 +122,7 @@ function ModuleLoader:_trackChanges(module: ModuleScript)
 
 	self._janitor:Add(module.Changed:Connect(function(prop: string)
 		if prop == "Source" then
+			self:_clearConsumerFromCache(module:GetFullName())
 			self.loadedModuleChanged:Fire(module)
 		end
 	end))
@@ -124,8 +143,15 @@ end
 	loader:cache(moduleInstance, module)
 	```
 ]=]
-function ModuleLoader:cache(module: ModuleScript, source: any)
-	self._cache[module] = { true, source }
+function ModuleLoader:cache(module: ModuleScript, result: any)
+	local cachedModule: CachedModule = {
+		module = module,
+		result = result,
+		isLoaded = true,
+		consumers = {},
+	}
+
+	self._cache[module:GetFullName()] = cachedModule
 end
 
 --[=[
@@ -141,7 +167,14 @@ end
 	```
 ]=]
 function ModuleLoader:require(module: ModuleScript)
-	if self._cache[module] then
+	local cachedModule = self._cache[module:GetFullName()]
+	local callerPath = getCallerPath()
+
+	if cachedModule then
+		if self._cache[callerPath] then
+			table.insert(cachedModule.consumers, callerPath)
+		end
+
 		return self:_loadCachedModule(module)
 	end
 
@@ -152,17 +185,28 @@ function ModuleLoader:require(module: ModuleScript)
 		error(("Could not parse %s: %s"):format(module:GetFullName(), parseError))
 	end
 
+	local newCachedModule: CachedModule = {
+		module = module,
+		result = nil,
+		isLoaded = false,
+		consumers = {
+			if self._cache[callerPath] then callerPath else nil,
+		},
+	}
+	self._cache[module:GetFullName()] = newCachedModule
+
 	local env = getEnv(module)
 	env.require = bind(self, self.require)
 	setfenv(moduleFn, env)
 
 	local success, result = xpcall(moduleFn, debug.traceback)
 
-	if not success then
+	if success then
+		newCachedModule.isLoaded = true
+		newCachedModule.result = result
+	else
 		error(("Error requiring %s: %s"):format(module.Name, result))
 	end
-
-	self._cache[module] = { success, result }
 
 	self:_trackChanges(module)
 
@@ -194,5 +238,7 @@ function ModuleLoader:clear()
 	self._cache = {}
 	self._janitor:Cleanup()
 end
+
+export type Class = typeof(ModuleLoader.new())
 
 return ModuleLoader

@@ -1,4 +1,6 @@
 return function()
+	local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 	local Mock = require(script.Parent.Parent.Mock)
 	local ModuleLoader = require(script.Parent)
 
@@ -110,13 +112,13 @@ return function()
 	end)
 
 	describe("cache", function()
-		it("should add a module and its source to the cache", function()
+		it("should add a module and its result to the cache", function()
 			loader:cache(mockModuleInstance, mockModule)
 
-			local cachedModule = loader._cache[mockModuleInstance]
+			local cachedModule = loader._cache[mockModuleInstance:GetFullName()]
 
 			expect(cachedModule).to.be.ok()
-			expect(cachedModule[2]).to.equal(mockModule)
+			expect(cachedModule.result).to.equal(mockModule)
 		end)
 	end)
 
@@ -128,7 +130,7 @@ return function()
 
 		it("should add the module to the cache", function()
 			loader:require(mockModuleInstance)
-			expect(loader._cache[mockModuleInstance]).to.be.ok()
+			expect(loader._cache[mockModuleInstance:GetFullName()]).to.be.ok()
 		end)
 	end)
 
@@ -141,6 +143,91 @@ return function()
 			loader:clear()
 
 			expect(countDict(loader._cache)).to.equal(0)
+		end)
+	end)
+
+	-- For these tests to work, TestEZ must be run from a plugin context so that
+	-- loadstring works, along with assigning to the `Source` property of
+	-- modules
+	describe("consumers", function()
+		local modules = Instance.new("Folder") :: Folder & {
+			ModuleA: ModuleScript,
+			ModuleB: ModuleScript,
+			ModuleC: ModuleScript,
+		}
+
+		beforeEach(function()
+			local moduleA = Instance.new("ModuleScript")
+			moduleA.Name = "ModuleA"
+			moduleA.Source = [[
+				require(script.Parent.ModuleB)
+
+				return "ModuleA"
+			]]
+			moduleA.Parent = modules
+
+			local moduleB = Instance.new("ModuleScript")
+			moduleB.Name = "ModuleB"
+			moduleB.Source = [[
+				return "ModuleB"
+			]]
+			moduleB.Parent = modules
+
+			local moduleC = Instance.new("ModuleScript")
+			moduleC.Name = "ModuleC"
+			moduleC.Source = [[
+				return "ModuleC"
+			]]
+			moduleC.Parent = modules
+
+			modules.Parent = game
+
+			loader._loadstring = loadstring
+		end)
+
+		afterEach(function()
+			modules:ClearAllChildren()
+		end)
+
+		it("should keep track of the consumers for a module", function()
+			loader:require(modules.ModuleA)
+
+			expect(loader._cache[modules.ModuleA:GetFullName()]).to.be.ok()
+
+			local cachedModuleB = loader._cache[modules.ModuleB:GetFullName()]
+
+			expect(cachedModuleB).to.be.ok()
+			expect(#cachedModuleB.consumers).to.equal(1)
+			expect(cachedModuleB.consumers[1]).to.equal(modules.ModuleA:GetFullName())
+		end)
+
+		it("should remove all consumers of a changed module from the cache", function()
+			loader:require(modules.ModuleA)
+
+			expect(next(loader._cache)).to.be.ok()
+
+			task.defer(function()
+				modules.ModuleB.Source = 'return "ModuleB Reloaded"'
+			end)
+			loader.loadedModuleChanged:Wait()
+
+			expect(next(loader._cache)).never.to.be.ok()
+		end)
+
+		it("should not interfere with other cached modules", function()
+			loader:require(modules.ModuleA)
+			loader:require(modules.ModuleC)
+
+			expect(next(loader._cache)).to.be.ok()
+
+			task.defer(function()
+				modules.ModuleB.Source = 'return "ModuleB Reloaded"'
+			end)
+			loader.loadedModuleChanged:Wait()
+
+			expect(loader._cache[modules.ModuleA:GetFullName()]).never.to.be.ok()
+			expect(loader._cache[modules.ModuleB:GetFullName()]).never.to.be.ok()
+			expect(loader._cache[modules.ModuleC:GetFullName()]).to.be.ok()
 		end)
 	end)
 end
