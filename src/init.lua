@@ -1,6 +1,7 @@
 local Janitor = require(script.Parent.Janitor)
 local GoodSignal = require(script.Parent.GoodSignal)
 local bind = require(script.bind)
+local getCallerPath = require(script.getCallerPath)
 local getEnv = require(script.getEnv)
 
 --[=[
@@ -153,33 +154,6 @@ function ModuleLoader:cache(module: ModuleScript, result: any)
 	self._cache[module:GetFullName()] = cachedModule
 end
 
-local LOADSTRING_PATH_PATTERN = '%[string "(.*)"%]'
-
-function ModuleLoader:_getCallerPath()
-	local level = 1
-
-	while true do
-		local path = self._debugInfo(level, "s")
-
-		if path then
-			-- Skip over any path that is a descendant of this package
-			if not path:match(script.Name) then
-				local pathFromLoadstring = path:match(LOADSTRING_PATH_PATTERN)
-
-				if pathFromLoadstring then
-					return pathFromLoadstring
-				else
-					return path
-				end
-			end
-		else
-			return nil
-		end
-
-		level += 1
-	end
-end
-
 --[=[
 	Require a module with a fresh ModuleScript require cache.
 
@@ -194,7 +168,7 @@ end
 ]=]
 function ModuleLoader:require(module: ModuleScript)
 	local cachedModule = self._cache[module:GetFullName()]
-	local callerPath = self:_getCallerPath()
+	local callerPath = getCallerPath()
 
 	if cachedModule then
 		if self._cache[callerPath] then
