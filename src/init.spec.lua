@@ -149,7 +149,7 @@ return function()
 	-- For these tests to work, TestEZ must be run from a plugin context so that
 	-- loadstring works, along with assigning to the `Source` property of
 	-- modules
-	fdescribe("consumers", function()
+	describe("consumers", function()
 		local modules = Instance.new("Folder") :: Folder & {
 			ModuleA: ModuleScript,
 			ModuleB: ModuleScript,
