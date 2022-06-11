@@ -146,40 +146,88 @@ return function()
 		end)
 	end)
 
-	describe("consumers", function()
+	-- For these tests to work, TestEZ must be run from a plugin context so that
+	-- loadstring works, along with assigning to the `Source` property of
+	-- modules
+	fdescribe("consumers", function()
+		local modules = Instance.new("Folder") :: Folder & {
+			ModuleA: ModuleScript,
+			ModuleB: ModuleScript,
+			ModuleC: ModuleScript,
+		}
+
 		beforeEach(function()
+			local moduleA = Instance.new("ModuleScript")
+			moduleA.Name = "ModuleA"
+			moduleA.Source = [[
+				require(script.Parent.ModuleB)
+
+				return "ModuleA"
+			]]
+			moduleA.Parent = modules
+
+			local moduleB = Instance.new("ModuleScript")
+			moduleB.Name = "ModuleB"
+			moduleB.Source = [[
+				return "ModuleB"
+			]]
+			moduleB.Parent = modules
+
+			local moduleC = Instance.new("ModuleScript")
+			moduleC.Name = "ModuleC"
+			moduleC.Source = [[
+				return "ModuleC"
+			]]
+			moduleC.Parent = modules
+
+			modules.Parent = game
+
 			loader._loadstring = loadstring
 		end)
 
+		afterEach(function()
+			modules:ClearAllChildren()
+		end)
+
 		it("should keep track of the consumers for a module", function()
-			local moduleA = ReplicatedStorage.ConsumerTest.ModuleA
-			local moduleB = ReplicatedStorage.ConsumerTest.ModuleB
+			loader:require(modules.ModuleA)
 
-			loader:require(moduleA)
+			expect(loader._cache[modules.ModuleA:GetFullName()]).to.be.ok()
 
-			expect(loader._cache[moduleA:GetFullName()]).to.be.ok()
-
-			local cachedModuleB = loader._cache[moduleB:GetFullName()]
+			local cachedModuleB = loader._cache[modules.ModuleB:GetFullName()]
 
 			expect(cachedModuleB).to.be.ok()
 			expect(#cachedModuleB.consumers).to.equal(1)
-			expect(cachedModuleB.consumers[1]).to.equal(moduleA:GetFullName())
+			expect(cachedModuleB.consumers[1]).to.equal(modules.ModuleA:GetFullName())
 		end)
 
 		it("should remove all consumers of a changed module from the cache", function()
-			local moduleA = ReplicatedStorage.ConsumerTest.ModuleA
-			local moduleB = ReplicatedStorage.ConsumerTest.ModuleB
-
-			loader:require(moduleA)
+			loader:require(modules.ModuleA)
 
 			expect(next(loader._cache)).to.be.ok()
 
 			task.defer(function()
-				moduleB.Source = 'return "ModuleB Reloaded"'
+				modules.ModuleB.Source = 'return "ModuleB Reloaded"'
 			end)
 			loader.loadedModuleChanged:Wait()
 
 			expect(next(loader._cache)).never.to.be.ok()
+		end)
+
+		it("should not interfere with other cached modules", function()
+			loader:require(modules.ModuleA)
+			loader:require(modules.ModuleC)
+
+			expect(next(loader._cache)).to.be.ok()
+
+			task.defer(function()
+				modules.ModuleB.Source = 'return "ModuleB Reloaded"'
+			end)
+			loader.loadedModuleChanged:Wait()
+
+			expect(loader._cache[modules.ModuleA:GetFullName()]).never.to.be.ok()
+			expect(loader._cache[modules.ModuleB:GetFullName()]).never.to.be.ok()
+			expect(loader._cache[modules.ModuleC:GetFullName()]).to.be.ok()
 		end)
 	end)
 end
