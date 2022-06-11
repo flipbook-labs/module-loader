@@ -96,9 +96,7 @@ function ModuleLoader:_clearConsumerFromCache(moduleFullName: string)
 	local cachedModule: CachedModule = self._cache[moduleFullName]
 
 	if cachedModule then
-		print("clearing", moduleFullName)
 		for _, consumer in ipairs(cachedModule.consumers) do
-			print("consumer", consumer)
 			self._cache[consumer] = nil
 			self:_clearConsumerFromCache(consumer)
 		end
@@ -118,13 +116,11 @@ end
 ]=]
 function ModuleLoader:_trackChanges(module: ModuleScript)
 	self._janitor:Add(module.AncestryChanged:Connect(function()
-		print(module, "moved")
 		self.loadedModuleChanged:Fire(module)
 	end))
 
 	self._janitor:Add(module.Changed:Connect(function(prop: string)
 		if prop == "Source" then
-			print(module, "source changed")
 			self:_clearConsumerFromCache(module:GetFullName())
 			self.loadedModuleChanged:Fire(module)
 		end
@@ -199,8 +195,6 @@ end
 function ModuleLoader:require(module: ModuleScript)
 	local cachedModule = self._cache[module:GetFullName()]
 	local callerPath = self:_getCallerPath()
-
-	print(module, callerPath)
 
 	if cachedModule then
 		if self._cache[callerPath] then
