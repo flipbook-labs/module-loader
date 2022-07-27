@@ -22,7 +22,7 @@ export type CachedModule = {
 	module: ModuleScript,
 	isLoaded: boolean,
 	result: any,
-	consumers: { ModuleScript },
+	consumers: { string },
 }
 
 --[=[
@@ -82,7 +82,7 @@ end
 	This method exists primarily so we can better write unit tests. Attempting
 	to index the Source property from a regular script context throws an error,
 	so this method allows us to safely fallback in tests.
-	
+
 	@private
 ]=]
 function ModuleLoader:_getSource(module: ModuleScript): any?
