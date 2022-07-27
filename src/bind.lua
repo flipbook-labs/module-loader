@@ -26,7 +26,7 @@
 	@within ModuleLoader
 	@private
 ]=]
-local function bind(self: table, callback: (...any) -> any)
+local function bind<T>(self: T, callback: (self: T, ...any) -> any)
 	return function(...)
 		return callback(self, ...)
 	end

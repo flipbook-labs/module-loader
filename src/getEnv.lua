@@ -1,12 +1,14 @@
 local baseEnv = getfenv()
 
-local function getEnv(scriptRelativeTo: LuaSourceContainer)
+local function getEnv(scriptRelativeTo: LuaSourceContainer?)
 	local newEnv = {}
 
 	setmetatable(newEnv, {
 		__index = function(_, key)
 			if key ~= "plugin" then
 				return baseEnv[key]
+			else
+				return nil
 			end
 		end,
 	})
