@@ -6,9 +6,6 @@ on:
     branches:
       - main
 
-env:
-  REPO_URL: github.com/vocksel/module-loader
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -36,7 +33,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Use GITHUB_TOKEN to allow pushing
-        run: git remote set-url origin https://github-actions[bot]:${{ env.GITHUB_TOKEN }}@${{ env.REPO_URL }}
+        run: git remote set-url origin https://github-actions[bot]:${{ env.GITHUB_TOKEN }}@github.com/${{ github.repository }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
