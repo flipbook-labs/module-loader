@@ -1,6 +1,4 @@
 return function()
-	local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
 	local Mock = require(script.Parent.Parent.Mock)
 	local ModuleLoader = require(script.Parent)
 
