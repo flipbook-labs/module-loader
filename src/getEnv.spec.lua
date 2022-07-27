@@ -5,7 +5,7 @@ return function()
 		expect(getEnv()).to.be.a("table")
 	end)
 
-	it("should have the correct 'scriipt' global", function()
+	it("should have the correct 'script' global", function()
 		local env = getEnv(script.Parent.getEnv)
 		expect(env.script).to.equal(script.Parent.getEnv)
 	end)

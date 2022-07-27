@@ -1,13 +1,10 @@
 return function()
-	local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
 	local Mock = require(script.Parent.Parent.Mock)
 	local ModuleLoader = require(script.Parent)
 
 	local mockLoadstring = Mock.new()
 	local loader: ModuleLoader.Class
-	local mockModuleInstance: ModuleScript
-	local mockModule = {}
+	local mockModuleSource = {}
 
 	beforeEach(function()
 		mockLoadstring:mockImplementation(function()
@@ -15,8 +12,6 @@ return function()
 				return true
 			end
 		end)
-
-		mockModuleInstance = Instance.new("ModuleScript")
 
 		loader = ModuleLoader.new()
 		loader._loadstring = mockLoadstring
@@ -40,6 +35,8 @@ return function()
 		-- method so that that if tests are being run from within a normal
 		-- script context that an error will not be produced.
 		it("should return the Source property if it can be indexed", function()
+			local mockModuleInstance = Instance.new("ModuleScript")
+
 			local canIndex = pcall(function()
 				return mockModuleInstance.Source
 			end)
@@ -56,6 +53,8 @@ return function()
 
 	describe("loadedModuleChanged", function()
 		it("should fire when a required module has its ancestry changed", function()
+			local mockModuleInstance = Instance.new("ModuleScript")
+
 			local wasFired = false
 
 			-- Parent the ModuleScript somewhere in the DataModel so we can
@@ -80,7 +79,7 @@ return function()
 		it("should fire when a required module has its Source property change", function()
 			local wasFired = false
 
-			mockModuleInstance = Mock.new()
+			local mockModuleInstance = Mock.new()
 
 			-- This method needs to be stubbed out to suppress an error
 			mockModuleInstance.GetFullName:mockImplementation(function()
@@ -113,22 +112,28 @@ return function()
 
 	describe("cache", function()
 		it("should add a module and its result to the cache", function()
-			loader:cache(mockModuleInstance, mockModule)
+			local mockModuleInstance = Instance.new("ModuleScript")
+
+			loader:cache(mockModuleInstance, mockModuleSource)
 
 			local cachedModule = loader._cache[mockModuleInstance:GetFullName()]
 
 			expect(cachedModule).to.be.ok()
-			expect(cachedModule.result).to.equal(mockModule)
+			expect(cachedModule.result).to.equal(mockModuleSource)
 		end)
 	end)
 
 	describe("require", function()
 		it("should use loadstring to load the module", function()
+			local mockModuleInstance = Instance.new("ModuleScript")
+
 			loader:require(mockModuleInstance)
 			expect(#mockLoadstring.mock.calls).to.equal(1)
 		end)
 
 		it("should add the module to the cache", function()
+			local mockModuleInstance = Instance.new("ModuleScript")
+
 			loader:require(mockModuleInstance)
 			expect(loader._cache[mockModuleInstance:GetFullName()]).to.be.ok()
 		end)
@@ -136,7 +141,9 @@ return function()
 
 	describe("clear", function()
 		it("should remove all modules from the cache", function()
-			loader:cache(mockModuleInstance, mockModule)
+			local mockModuleInstance = Instance.new("ModuleScript")
+
+			loader:cache(mockModuleInstance, mockModuleSource)
 
 			expect(countDict(loader._cache)).to.equal(1)
 
@@ -204,21 +211,24 @@ return function()
 		it("should remove all consumers of a changed module from the cache", function()
 			loader:require(modules.ModuleA)
 
-			expect(next(loader._cache)).to.be.ok()
+			local hasItems = next(loader._cache) ~= nil
+			expect(hasItems).to.be.ok()
 
 			task.defer(function()
 				modules.ModuleB.Source = 'return "ModuleB Reloaded"'
 			end)
 			loader.loadedModuleChanged:Wait()
 
-			expect(next(loader._cache)).never.to.be.ok()
+			hasItems = next(loader._cache) ~= nil
+			expect(hasItems).never.to.be.ok()
 		end)
 
 		it("should not interfere with other cached modules", function()
 			loader:require(modules.ModuleA)
 			loader:require(modules.ModuleC)
 
-			expect(next(loader._cache)).to.be.ok()
+			local hasItems = next(loader._cache) ~= nil
+			expect(hasItems).to.be.ok()
 
 			task.defer(function()
 				modules.ModuleB.Source = 'return "ModuleB Reloaded"'

@@ -22,7 +22,7 @@ export type CachedModule = {
 	module: ModuleScript,
 	isLoaded: boolean,
 	result: any,
-	consumers: { ModuleScript },
+	consumers: { string },
 }
 
 --[=[
