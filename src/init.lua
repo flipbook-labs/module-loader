@@ -34,7 +34,7 @@ function ModuleLoader.new()
 	self._cache = {}
 	self._loadstring = loadstring
 	self._debugInfo = debug.info
-	self._janitor = Janitor.new()
+	self._janitors = {}
 
 	--[=[
 		Fired when any ModuleScript required through this class has its ancestry
@@ -82,7 +82,7 @@ end
 	This method exists primarily so we can better write unit tests. Attempting
 	to index the Source property from a regular script context throws an error,
 	so this method allows us to safely fallback in tests.
-	
+
 	@private
 ]=]
 function ModuleLoader:_getSource(module: ModuleScript): any?
@@ -116,16 +116,28 @@ end
 	@private
 ]=]
 function ModuleLoader:_trackChanges(module: ModuleScript)
-	self._janitor:Add(module.AncestryChanged:Connect(function()
+	local existingJanitor = self._janitors[module:GetFullName()]
+	if existingJanitor then
+		existingJanitor:clean()
+		self._janitors[module:GetFullName()] = nil
+	end
+
+	local janitor = Janitor.new()
+
+	-- TODO: Every time a module is required, these events get hooked up. But
+	-- they only get disconnected when calling ModuleLoader:clear()
+	janitor:Add(module.AncestryChanged:Connect(function()
 		self.loadedModuleChanged:Fire(module)
 	end))
 
-	self._janitor:Add(module.Changed:Connect(function(prop: string)
+	janitor:Add(module.Changed:Connect(function(prop: string)
 		if prop == "Source" then
 			self:_clearConsumerFromCache(module:GetFullName())
 			self.loadedModuleChanged:Fire(module)
 		end
 	end))
+
+	self._janitors[module:GetFullName()] = janitor
 end
 
 --[=[
@@ -236,7 +248,11 @@ end
 ]=]
 function ModuleLoader:clear()
 	self._cache = {}
-	self._janitor:Cleanup()
+
+	for _, janitor in self._janitors do
+		janitor:Cleanup()
+	end
+	self._janitors = {}
 end
 
 export type Class = typeof(ModuleLoader.new())
