@@ -5,19 +5,14 @@ on:
     branches:
       - main
   pull_request:
-  schedule:
-    # Every day at 8pm UTC (12am PST)
-    - cron: "0 20 * * *"
 
 jobs:
-  code-quality:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
-      - name: Install Foreman dependencies
-        uses: Roblox/setup-foreman@v1
+      - uses: Roblox/setup-foreman@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -28,6 +23,12 @@ jobs:
 
       - name: Format
         run: stylua --check src/
+
+      - name: Install dependencies
+        run: wally install
+
+      - name: Build
+        run: rojo build -o build.rbxm
 
   validate-moonwave-docs:
     runs-on: ubuntu-latest
@@ -45,41 +46,30 @@ jobs:
       - name: Extract moonwave
         run: moonwave-extractor extract src
 
-  tests:
-    runs-on: windows-latest
-    timeout-minutes: 10
+  analyze:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-      - name: Check for ROBLOSECURITY secret
-        shell: bash
-        run: |
-          if [[ -z "$ROBLOSECURITY" ]]; then
-              echo "Could not find ROBLOSECURITY token. Add a secret named 'ROBLOSECURITY' to the repo and try again"
-              exit 1
-          else
-              echo "Found ROBLOSECURITY token. Continuing..."
-          fi
-        env:
-          ROBLOSECURITY: ${{ secrets.ROBLOSECURITY }}
-
-      - name: Install toolchain
-        uses: Roblox/setup-foreman@v1
+      - uses: Roblox/setup-foreman@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
         run: wally install
 
-      - name: Build place file
-        run: rojo build dev.project.json -o studio-tests.rbxlx
+      - name: Download global Roblox types
+        shell: bash
+        run: curl -s -O https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/master/scripts/globalTypes.d.lua
 
-      - name: Install Roblox Studio
-        uses: OrbitalOwen/roblox-win-installer-action@1.1
-        with:
-          cookie: ${{ secrets.ROBLOSECURITY }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate sourcemap for LSP
+        shell: bash
+        run: rojo sourcemap dev.project.json -o sourcemap.json
 
-      - name: Run tests
-        run: run-in-roblox --place studio-tests.rbxlx --script tests/init.server.lua
+      - name: Ignore packages in analysis
+        shell: bash
+        run: mv .github/workflows/.luaurc Packages
+
+      - name: Analyze
+        shell: bash
+        run: luau-lsp analyze --sourcemap=sourcemap.json --defs=globalTypes.d.lua --defs=testez.d.lua --formatter=gnu src/
