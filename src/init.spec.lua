@@ -51,6 +51,30 @@ return function()
 		end)
 	end)
 
+	describe("_trackChanges", function()
+		it("should create a Janitor instance if it doesn't exist", function()
+			local mockModuleInstance = Instance.new("ModuleScript")
+
+			expect(loader._janitors[mockModuleInstance.Name]).never.to.be.ok()
+
+			loader:_trackChanges(mockModuleInstance)
+
+			expect(loader._janitors[mockModuleInstance.Name]).to.be.ok()
+		end)
+
+		it("should reuse the same Janitor instance for future calls", function()
+			local mockModuleInstance = Instance.new("ModuleScript")
+
+			loader:_trackChanges(mockModuleInstance)
+
+			local janitor = loader._janitors[mockModuleInstance.Name]
+
+			loader:_trackChanges(mockModuleInstance)
+
+			expect(loader._janitors[mockModuleInstance.Name]).to.equal(janitor)
+		end)
+	end)
+
 	describe("loadedModuleChanged", function()
 		it("should fire when a required module has its ancestry changed", function()
 			local mockModuleInstance = Instance.new("ModuleScript")
@@ -212,7 +236,7 @@ return function()
 			loader:require(modules.ModuleA)
 
 			local hasItems = next(loader._cache) ~= nil
-			expect(hasItems).to.be.ok()
+			expect(hasItems).to.equal(true)
 
 			task.defer(function()
 				modules.ModuleB.Source = 'return "ModuleB Reloaded"'
@@ -220,7 +244,7 @@ return function()
 			loader.loadedModuleChanged:Wait()
 
 			hasItems = next(loader._cache) ~= nil
-			expect(hasItems).never.to.be.ok()
+			expect(hasItems).to.equal(false)
 		end)
 
 		it("should not interfere with other cached modules", function()
@@ -228,7 +252,7 @@ return function()
 			loader:require(modules.ModuleC)
 
 			local hasItems = next(loader._cache) ~= nil
-			expect(hasItems).to.be.ok()
+			expect(hasItems).to.equal(true)
 
 			task.defer(function()
 				modules.ModuleB.Source = 'return "ModuleB Reloaded"'

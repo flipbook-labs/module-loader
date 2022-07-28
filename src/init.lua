@@ -34,7 +34,7 @@ function ModuleLoader.new()
 	self._cache = {}
 	self._loadstring = loadstring
 	self._debugInfo = debug.info
-	self._janitor = Janitor.new()
+	self._janitors = {}
 
 	--[=[
 		Fired when any ModuleScript required through this class has its ancestry
@@ -116,16 +116,23 @@ end
 	@private
 ]=]
 function ModuleLoader:_trackChanges(module: ModuleScript)
-	self._janitor:Add(module.AncestryChanged:Connect(function()
+	local existingJanitor = self._janitors[module:GetFullName()]
+	local janitor = if existingJanitor then existingJanitor else Janitor.new()
+
+	janitor:Cleanup()
+
+	janitor:Add(module.AncestryChanged:Connect(function()
 		self.loadedModuleChanged:Fire(module)
 	end))
 
-	self._janitor:Add(module.Changed:Connect(function(prop: string)
+	janitor:Add(module.Changed:Connect(function(prop: string)
 		if prop == "Source" then
 			self:_clearConsumerFromCache(module:GetFullName())
 			self.loadedModuleChanged:Fire(module)
 		end
 	end))
+
+	self._janitors[module:GetFullName()] = janitor
 end
 
 --[=[
@@ -236,7 +243,11 @@ end
 ]=]
 function ModuleLoader:clear()
 	self._cache = {}
-	self._janitor:Cleanup()
+
+	for _, janitor in self._janitors do
+		janitor:Cleanup()
+	end
+	self._janitors = {}
 end
 
 export type Class = typeof(ModuleLoader.new())
