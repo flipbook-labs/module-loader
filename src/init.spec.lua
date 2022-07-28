@@ -212,7 +212,7 @@ return function()
 			loader:require(modules.ModuleA)
 
 			local hasItems = next(loader._cache) ~= nil
-			expect(hasItems).to.be.ok()
+			expect(hasItems).to.equal(true)
 
 			task.defer(function()
 				modules.ModuleB.Source = 'return "ModuleB Reloaded"'
@@ -220,7 +220,7 @@ return function()
 			loader.loadedModuleChanged:Wait()
 
 			hasItems = next(loader._cache) ~= nil
-			expect(hasItems).never.to.be.ok()
+			expect(hasItems).to.equal(false)
 		end)
 
 		it("should not interfere with other cached modules", function()
@@ -228,7 +228,7 @@ return function()
 			loader:require(modules.ModuleC)
 
 			local hasItems = next(loader._cache) ~= nil
-			expect(hasItems).to.be.ok()
+			expect(hasItems).to.equal(true)
 
 			task.defer(function()
 				modules.ModuleB.Source = 'return "ModuleB Reloaded"'
