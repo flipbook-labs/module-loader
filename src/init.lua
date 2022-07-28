@@ -117,15 +117,10 @@ end
 ]=]
 function ModuleLoader:_trackChanges(module: ModuleScript)
 	local existingJanitor = self._janitors[module:GetFullName()]
-	if existingJanitor then
-		existingJanitor:clean()
-		self._janitors[module:GetFullName()] = nil
-	end
+	local janitor = if existingJanitor then existingJanitor else Janitor.new()
 
-	local janitor = Janitor.new()
+	janitor:Cleanup()
 
-	-- TODO: Every time a module is required, these events get hooked up. But
-	-- they only get disconnected when calling ModuleLoader:clear()
 	janitor:Add(module.AncestryChanged:Connect(function()
 		self.loadedModuleChanged:Fire(module)
 	end))
