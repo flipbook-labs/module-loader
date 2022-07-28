@@ -17,8 +17,8 @@ Studio, but once a change is made to an already required module the whole
 place must be reloaded for the cache to be reset. With this class, the cache
 is ignored when requiring a module so you are able to load a module, make
 changes, and load it again without reloading the whole place."><link data-rh="true" rel="canonical" href="https://vocksel.github.io/module-loader/api/ModuleLoader"><link data-rh="true" rel="alternate" href="https://vocksel.github.io/module-loader/api/ModuleLoader" hreflang="en"><link data-rh="true" rel="alternate" href="https://vocksel.github.io/module-loader/api/ModuleLoader" hreflang="x-default"><link rel="stylesheet" href="/module-loader/assets/css/styles.b66543fc.css">
-<link rel="preload" href="/module-loader/assets/js/runtime~main.03292e21.js" as="script">
-<link rel="preload" href="/module-loader/assets/js/main.afccbc33.js" as="script">
+<link rel="preload" href="/module-loader/assets/js/runtime~main.0384c3b9.js" as="script">
+<link rel="preload" href="/module-loader/assets/js/main.3e4b8f51.js" as="script">
 </head>
 <body class="navigation-with-keyboard">
 <script>!function(){function e(e){document.documentElement.setAttribute("data-theme",e)}var t=function(){var e=null;try{e=localStorage.getItem("theme")}catch(e){}return e}();null!==t?e(t):window.matchMedia("(prefers-color-scheme: dark)").matches?e("dark"):(window.matchMedia("(prefers-color-scheme: light)").matches,e("light"))}()</script><div id="__docusaurus">
@@ -51,7 +51,7 @@ loader<span class="token punctuation">.</span>loadedModuleChanged<span class="to
 </code></pre>
 </div><h2 class="anchor anchorWithStickyNavbar_LWe7" id="functions">Functions<a class="hash-link" href="#functions" title="Direct link to heading">​</a></h2><div class="divider_rE5g"></div><h3 class="anchor anchorWithStickyNavbar_LWe7" id="new"><code style="text-decoration:none">new</code><a class="hash-link" href="#new" title="Direct link to heading">​</a></h3><div class="repositoryDetailsContainer_BPdw"><a class="sourceButton_sEho" href="https://github.com/vocksel/module-loader/blob/master/src/init.lua#L31"><div class="sourceButtonText_Vh0m">&lt;/&gt;</div></a></div><div class="memberString_GwaU"><code>ModuleLoader<!-- -->.</code><code class="green_DgR4">new</code><code>(</code><code>) → </code><code>(</code><code>)</code></div><div>
 <p>Constructs a new ModuleLoader instance.</p>
-</div><div class="divider_rE5g"></div><h3 class="anchor anchorWithStickyNavbar_LWe7" id="cache"><code style="text-decoration:none">cache</code><a class="hash-link" href="#cache" title="Direct link to heading">​</a></h3><div class="repositoryDetailsContainer_BPdw"><a class="sourceButton_sEho" href="https://github.com/vocksel/module-loader/blob/master/src/init.lua#L146"><div class="sourceButtonText_Vh0m">&lt;/&gt;</div></a></div><div class="memberString_GwaU"><code>ModuleLoader<!-- -->:</code><code class="green_DgR4">cache</code><code>(</code><div class="inset_uKQm"><div><code>module<!-- -->: </code><code class="blue_P4bS"><a style="text-decoration:underline;color:inherit" href="https://developer.roblox.com/en-us/api-reference/class/ModuleScript" target="_blank" rel="noopener noreferrer">ModuleScript<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound" style="color:gray;vertical-align:middle;margin-left:2px"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></code><code>,</code></div><div><code>result<!-- -->: </code><code class="blue_P4bS">any</code></div></div><code>) → </code><code>(</code><code>)</code></div><div>
+</div><div class="divider_rE5g"></div><h3 class="anchor anchorWithStickyNavbar_LWe7" id="cache"><code style="text-decoration:none">cache</code><a class="hash-link" href="#cache" title="Direct link to heading">​</a></h3><div class="repositoryDetailsContainer_BPdw"><a class="sourceButton_sEho" href="https://github.com/vocksel/module-loader/blob/master/src/init.lua#L153"><div class="sourceButtonText_Vh0m">&lt;/&gt;</div></a></div><div class="memberString_GwaU"><code>ModuleLoader<!-- -->:</code><code class="green_DgR4">cache</code><code>(</code><div class="inset_uKQm"><div><code>module<!-- -->: </code><code class="blue_P4bS"><a style="text-decoration:underline;color:inherit" href="https://developer.roblox.com/en-us/api-reference/class/ModuleScript" target="_blank" rel="noopener noreferrer">ModuleScript<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound" style="color:gray;vertical-align:middle;margin-left:2px"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></code><code>,</code></div><div><code>result<!-- -->: </code><code class="blue_P4bS">any</code></div></div><code>) → </code><code>(</code><code>)</code></div><div>
 <p>Set the cached value for a module before it is loaded.</p>
 <p>
   This is useful is very specific situations. For example, this method is
@@ -64,7 +64,7 @@ loader<span class="token punctuation">.</span>loadedModuleChanged<span class="to
 <span class="token keyword">local</span> loader <span class="token operator">=</span> ModuleLoader<span class="token punctuation">.</span><span class="token function">new</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
 loader<span class="token punctuation">:</span><span class="token function">cache</span><span class="token punctuation">(</span>moduleInstance<span class="token punctuation">,</span> module<span class="token punctuation">)</span>
 </code></pre>
-</div><div class="divider_rE5g"></div><h3 class="anchor anchorWithStickyNavbar_LWe7" id="require"><code style="text-decoration:none">require</code><a class="hash-link" href="#require" title="Direct link to heading">​</a></h3><div class="repositoryDetailsContainer_BPdw"><a class="sourceButton_sEho" href="https://github.com/vocksel/module-loader/blob/master/src/init.lua#L169"><div class="sourceButtonText_Vh0m">&lt;/&gt;</div></a></div><div class="memberString_GwaU"><code>ModuleLoader<!-- -->:</code><code class="green_DgR4">require</code><code>(</code><code>module<!-- -->: </code><code class="blue_P4bS"><a style="text-decoration:underline;color:inherit" href="https://developer.roblox.com/en-us/api-reference/class/ModuleScript" target="_blank" rel="noopener noreferrer">ModuleScript<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound" style="color:gray;vertical-align:middle;margin-left:2px"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></code><code>) → </code><code>(</code><code>)</code></div><div>
+</div><div class="divider_rE5g"></div><h3 class="anchor anchorWithStickyNavbar_LWe7" id="require"><code style="text-decoration:none">require</code><a class="hash-link" href="#require" title="Direct link to heading">​</a></h3><div class="repositoryDetailsContainer_BPdw"><a class="sourceButton_sEho" href="https://github.com/vocksel/module-loader/blob/master/src/init.lua#L176"><div class="sourceButtonText_Vh0m">&lt;/&gt;</div></a></div><div class="memberString_GwaU"><code>ModuleLoader<!-- -->:</code><code class="green_DgR4">require</code><code>(</code><code>module<!-- -->: </code><code class="blue_P4bS"><a style="text-decoration:underline;color:inherit" href="https://developer.roblox.com/en-us/api-reference/class/ModuleScript" target="_blank" rel="noopener noreferrer">ModuleScript<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound" style="color:gray;vertical-align:middle;margin-left:2px"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg></a></code><code>) → </code><code>(</code><code>)</code></div><div>
 <p>Require a module with a fresh ModuleScript require cache.</p>
 <p>
   This method is functionally the same as running <code>require(script.Parent.ModuleScript)</code>,
@@ -74,7 +74,7 @@ loader<span class="token punctuation">:</span><span class="token function">cache
 <pre class="language-lua"><code class="language-lua"><span class="token keyword">local</span> loader <span class="token operator">=</span> ModuleLoader<span class="token punctuation">.</span><span class="token function">new</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
 <span class="token keyword">local</span> module <span class="token operator">=</span> loader<span class="token punctuation">:</span><span class="token function">require</span><span class="token punctuation">(</span>script<span class="token punctuation">.</span>Parent<span class="token punctuation">.</span>ModuleScript<span class="token punctuation">)</span>
 </code></pre>
-</div><div class="divider_rE5g"></div><h3 class="anchor anchorWithStickyNavbar_LWe7" id="clear"><code style="text-decoration:none">clear</code><a class="hash-link" href="#clear" title="Direct link to heading">​</a></h3><div class="repositoryDetailsContainer_BPdw"><a class="sourceButton_sEho" href="https://github.com/vocksel/module-loader/blob/master/src/init.lua#L237"><div class="sourceButtonText_Vh0m">&lt;/&gt;</div></a></div><div class="memberString_GwaU"><code>ModuleLoader<!-- -->:</code><code class="green_DgR4">clear</code><code>(</code><code>) → </code><code>(</code><code>)</code></div><div>
+</div><div class="divider_rE5g"></div><h3 class="anchor anchorWithStickyNavbar_LWe7" id="clear"><code style="text-decoration:none">clear</code><a class="hash-link" href="#clear" title="Direct link to heading">​</a></h3><div class="repositoryDetailsContainer_BPdw"><a class="sourceButton_sEho" href="https://github.com/vocksel/module-loader/blob/master/src/init.lua#L244"><div class="sourceButtonText_Vh0m">&lt;/&gt;</div></a></div><div class="memberString_GwaU"><code>ModuleLoader<!-- -->:</code><code class="green_DgR4">clear</code><code>(</code><code>) → </code><code>(</code><code>)</code></div><div>
 <p>Clears out the internal cache.</p>
 <p>
   While this module bypasses Roblox's ModuleScript cache, one is still
@@ -189,7 +189,7 @@ loader<span class="token punctuation">:</span><span class="token function">requi
             &quot;returns&quot;: [],
             &quot;function_type&quot;: &quot;method&quot;,
             &quot;source&quot;: {
-                &quot;line&quot;: 146,
+                &quot;line&quot;: 153,
                 &quot;path&quot;: &quot;src/init.lua&quot;
             }
         },
@@ -206,7 +206,7 @@ loader<span class="token punctuation">:</span><span class="token function">requi
             &quot;returns&quot;: [],
             &quot;function_type&quot;: &quot;method&quot;,
             &quot;source&quot;: {
-                &quot;line&quot;: 169,
+                &quot;line&quot;: 176,
                 &quot;path&quot;: &quot;src/init.lua&quot;
             }
         },
@@ -217,7 +217,7 @@ loader<span class="token punctuation">:</span><span class="token function">requi
             &quot;returns&quot;: [],
             &quot;function_type&quot;: &quot;method&quot;,
             &quot;source&quot;: {
-                &quot;line&quot;: 237,
+                &quot;line&quot;: 244,
                 &quot;path&quot;: &quot;src/init.lua&quot;
             }
         }
@@ -241,7 +241,7 @@ loader<span class="token punctuation">:</span><span class="token function">requi
         &quot;path&quot;: &quot;src/init.lua&quot;
     }
 }</pre></details></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#types" class="table-of-contents__link toc-highlight">Types</a></li><li><a href="#properties" class="table-of-contents__link toc-highlight">Properties</a><ul><li><a href="#loadedModuleChanged" class="table-of-contents__link toc-highlight">loadedModuleChanged</a></li></ul></li><li><a href="#functions" class="table-of-contents__link toc-highlight">Functions</a><ul><li><a href="#cache" class="table-of-contents__link toc-highlight">:cache</a></li><li><a href="#clear" class="table-of-contents__link toc-highlight">:clear</a></li><li><a href="#require" class="table-of-contents__link toc-highlight">:require</a></li><li><a href="#new" class="table-of-contents__link toc-highlight">.new</a></li></ul></li></ul></div></div></div></div></main></div></div><footer class="footer footer--dark"><div class="container container-fluid"><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2022 vocksel. Built with Moonwave and Docusaurus.</div></div></div></footer></div>
-<script src="/module-loader/assets/js/runtime~main.03292e21.js"></script>
-<script src="/module-loader/assets/js/main.afccbc33.js"></script>
+<script src="/module-loader/assets/js/runtime~main.0384c3b9.js"></script>
+<script src="/module-loader/assets/js/main.3e4b8f51.js"></script>
 </body>
 </html>
