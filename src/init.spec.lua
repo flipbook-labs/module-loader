@@ -51,6 +51,30 @@ return function()
 		end)
 	end)
 
+	describe("_trackChanges", function()
+		it("should create a Janitor instance if it doesn't exist", function()
+			local mockModuleInstance = Instance.new("ModuleScript")
+
+			expect(loader._janitors[mockModuleInstance.Name]).never.to.be.ok()
+
+			loader:_trackChanges(mockModuleInstance)
+
+			expect(loader._janitors[mockModuleInstance.Name]).to.be.ok()
+		end)
+
+		it("should reuse the same Janitor instance for future calls", function()
+			local mockModuleInstance = Instance.new("ModuleScript")
+
+			loader:_trackChanges(mockModuleInstance)
+
+			local janitor = loader._janitors[mockModuleInstance.Name]
+
+			loader:_trackChanges(mockModuleInstance)
+
+			expect(loader._janitors[mockModuleInstance.Name]).to.equal(janitor)
+		end)
+	end)
+
 	describe("loadedModuleChanged", function()
 		it("should fire when a required module has its ancestry changed", function()
 			local mockModuleInstance = Instance.new("ModuleScript")
