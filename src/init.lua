@@ -35,6 +35,7 @@ function ModuleLoader.new()
 	self._loadstring = loadstring
 	self._debugInfo = debug.info
 	self._janitors = {}
+	self._globals = {}
 
 	--[=[
 		Fired when any ModuleScript required through this class has its ancestry
@@ -202,7 +203,7 @@ function ModuleLoader:require(module: ModuleScript)
 	}
 	self._cache[module:GetFullName()] = newCachedModule
 
-	local env = getEnv(module)
+	local env = getEnv(module, self._globals)
 	env.require = bind(self, self.require)
 	setfenv(moduleFn, env)
 
@@ -243,6 +244,7 @@ end
 ]=]
 function ModuleLoader:clear()
 	self._cache = {}
+	self._globals = {}
 
 	for _, janitor in self._janitors do
 		janitor:Cleanup()

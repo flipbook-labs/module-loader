@@ -175,6 +175,14 @@ return function()
 
 			expect(countDict(loader._cache)).to.equal(0)
 		end)
+
+		it("should reset globals", function()
+			local globals = loader._globals
+
+			loader:clear()
+
+			expect(loader._globals).never.to.equal(globals)
+		end)
 	end)
 
 	-- For these tests to work, TestEZ must be run from a plugin context so that
@@ -262,6 +270,41 @@ return function()
 			expect(loader._cache[modules.ModuleA:GetFullName()]).never.to.be.ok()
 			expect(loader._cache[modules.ModuleB:GetFullName()]).never.to.be.ok()
 			expect(loader._cache[modules.ModuleC:GetFullName()]).to.be.ok()
+		end)
+
+		it("should keep track of variables assigned to _G", function()
+			local folder = Instance.new("Folder")
+
+			local defineGlobal = Instance.new("ModuleScript")
+			defineGlobal.Name = "DefineGlobal"
+			defineGlobal.Source = [[
+				_G.foo = true
+				return nil
+			]]
+			defineGlobal.Parent = folder
+
+			local returnGlobal = Instance.new("ModuleScript")
+			returnGlobal.Name = "ReturnGlobal"
+			returnGlobal.Source = [[
+				return _G.foo
+			]]
+			returnGlobal.Parent = folder
+
+			folder.Parent = game
+
+			loader:require(defineGlobal)
+
+			expect(loader._globals.foo).to.equal(true)
+
+			local result = loader:require(returnGlobal)
+
+			expect(result).to.equal(true)
+
+			loader:clear()
+
+			expect(loader._globals.foo).never.to.be.ok()
+
+			folder:Destroy()
 		end)
 	end)
 end
