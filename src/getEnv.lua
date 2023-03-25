@@ -1,6 +1,6 @@
 local baseEnv = getfenv()
 
-local function getEnv(scriptRelativeTo: LuaSourceContainer?, globals: { [any]: any })
+local function getEnv(scriptRelativeTo: LuaSourceContainer?, globals: { [any]: any }?)
 	local newEnv = {}
 
 	setmetatable(newEnv, {
