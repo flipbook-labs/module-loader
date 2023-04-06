@@ -1,24 +1,11 @@
 return function()
-	local Mock = require(script.Parent.Parent.Mock)
 	local ModuleLoader = require(script.Parent)
 
-	local mockLoadstring = Mock.new()
 	local loader: ModuleLoader.Class
 	local mockModuleSource = {}
 
 	beforeEach(function()
-		mockLoadstring:mockImplementation(function()
-			return function()
-				return true
-			end
-		end)
-
 		loader = ModuleLoader.new()
-		loader._loadstring = mockLoadstring
-	end)
-
-	afterEach(function()
-		mockLoadstring:reset()
 	end)
 
 	local function countDict(dict: { [string]: any })
@@ -27,6 +14,34 @@ return function()
 			count += 1
 		end
 		return count
+	end
+
+	type ModuleTestTree = {
+		[string]: string | ModuleTestTree,
+	}
+	local testNumber = 0
+	local function createModuleTest(tree: ModuleTestTree, parent: Instance?)
+		testNumber += 1
+
+		local root = Instance.new("Folder")
+		root.Name = "ModuleTest" .. testNumber
+
+		parent = if parent then parent else root
+
+		for name, sourceOrDescendants in tree do
+			if typeof(sourceOrDescendants) == "table" then
+				createModuleTest(sourceOrDescendants, parent)
+			else
+				local module = Instance.new("ModuleScript")
+				module.Name = name
+				module.Source = sourceOrDescendants
+				module.Parent = parent
+			end
+		end
+
+		root.Parent = game
+
+		return root
 	end
 
 	describe("_getSource", function()
@@ -101,23 +116,9 @@ return function()
 		end)
 
 		it("should fire when a required module has its Source property change", function()
+			local mockModuleInstance = Instance.new("ModuleScript")
+
 			local wasFired = false
-
-			local mockModuleInstance = Mock.new()
-
-			-- This method needs to be stubbed out to suppress an error
-			mockModuleInstance.GetFullName:mockImplementation(function()
-				return "Path.To.ModuleScript"
-			end)
-
-			-- Need to stub out this event to suppress an error
-			mockModuleInstance.AncestryChanged = Instance.new("BindableEvent").Event
-
-			-- Setup mock Changed event since we can't modify the Source
-			-- property ourselves
-			local sourceChanged = Instance.new("BindableEvent")
-			mockModuleInstance.Changed = sourceChanged.Event
-
 			loader.loadedModuleChanged:Connect(function(other: ModuleScript)
 				if other == mockModuleInstance then
 					wasFired = true
@@ -127,8 +128,7 @@ return function()
 			-- Require the module so that events get setup
 			loader:require(mockModuleInstance)
 
-			-- Trigger the mocked Changed event
-			sourceChanged:Fire("Source")
+			mockModuleInstance.Source = "Something different"
 
 			expect(wasFired).to.equal(true)
 		end)
@@ -148,18 +148,126 @@ return function()
 	end)
 
 	describe("require", function()
-		it("should use loadstring to load the module", function()
-			local mockModuleInstance = Instance.new("ModuleScript")
-
-			loader:require(mockModuleInstance)
-			expect(#mockLoadstring.mock.calls).to.equal(1)
-		end)
-
 		it("should add the module to the cache", function()
 			local mockModuleInstance = Instance.new("ModuleScript")
 
 			loader:require(mockModuleInstance)
 			expect(loader._cache[mockModuleInstance:GetFullName()]).to.be.ok()
+		end)
+
+		it("should return cached results", function()
+			local tree = createModuleTest({
+				-- We return a table since it can act as a unique symbol. So if
+				-- both consumers are getting the same table we can perform an
+				-- equality check
+				SharedModule = [[
+					local module = {}
+					return module
+				]],
+				Consumer1 = [[
+					local sharedModule = require(script.Parent.SharedModule)
+					return sharedModule
+				]],
+				Consumer2 = [[
+					local sharedModule = require(script.Parent.SharedModule)
+					return sharedModule
+				]],
+			})
+
+			local sharedModuleFromConsumer1 = loader:require(tree.Consumer1)
+			local sharedModuleFromConsumer2 = loader:require(tree.Consumer2)
+
+			expect(sharedModuleFromConsumer1).to.equal(sharedModuleFromConsumer2)
+		end)
+
+		it("should add the calling script as a consumer", function()
+			local tree = createModuleTest({
+				SharedModule = [[
+					local module = {}
+					return module
+				]],
+				Consumer = [[
+					local sharedModule = require(script.Parent.SharedModule)
+					return sharedModule
+				]],
+			})
+
+			loader:require(tree.Consumer)
+
+			local cachedModule = loader._cache[tree.SharedModule:GetFullName()]
+
+			expect(cachedModule).to.be.ok()
+			expect(cachedModule.consumers[tree.Consumer:GetFullName()]).to.be.ok()
+		end)
+
+		it("should update consumers when requiring a cached module from a different script", function()
+			local tree = createModuleTest({
+				SharedModule = [[
+					local module = {}
+					return module
+				]],
+				Consumer1 = [[
+					local sharedModule = require(script.Parent.SharedModule)
+					return sharedModule
+				]],
+				Consumer2 = [[
+					local sharedModule = require(script.Parent.SharedModule)
+					return sharedModule
+				]],
+			})
+
+			loader:require(tree.Consumer1)
+
+			local cachedModule = loader._cache[tree.SharedModule:GetFullName()]
+
+			expect(cachedModule.consumers[tree.Consumer1:GetFullName()]).to.be.ok()
+			expect(cachedModule.consumers[tree.Consumer2:GetFullName()]).never.to.be.ok()
+
+			loader:require(tree.Consumer2)
+
+			expect(cachedModule.consumers[tree.Consumer1:GetFullName()]).to.be.ok()
+			expect(cachedModule.consumers[tree.Consumer2:GetFullName()]).to.be.ok()
+		end)
+
+		it("should keep track of _G between modules", function()
+			local tree = createModuleTest({
+				WriteGlobal = [[
+					_G.foo = true
+					return nil
+				]],
+				ReadGlobal = [[
+					return _G.foo
+				]],
+			})
+
+			loader:require(tree.WriteGlobal)
+
+			expect(loader._globals.foo).to.equal(true)
+
+			local result = loader:require(tree.ReadGlobal)
+
+			expect(result).to.equal(true)
+		end)
+
+		it("should keep track of _G in nested requires", function()
+			local tree = createModuleTest({
+				DefineGlobal = [[
+					_G.foo = true
+					return nil
+				]],
+				UseGlobal = [[
+					require(script.Parent.DefineGlobal)
+					return _G.foo
+				]],
+			})
+
+			local result = loader:require(tree.UseGlobal)
+
+			expect(result).to.equal(true)
+
+			loader:clear()
+
+			expect(loader._globals.foo).never.to.be.ok()
 		end)
 	end)
 
@@ -189,65 +297,41 @@ return function()
 	-- loadstring works, along with assigning to the `Source` property of
 	-- modules
 	describe("consumers", function()
-		local modules = Instance.new("Folder") :: Folder & {
-			ModuleA: ModuleScript,
-			ModuleB: ModuleScript,
-			ModuleC: ModuleScript,
-		}
-
-		beforeEach(function()
-			local moduleA = Instance.new("ModuleScript")
-			moduleA.Name = "ModuleA"
-			moduleA.Source = [[
+		local tree = createModuleTest({
+			ModuleA = [[
 				require(script.Parent.ModuleB)
 
 				return "ModuleA"
-			]]
-			moduleA.Parent = modules
-
-			local moduleB = Instance.new("ModuleScript")
-			moduleB.Name = "ModuleB"
-			moduleB.Source = [[
+			]],
+			ModuleB = [[
 				return "ModuleB"
-			]]
-			moduleB.Parent = modules
+			]],
 
-			local moduleC = Instance.new("ModuleScript")
-			moduleC.Name = "ModuleC"
-			moduleC.Source = [[
+			ModuleC = [[
 				return "ModuleC"
-			]]
-			moduleC.Parent = modules
-
-			modules.Parent = game
-
-			loader._loadstring = loadstring
-		end)
-
-		afterEach(function()
-			modules:ClearAllChildren()
-		end)
+			]],
+		})
 
 		it("should keep track of the consumers for a module", function()
-			loader:require(modules.ModuleA)
+			loader:require(tree.ModuleA)
 
-			expect(loader._cache[modules.ModuleA:GetFullName()]).to.be.ok()
+			expect(loader._cache[tree.ModuleA:GetFullName()]).to.be.ok()
 
-			local cachedModuleB = loader._cache[modules.ModuleB:GetFullName()]
+			local cachedModuleB = loader._cache[tree.ModuleB:GetFullName()]
 
 			expect(cachedModuleB).to.be.ok()
-			expect(#cachedModuleB.consumers).to.equal(1)
-			expect(cachedModuleB.consumers[1]).to.equal(modules.ModuleA:GetFullName())
+			expect(countDict(cachedModuleB.consumers)).to.equal(1)
+			expect(cachedModuleB.consumers[tree.ModuleA:GetFullName()]).to.be.ok()
 		end)
 
 		it("should remove all consumers of a changed module from the cache", function()
-			loader:require(modules.ModuleA)
+			loader:require(tree.ModuleA)
 
 			local hasItems = next(loader._cache) ~= nil
 			expect(hasItems).to.equal(true)
 
 			task.defer(function()
-				modules.ModuleB.Source = 'return "ModuleB Reloaded"'
+				tree.ModuleB.Source = 'return "ModuleB Reloaded"'
 			end)
 			loader.loadedModuleChanged:Wait()
 
@@ -256,55 +340,20 @@ return function()
 		end)
 
 		it("should not interfere with other cached modules", function()
-			loader:require(modules.ModuleA)
-			loader:require(modules.ModuleC)
+			loader:require(tree.ModuleA)
+			loader:require(tree.ModuleC)
 
 			local hasItems = next(loader._cache) ~= nil
 			expect(hasItems).to.equal(true)
 
 			task.defer(function()
-				modules.ModuleB.Source = 'return "ModuleB Reloaded"'
+				tree.ModuleB.Source = 'return "ModuleB Reloaded"'
 			end)
 			loader.loadedModuleChanged:Wait()
 
-			expect(loader._cache[modules.ModuleA:GetFullName()]).never.to.be.ok()
-			expect(loader._cache[modules.ModuleB:GetFullName()]).never.to.be.ok()
-			expect(loader._cache[modules.ModuleC:GetFullName()]).to.be.ok()
-		end)
-
-		it("should keep track of variables assigned to _G", function()
-			local folder = Instance.new("Folder")
-
-			local defineGlobal = Instance.new("ModuleScript")
-			defineGlobal.Name = "DefineGlobal"
-			defineGlobal.Source = [[
-				_G.foo = true
-				return nil
-			]]
-			defineGlobal.Parent = folder
-
-			local returnGlobal = Instance.new("ModuleScript")
-			returnGlobal.Name = "ReturnGlobal"
-			returnGlobal.Source = [[
-				return _G.foo
-			]]
-			returnGlobal.Parent = folder
-
-			folder.Parent = game
-
-			loader:require(defineGlobal)
-
-			expect(loader._globals.foo).to.equal(true)
-
-			local result = loader:require(returnGlobal)
-
-			expect(result).to.equal(true)
-
-			loader:clear()
-
-			expect(loader._globals.foo).never.to.be.ok()
-
-			folder:Destroy()
+			expect(loader._cache[tree.ModuleA:GetFullName()]).never.to.be.ok()
+			expect(loader._cache[tree.ModuleB:GetFullName()]).never.to.be.ok()
+			expect(loader._cache[tree.ModuleC:GetFullName()]).to.be.ok()
 		end)
 	end)
 end

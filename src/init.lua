@@ -22,7 +22,9 @@ export type CachedModule = {
 	module: ModuleScript,
 	isLoaded: boolean,
 	result: any,
-	consumers: { string },
+	consumers: {
+		[string]: boolean,
+	},
 }
 
 --[=[
@@ -98,7 +100,7 @@ function ModuleLoader:_clearConsumerFromCache(moduleFullName: string)
 	local cachedModule: CachedModule = self._cache[moduleFullName]
 
 	if cachedModule then
-		for _, consumer in ipairs(cachedModule.consumers) do
+		for consumer in cachedModule.consumers do
 			self._cache[consumer] = nil
 			self:_clearConsumerFromCache(consumer)
 		end
@@ -179,10 +181,7 @@ function ModuleLoader:require(module: ModuleScript)
 	local callerPath = getCallerPath()
 
 	if cachedModule then
-		if self._cache[callerPath] then
-			table.insert(cachedModule.consumers, callerPath)
-		end
-
+		cachedModule.consumers[callerPath] = true
 		return self:_loadCachedModule(module)
 	end
 
@@ -198,7 +197,7 @@ function ModuleLoader:require(module: ModuleScript)
 		result = nil,
 		isLoaded = false,
 		consumers = {
-			if self._cache[callerPath] then callerPath else nil,
+			[callerPath] = true,
 		},
 	}
 	self._cache[module:GetFullName()] = newCachedModule
