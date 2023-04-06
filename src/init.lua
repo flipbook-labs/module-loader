@@ -96,19 +96,6 @@ function ModuleLoader:_getSource(module: ModuleScript): any?
 	return if success then result else nil
 end
 
-function ModuleLoader:_clearConsumerFromCache(moduleFullName: string)
-	local cachedModule: CachedModule = self._cache[moduleFullName]
-
-	if cachedModule then
-		for consumer in cachedModule.consumers do
-			self._cache[consumer] = nil
-			self:_clearConsumerFromCache(consumer)
-		end
-
-		self._cache[moduleFullName] = nil
-	end
-end
-
 --[=[
 	Tracks the changes to a required module's ancestry and `Source`.
 
@@ -125,13 +112,12 @@ function ModuleLoader:_trackChanges(module: ModuleScript)
 	janitor:Cleanup()
 
 	janitor:Add(module.AncestryChanged:Connect(function()
-		self.loadedModuleChanged:Fire(module)
+		self:clearModule(module)
 	end))
 
 	janitor:Add(module.Changed:Connect(function(prop: string)
 		if prop == "Source" then
-			self:_clearConsumerFromCache(module:GetFullName())
-			self.loadedModuleChanged:Fire(module)
+			self:clearModule(module)
 		end
 	end))
 
@@ -218,6 +204,24 @@ function ModuleLoader:require(module: ModuleScript)
 	self:_trackChanges(module)
 
 	return self:_loadCachedModule(module)
+end
+
+function ModuleLoader:clearModule(module: ModuleScript)
+	local cachedModule: CachedModule = self._cache[module:GetFullName()]
+
+	if cachedModule then
+		for consumer in cachedModule.consumers do
+			local cachedConsumer: CachedModule = self._cache[consumer]
+
+			if cachedConsumer then
+				self:clearModule(cachedConsumer.module)
+			end
+		end
+
+		self._cache[module:GetFullName()] = nil
+	end
+
+	self.loadedModuleChanged:Fire(module)
 end
 
 --[=[

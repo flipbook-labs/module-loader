@@ -132,6 +132,37 @@ return function()
 
 			expect(wasFired).to.equal(true)
 		end)
+
+		it("should fire for every consumer up the chain", function()
+			local tree = createModuleTest({
+				ModuleA = [[
+					return "ModuleA"
+				]],
+				ModuleB = [[
+					require(script.Parent.ModuleA)
+					return "ModuleB"
+				]],
+				ModuleC = [[
+					require(script.Parent.ModuleB)
+					return "ModuleC"
+				]],
+			})
+
+			local count = 0
+			loader.loadedModuleChanged:Connect(function(module)
+				for _, child in tree:GetChildren() do
+					if module == child then
+						count += 1
+					end
+				end
+			end)
+
+			loader:require(tree.ModuleC)
+
+			tree.ModuleA.Source = "Changed"
+
+			expect(count).to.equal(3)
+		end)
 	end)
 
 	describe("cache", function()
@@ -271,6 +302,79 @@ return function()
 		end)
 	end)
 
+	describe("clearModule", function()
+		it("should clear a module from the cache", function()
+			local tree = createModuleTest({
+				Module = [[
+					return "Module"
+				]],
+			})
+
+			loader:require(tree.Module)
+
+			expect(loader._cache[tree.Module:GetFullName()]).to.be.ok()
+
+			loader:clearModule(tree.Module)
+
+			expect(loader._cache[tree.Module:GetFullName()]).never.to.be.ok()
+		end)
+
+		it("should clear all consumers of a module from the cache", function()
+			local tree = createModuleTest({
+				SharedModule = [[
+					local module = {}
+					return module
+				]],
+				Consumer1 = [[
+					local sharedModule = require(script.Parent.SharedModule)
+					return sharedModule
+				]],
+				Consumer2 = [[
+					local sharedModule = require(script.Parent.SharedModule)
+					return sharedModule
+				]],
+			})
+
+			loader:require(tree.Consumer1)
+			loader:require(tree.Consumer2)
+
+			expect(loader._cache[tree.Consumer1:GetFullName()]).to.be.ok()
+			expect(loader._cache[tree.Consumer2:GetFullName()]).to.be.ok()
+			expect(loader._cache[tree.SharedModule:GetFullName()]).to.be.ok()
+
+			loader:clearModule(tree.SharedModule)
+
+			expect(loader._cache[tree.Consumer1:GetFullName()]).never.to.be.ok()
+			expect(loader._cache[tree.Consumer2:GetFullName()]).never.to.be.ok()
+			expect(loader._cache[tree.SharedModule:GetFullName()]).never.to.be.ok()
+		end)
+
+		it("should only clear modules in the consumer chain", function()
+			local tree = createModuleTest({
+				Module = [[
+					return nil
+				]],
+				Consumer = [[
+					require(script.Parent.Module)
+					return nil
+				]],
+				Independent = [[
+					return nil
+				]],
+			})
+
+			loader:require(tree.Consumer)
+			loader:require(tree.Independent)
+
+			expect(countDict(loader._cache)).to.equal(3)
+
+			loader:clearModule(tree.Module)
+
+			expect(countDict(loader._cache)).to.equal(1)
+			expect(loader._cache[tree.Independent:GetFullName()]).to.be.ok()
+		end)
+	end)
+
 	describe("clear", function()
 		it("should remove all modules from the cache", function()
 			local mockModuleInstance = Instance.new("ModuleScript")
@@ -293,9 +397,6 @@ return function()
 		end)
 	end)
 
-	-- For these tests to work, TestEZ must be run from a plugin context so that
-	-- loadstring works, along with assigning to the `Source` property of
-	-- modules
 	describe("consumers", function()
 		local tree = createModuleTest({
 			ModuleA = [[
@@ -312,28 +413,14 @@ return function()
 			]],
 		})
 
-		it("should keep track of the consumers for a module", function()
-			loader:require(tree.ModuleA)
-
-			expect(loader._cache[tree.ModuleA:GetFullName()]).to.be.ok()
-
-			local cachedModuleB = loader._cache[tree.ModuleB:GetFullName()]
-
-			expect(cachedModuleB).to.be.ok()
-			expect(countDict(cachedModuleB.consumers)).to.equal(1)
-			expect(cachedModuleB.consumers[tree.ModuleA:GetFullName()]).to.be.ok()
-		end)
-
 		it("should remove all consumers of a changed module from the cache", function()
 			loader:require(tree.ModuleA)
 
 			local hasItems = next(loader._cache) ~= nil
 			expect(hasItems).to.equal(true)
 
-			task.defer(function()
-				tree.ModuleB.Source = 'return "ModuleB Reloaded"'
-			end)
-			loader.loadedModuleChanged:Wait()
+			tree.ModuleB.Source = 'return "ModuleB Reloaded"'
+			task.wait()
 
 			hasItems = next(loader._cache) ~= nil
 			expect(hasItems).to.equal(false)
@@ -346,10 +433,8 @@ return function()
 			local hasItems = next(loader._cache) ~= nil
 			expect(hasItems).to.equal(true)
 
-			task.defer(function()
-				tree.ModuleB.Source = 'return "ModuleB Reloaded"'
-			end)
-			loader.loadedModuleChanged:Wait()
+			tree.ModuleB.Source = 'return "ModuleB Reloaded"'
+			task.wait()
 
 			expect(loader._cache[tree.ModuleA:GetFullName()]).never.to.be.ok()
 			expect(loader._cache[tree.ModuleB:GetFullName()]).never.to.be.ok()
