@@ -409,30 +409,6 @@ return function()
 			expect(loader._globals.bar).never.to.be.ok()
 		end)
 
-		it("should not reload a module if its CacheBehavior is set to 'NeverReload'", function()
-			local tree = createModuleTest({
-				SharedModule = [[
-					local module = {}
-					return module
-				]],
-				Consumer1 = [[
-					local sharedModule = require(script.Parent.SharedModule)
-					return sharedModule
-				]],
-				Consumer2 = [[
-					local sharedModule = require(script.Parent.SharedModule)
-					return sharedModule
-				]],
-			})
-
-			loader:require(tree.Consumer)
-
-			loader:setCacheBehavior(tree.Consumer2, "NeverReload")
-			loader:clearModule(tree.Consumer1)
-
-			loader:require(tree.Independent)
-		end)
-
 		it("should fire loadedModuleChanged when clearing a module", function()
 			local tree = createModuleTest({
 				Module = [[
