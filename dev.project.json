@@ -14,6 +14,11 @@
             "tests": {
                 "$path": "tests"
             }
+        },
+        "TestService": {
+            "tests": {
+                "$path": "tests"
+            }
         }
     }
 }

@@ -98,7 +98,7 @@ return function()
 
 			-- Parent the ModuleScript somewhere in the DataModel so we can
 			-- listen for AncestryChanged.
-			mockModuleInstance.Parent = script
+			mockModuleInstance.Parent = game
 
 			loader.loadedModuleChanged:Connect(function(other: ModuleScript)
 				if other == mockModuleInstance then
@@ -300,6 +300,20 @@ return function()
 
 			expect(loader._globals.foo).never.to.be.ok()
 		end)
+
+		it("should add globals on _G to the cachedModule's globals", function()
+			local tree = createModuleTest({
+				DefineGlobal = [[
+					_G.foo = true
+					return nil
+				]],
+			})
+
+			loader:require(tree.DefineGlobal)
+
+			local cachedModule = loader._cache[tree.DefineGlobal:GetFullName()]
+			expect(cachedModule.globals.foo).to.equal(true)
+		end)
 	end)
 
 	describe("clearModule", function()
@@ -372,6 +386,87 @@ return function()
 
 			expect(countDict(loader._cache)).to.equal(1)
 			expect(loader._cache[tree.Independent:GetFullName()]).to.be.ok()
+		end)
+
+		it("should clear all globals that a module supplied", function()
+			local tree = createModuleTest({
+				DefineGlobalFoo = [[
+					_G.foo = true
+					return nil
+				]],
+				DefineGlobalBar = [[
+					_G.bar = false
+					return nil
+				]],
+			})
+
+			loader:require(tree.DefineGlobalFoo)
+			loader:require(tree.DefineGlobalBar)
+
+			loader:clearModule(tree.DefineGlobalBar)
+
+			expect(loader._globals.foo).to.be.ok()
+			expect(loader._globals.bar).never.to.be.ok()
+		end)
+
+		it("should not reload a module if its CacheBehavior is set to 'NeverReload'", function()
+			local tree = createModuleTest({
+				SharedModule = [[
+					local module = {}
+					return module
+				]],
+				Consumer1 = [[
+					local sharedModule = require(script.Parent.SharedModule)
+					return sharedModule
+				]],
+				Consumer2 = [[
+					local sharedModule = require(script.Parent.SharedModule)
+					return sharedModule
+				]],
+			})
+
+			loader:require(tree.Consumer)
+
+			loader:setCacheBehavior(tree.Consumer2, "NeverReload")
+			loader:clearModule(tree.Consumer1)
+
+			loader:require(tree.Independent)
+		end)
+
+		it("should fire loadedModuleChanged when clearing a module", function()
+			local tree = createModuleTest({
+				Module = [[
+					return nil
+				]],
+				Consumer = [[
+					require(script.Parent.Module)
+					return nil
+				]],
+			})
+
+			local wasFired = false
+
+			loader.loadedModuleChanged:Connect(function()
+				wasFired = true
+			end)
+
+			loader:require(tree.Consumer)
+			loader:clearModule(tree.Consumer)
+
+			expect(wasFired).to.equal(true)
+		end)
+
+		it("should not fire loadedModuleChanged for a module that hasn't been required", function()
+			local wasFired = false
+
+			loader.loadedModuleChanged:Connect(function()
+				wasFired = true
+			end)
+
+			-- Do nothing if the module hasn't been cached
+			local module = Instance.new("ModuleScript")
+			loader:clearModule(module)
+			expect(wasFired).to.equal(false)
 		end)
 	end)
 

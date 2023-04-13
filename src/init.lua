@@ -3,6 +3,11 @@ local GoodSignal = require(script.Parent.GoodSignal)
 local bind = require(script.bind)
 local getCallerPath = require(script.getCallerPath)
 local getEnv = require(script.getEnv)
+local createTablePassthrough = require(script.createTablePassthrough)
+local types = require(script.types)
+
+type ModuleConsumers = types.ModuleConsumers
+type ModuleGlobals = types.ModuleGlobals
 
 --[=[
 	ModuleScript loader that bypasses Roblox's require cache.
@@ -22,9 +27,8 @@ export type CachedModule = {
 	module: ModuleScript,
 	isLoaded: boolean,
 	result: any,
-	consumers: {
-		[string]: boolean,
-	},
+	consumers: ModuleConsumers,
+	globals: ModuleGlobals,
 }
 
 --[=[
@@ -145,6 +149,7 @@ function ModuleLoader:cache(module: ModuleScript, result: any)
 		result = result,
 		isLoaded = true,
 		consumers = {},
+		globals = createTablePassthrough(self._globals),
 	}
 
 	self._cache[module:GetFullName()] = cachedModule
@@ -178,6 +183,8 @@ function ModuleLoader:require(module: ModuleScript)
 		error(("Could not parse %s: %s"):format(module:GetFullName(), parseError))
 	end
 
+	local globals = createTablePassthrough(self._globals)
+
 	local newCachedModule: CachedModule = {
 		module = module,
 		result = nil,
@@ -185,10 +192,11 @@ function ModuleLoader:require(module: ModuleScript)
 		consumers = {
 			[callerPath] = true,
 		},
+		globals = globals,
 	}
 	self._cache[module:GetFullName()] = newCachedModule
 
-	local env = getEnv(module, self._globals)
+	local env = getEnv(module, globals)
 	env.require = bind(self, self.require)
 	setfenv(moduleFn, env)
 
@@ -206,22 +214,55 @@ function ModuleLoader:require(module: ModuleScript)
 	return self:_loadCachedModule(module)
 end
 
-function ModuleLoader:clearModule(module: ModuleScript)
-	local cachedModule: CachedModule = self._cache[module:GetFullName()]
-
-	if cachedModule then
+function ModuleLoader:_getConsumers(module: ModuleScript): { ModuleScript }
+	local function getConsumersRecursively(cachedModule: CachedModule, found: { [ModuleScript]: true })
 		for consumer in cachedModule.consumers do
-			local cachedConsumer: CachedModule = self._cache[consumer]
+			local cachedConsumer = self._cache[consumer]
 
 			if cachedConsumer then
-				self:clearModule(cachedConsumer.module)
+					if not found[cachedConsumer.module] then
+						found[cachedConsumer.module] = true
+						getConsumersRecursively(cachedConsumer, found)
+				end
 			end
 		end
-
-		self._cache[module:GetFullName()] = nil
 	end
 
+	local cachedModule: CachedModule = self._cache[module:GetFullName()]
+	local found = {}
+
+	getConsumersRecursively(cachedModule, found)
+
+	local consumers = {}
+	for consumer in found do
+		table.insert(consumers, consumer)
+			end
+
+	return consumers
+		end
+
+function ModuleLoader:clearModule(moduleToClear: ModuleScript)
+	local cachedModule: CachedModule = self._cache[moduleToClear:GetFullName()]
+
+	if cachedModule then
+		local consumers = self:_getConsumers(moduleToClear)
+		local modulesToClear = { moduleToClear, table.unpack(consumers) }
+
+		for _, module in modulesToClear do
+		self._cache[module:GetFullName()] = nil
+
+			for key in cachedModule.globals do
+				self._globals[key] = nil
+			end
+
+			local janitor = self._janitors[module:GetFullName()]
+			janitor:Cleanup()
+	end
+
+		for _, module in modulesToClear do
 	self.loadedModuleChanged:Fire(module)
+		end
+	end
 end
 
 --[=[
