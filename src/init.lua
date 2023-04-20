@@ -4,6 +4,7 @@ local bind = require(script.bind)
 local getCallerPath = require(script.getCallerPath)
 local getEnv = require(script.getEnv)
 local createTablePassthrough = require(script.createTablePassthrough)
+local getRobloxTsRuntime = require(script.getRobloxTsRuntime)
 local types = require(script.types)
 
 type ModuleConsumers = types.ModuleConsumers
@@ -220,9 +221,9 @@ function ModuleLoader:_getConsumers(module: ModuleScript): { ModuleScript }
 			local cachedConsumer = self._cache[consumer]
 
 			if cachedConsumer then
-					if not found[cachedConsumer.module] then
-						found[cachedConsumer.module] = true
-						getConsumersRecursively(cachedConsumer, found)
+				if not found[cachedConsumer.module] then
+					found[cachedConsumer.module] = true
+					getConsumersRecursively(cachedConsumer, found)
 				end
 			end
 		end
@@ -236,32 +237,42 @@ function ModuleLoader:_getConsumers(module: ModuleScript): { ModuleScript }
 	local consumers = {}
 	for consumer in found do
 		table.insert(consumers, consumer)
-			end
+	end
 
 	return consumers
-		end
+end
 
 function ModuleLoader:clearModule(moduleToClear: ModuleScript)
-	local cachedModule: CachedModule = self._cache[moduleToClear:GetFullName()]
+	if not self._cache[moduleToClear:GetFullName()] then
+		return
+	end
 
-	if cachedModule then
-		local consumers = self:_getConsumers(moduleToClear)
-		local modulesToClear = { moduleToClear, table.unpack(consumers) }
+	local consumers = self:_getConsumers(moduleToClear)
+	local modulesToClear = { moduleToClear, table.unpack(consumers) }
 
-		for _, module in modulesToClear do
-		self._cache[module:GetFullName()] = nil
+	for _, module in modulesToClear do
+		local fullName = module:GetFullName()
+
+		if module == getRobloxTsRuntime() then
+			continue
+		end
+
+		local cachedModule = self._cache[fullName]
+
+		if cachedModule then
+			self._cache[fullName] = nil
 
 			for key in cachedModule.globals do
 				self._globals[key] = nil
 			end
 
-			local janitor = self._janitors[module:GetFullName()]
+			local janitor = self._janitors[fullName]
 			janitor:Cleanup()
+		end
 	end
 
-		for _, module in modulesToClear do
-	self.loadedModuleChanged:Fire(module)
-		end
+	for _, module in modulesToClear do
+		self.loadedModuleChanged:Fire(module)
 	end
 end
 
