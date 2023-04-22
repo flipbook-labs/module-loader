@@ -443,6 +443,37 @@ return function()
 			expect(wasFired).to.equal(true)
 		end)
 
+		it("should fire loadedModuleChanged for every module up the chain", function()
+			tree = createModuleTest({
+				Module3 = [[
+					return {}
+				]],
+				Module2 = [[
+					require(script.Parent.Module3)
+					return {}
+				]],
+				Module1 = [[
+					require(script.Parent.Module2)
+					return {}
+				]],
+				Consumer = [[
+					require(script.Parent.Module1)
+					return nil
+				]],
+			})
+
+			local count = 0
+
+			loader.loadedModuleChanged:Connect(function()
+				count += 1
+			end)
+
+			loader:require(tree.Consumer)
+			loader:clearModule(tree.Module3)
+
+			expect(count).to.equal(4)
+		end)
+
 		it("should not fire loadedModuleChanged for a module that hasn't been required", function()
 			local wasFired = false
 
