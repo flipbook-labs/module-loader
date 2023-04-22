@@ -250,12 +250,13 @@ function ModuleLoader:clearModule(moduleToClear: ModuleScript)
 	local consumers = self:_getConsumers(moduleToClear)
 	local modulesToClear = { moduleToClear, table.unpack(consumers) }
 
+	local index = table.find(modulesToClear, getRobloxTsRuntime())
+	if index then
+		table.remove(modulesToClear, index)
+	end
+
 	for _, module in modulesToClear do
 		local fullName = module:GetFullName()
-
-		if module == getRobloxTsRuntime() then
-			continue
-		end
 
 		local cachedModule = self._cache[fullName]
 
@@ -272,6 +273,7 @@ function ModuleLoader:clearModule(moduleToClear: ModuleScript)
 	end
 
 	for _, module in modulesToClear do
+		print("loadedModuleChanged", module:GetFullName())
 		self.loadedModuleChanged:Fire(module)
 	end
 end

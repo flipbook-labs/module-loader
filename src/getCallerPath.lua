@@ -10,7 +10,7 @@ local function getCallerPath()
 
 		if path then
 			-- Skip over any path that is a descendant of this package
-			if not path:match(root.Name) then
+			if not path:find(root.Name, nil, true) then
 				-- Sometimes the path is represented as `[string "path.to.module"]`
 				-- so we match for the instance path and, if found, return it
 				local pathFromLoadstring = path:match(LOADSTRING_PATH_PATTERN)
