@@ -273,7 +273,6 @@ function ModuleLoader:clearModule(moduleToClear: ModuleScript)
 	end
 
 	for _, module in modulesToClear do
-		print("loadedModuleChanged", module:GetFullName())
 		self.loadedModuleChanged:Fire(module)
 	end
 end
