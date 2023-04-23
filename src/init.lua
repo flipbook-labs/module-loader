@@ -3,6 +3,12 @@ local GoodSignal = require(script.Parent.GoodSignal)
 local bind = require(script.bind)
 local getCallerPath = require(script.getCallerPath)
 local getEnv = require(script.getEnv)
+local createTablePassthrough = require(script.createTablePassthrough)
+local getRobloxTsRuntime = require(script.getRobloxTsRuntime)
+local types = require(script.types)
+
+type ModuleConsumers = types.ModuleConsumers
+type ModuleGlobals = types.ModuleGlobals
 
 --[=[
 	ModuleScript loader that bypasses Roblox's require cache.
@@ -22,7 +28,8 @@ export type CachedModule = {
 	module: ModuleScript,
 	isLoaded: boolean,
 	result: any,
-	consumers: { string },
+	consumers: ModuleConsumers,
+	globals: ModuleGlobals,
 }
 
 --[=[
@@ -35,6 +42,7 @@ function ModuleLoader.new()
 	self._loadstring = loadstring
 	self._debugInfo = debug.info
 	self._janitors = {}
+	self._globals = {}
 
 	--[=[
 		Fired when any ModuleScript required through this class has its ancestry
@@ -93,19 +101,6 @@ function ModuleLoader:_getSource(module: ModuleScript): any?
 	return if success then result else nil
 end
 
-function ModuleLoader:_clearConsumerFromCache(moduleFullName: string)
-	local cachedModule: CachedModule = self._cache[moduleFullName]
-
-	if cachedModule then
-		for _, consumer in ipairs(cachedModule.consumers) do
-			self._cache[consumer] = nil
-			self:_clearConsumerFromCache(consumer)
-		end
-
-		self._cache[moduleFullName] = nil
-	end
-end
-
 --[=[
 	Tracks the changes to a required module's ancestry and `Source`.
 
@@ -122,13 +117,12 @@ function ModuleLoader:_trackChanges(module: ModuleScript)
 	janitor:Cleanup()
 
 	janitor:Add(module.AncestryChanged:Connect(function()
-		self.loadedModuleChanged:Fire(module)
+		self:clearModule(module)
 	end))
 
 	janitor:Add(module.Changed:Connect(function(prop: string)
 		if prop == "Source" then
-			self:_clearConsumerFromCache(module:GetFullName())
-			self.loadedModuleChanged:Fire(module)
+			self:clearModule(module)
 		end
 	end))
 
@@ -156,6 +150,7 @@ function ModuleLoader:cache(module: ModuleScript, result: any)
 		result = result,
 		isLoaded = true,
 		consumers = {},
+		globals = createTablePassthrough(self._globals),
 	}
 
 	self._cache[module:GetFullName()] = cachedModule
@@ -178,10 +173,7 @@ function ModuleLoader:require(module: ModuleScript)
 	local callerPath = getCallerPath()
 
 	if cachedModule then
-		if self._cache[callerPath] then
-			table.insert(cachedModule.consumers, callerPath)
-		end
-
+		cachedModule.consumers[callerPath] = true
 		return self:_loadCachedModule(module)
 	end
 
@@ -192,17 +184,20 @@ function ModuleLoader:require(module: ModuleScript)
 		error(("Could not parse %s: %s"):format(module:GetFullName(), parseError))
 	end
 
+	local globals = createTablePassthrough(self._globals)
+
 	local newCachedModule: CachedModule = {
 		module = module,
 		result = nil,
 		isLoaded = false,
 		consumers = {
-			if self._cache[callerPath] then callerPath else nil,
+			[callerPath] = true,
 		},
+		globals = globals,
 	}
 	self._cache[module:GetFullName()] = newCachedModule
 
-	local env = getEnv(module)
+	local env = getEnv(module, globals)
 	env.require = bind(self, self.require)
 	setfenv(moduleFn, env)
 
@@ -218,6 +213,69 @@ function ModuleLoader:require(module: ModuleScript)
 	self:_trackChanges(module)
 
 	return self:_loadCachedModule(module)
+end
+
+function ModuleLoader:_getConsumers(module: ModuleScript): { ModuleScript }
+	local function getConsumersRecursively(cachedModule: CachedModule, found: { [ModuleScript]: true })
+		for consumer in cachedModule.consumers do
+			local cachedConsumer = self._cache[consumer]
+
+			if cachedConsumer then
+				if not found[cachedConsumer.module] then
+					found[cachedConsumer.module] = true
+					getConsumersRecursively(cachedConsumer, found)
+				end
+			end
+		end
+	end
+
+	local cachedModule: CachedModule = self._cache[module:GetFullName()]
+	local found = {}
+
+	getConsumersRecursively(cachedModule, found)
+
+	local consumers = {}
+	for consumer in found do
+		table.insert(consumers, consumer)
+	end
+
+	return consumers
+end
+
+function ModuleLoader:clearModule(moduleToClear: ModuleScript)
+	if not self._cache[moduleToClear:GetFullName()] then
+		return
+	end
+
+	local consumers = self:_getConsumers(moduleToClear)
+	local modulesToClear = { moduleToClear, table.unpack(consumers) }
+
+	local index = table.find(modulesToClear, getRobloxTsRuntime())
+	if index then
+		table.remove(modulesToClear, index)
+	end
+
+	for _, module in modulesToClear do
+		local fullName = module:GetFullName()
+
+		local cachedModule = self._cache[fullName]
+
+		if cachedModule then
+			self._cache[fullName] = nil
+
+			for key in cachedModule.globals do
+				self._globals[key] = nil
+			end
+
+			local janitor = self._janitors[fullName]
+			janitor:Cleanup()
+		end
+	end
+
+	for _, module in modulesToClear do
+		print("loadedModuleChanged", module:GetFullName())
+		self.loadedModuleChanged:Fire(module)
+	end
 end
 
 --[=[
@@ -243,6 +301,7 @@ end
 ]=]
 function ModuleLoader:clear()
 	self._cache = {}
+	self._globals = {}
 
 	for _, janitor in self._janitors do
 		janitor:Cleanup()
