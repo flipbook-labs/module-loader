@@ -16,14 +16,14 @@ Add the following to your `wally.toml` and run `wally install` to download the p
 
 ```toml
 [dependencies]
-ModuleLoader = "vocksel/module-loader@0.3.1"
+ModuleLoader = "flipbook-labs/module-loader@0.6.1"
 ```
 
 Make sure the resulting `Packages` folder is synced into your experience using a tool like [Rojo](https://github.com/rojo-rbx/rojo/).
 
 ### Roblox Studio
 
-* Download a copy of the rbxm from the [releases page](https://github.com/vocksel/module-loader/releases/latest) under the Assets section.
+* Download a copy of the rbxm from the [releases page](https://github.com/flipbook-labs/module-loader/releases/latest) under the Assets section.
 * Drag and drop the file into Roblox Studio to add it to your experience.
 
 ## Next Steps
