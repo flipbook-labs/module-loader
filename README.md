@@ -1,7 +1,7 @@
 # ModuleLoader
 
-[![CI](https://github.com/vocksel/module-loader/actions/workflows/ci.yml/badge.svg)](https://github.com/vocksel/module-loader/actions/workflows/ci.yml)
-[![Docs](https://img.shields.io/badge/docs-website-brightgreen)](https://vocksel.github.io/module-loader)
+[![CI](https://github.com/flipbook-labs/module-loader/actions/workflows/ci.yml/badge.svg)](https://github.com/flipbook-labs/module-loader/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-website-brightgreen)](https://flipbook-labs.github.io/module-loader)
 
 Module loader class that bypasses Roblox's require cache.
 
@@ -26,18 +26,18 @@ Add the following to your `wally.toml` and run `wally install` to download the p
 
 ```toml
 [dependencies]
-ModuleLoader = "vocksel/module-loader@0.3.1"
+ModuleLoader = "flipbook-labs/module-loader@0.6.1"
 ```
 
 Make sure the resulting `Packages` folder is synced into your experience using a tool like [Rojo](https://github.com/rojo-rbx/rojo/).
 
 ### Roblox Studio
 
-* Download a copy of the rbxm from the [releases page](https://github.com/vocksel/module-loader/releases/latest) under the Assets section.
+* Download a copy of the rbxm from the [releases page](https://github.com/flipbook-labs/module-loader/releases/latest) under the Assets section.
 * Drag and drop the file into Roblox Studio to add it to your experience.
 ## Documentation
 
-You can find the documentation [here](https://vocksel.github.io/module-loader).
+You can find the documentation [here](https://flipbook-labs.github.io/module-loader).
 
 ## Credits
 
@@ -45,7 +45,7 @@ Parts of this class were taken verbatim from [OrbitalOwen/roblox-testservice-wat
 
 ## Contributing
 
-See the [contributing guide](https://vocksel.github.io/module-loader/docs/contributing).
+See the [contributing guide](https://flipbook-labs.github.io/module-loader/docs/contributing).
 
 ## License
 

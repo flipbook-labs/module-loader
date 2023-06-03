@@ -1,5 +1,5 @@
 [package]
-name = "vocksel/module-loader"
+name = "flipbook-labs/module-loader"
 description = "Module loader class that bypasses Roblox's require cache"
 version = "0.6.1"
 license = "MIT"
