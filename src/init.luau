@@ -1,11 +1,12 @@
-local Janitor = require(script.Parent.Janitor)
-local GoodSignal = require(script.Parent.GoodSignal)
-local bind = require(script.bind)
-local getCallerPath = require(script.getCallerPath)
-local getEnv = require(script.getEnv)
-local createTablePassthrough = require(script.createTablePassthrough)
-local getRobloxTsRuntime = require(script.getRobloxTsRuntime)
-local types = require(script.types)
+local GoodSignal = require("@pkg/GoodSignal")
+local Janitor = require("@pkg/Janitor")
+
+local bind = require("./bind")
+local createTablePassthrough = require("./createTablePassthrough")
+local getCallerPath = require("./getCallerPath")
+local getEnv = require("./getEnv")
+local getRobloxTsRuntime = require("./getRobloxTsRuntime")
+local types = require("./types")
 
 type ModuleConsumers = types.ModuleConsumers
 type ModuleGlobals = types.ModuleGlobals
@@ -85,8 +86,8 @@ function ModuleLoader:_loadCachedModule(module: ModuleScript)
 end
 
 --[=[
-	Gets the Source of a ModuleScript.
-
+	Gets the Source of a Module"./
+"
 	This method exists primarily so we can better write unit tests. Attempting
 	to index the Source property from a regular script context throws an error,
 	so this method allows us to safely fallback in tests.
@@ -137,7 +138,7 @@ end
 	class it uses the same table instance.
 
 	```lua
-	local moduleInstance = script.Parent.ModuleScript
+	local moduleInstance = "./Parent".ModuleScript
 	local module = require(moduleInstance)
 
 	local loader = ModuleLoader.new()
@@ -159,13 +160,13 @@ end
 --[=[
 	Require a module with a fresh ModuleScript require cache.
 
-	This method is functionally the same as running `require(script.Parent.ModuleScript)`,
+	This method is functionally the same as running `require("./Parent".ModuleScript)`,
 	however in this case the module is not cached. As such, if a change occurs
 	to the module you can call this method again to get the latest changes.
 
 	```lua
 	local loader = ModuleLoader.new()
-	local module = loader:require(script.Parent.ModuleScript)
+	local module = loader:require("./Parent".ModuleScript)
 	```
 ]=]
 function ModuleLoader:require(module: ModuleScript)
@@ -289,13 +290,13 @@ end
 
 	```lua
 	local loader = ModuleLoader.new()
-	loader:require(script.Parent.ModuleScript)
+	loader:require("./Parent".ModuleScript)
 
 	-- Later...
 
 	-- Clear the cache and require the module again
 	loader:clear()
-	loader:require(script.Parent.ModuleScript)
+	loader:require("./Parent".ModuleScript)
 	```
 ]=]
 function ModuleLoader:clear()

@@ -1,0 +1,9 @@
+{
+  "name": "Packages",
+  "tree": {
+    "$path": "Packages",
+    "ModuleLoader": {
+      "$path": "src"
+    }
+  }
+}

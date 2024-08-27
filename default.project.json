@@ -1,6 +1,9 @@
 {
-	"name": "module-loader",
-	"tree": {
-		"$path": "src"
-	}
+  "name": "ModuleLoader",
+  "tree": {
+    "Packages": {
+      "$path": "Packages"
+    },
+    "$path": "build"
+  }
 }

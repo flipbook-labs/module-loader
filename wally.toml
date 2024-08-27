@@ -7,8 +7,8 @@ registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
 exclude = ["*"]
 include = [
-    "src",
-    "src/**",
+    "dist",
+    "dist/**",
     "default.project.json",
     "LICENSE",
     "README.md",
@@ -18,4 +18,7 @@ include = [
 [dependencies]
 GoodSignal = "stravant/goodsignal@0.1.1"
 Janitor = "howmanysmall/janitor@1.13.15"
-TestEZ = "roblox/testez@0.4.1"
+
+#[dev-dependencies]
+Jest = "jsdotlua/jest@3.6.1-rc.2"
+JestGlobals = "jsdotlua/jest-globals@3.6.1-rc.2"
