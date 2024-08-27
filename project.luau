@@ -2,7 +2,7 @@
 
 return {
 	SOURCE_PATH = "src",
-	BUILD_PATH = "build",
+	BUILD_PATH = "dist",
 	PACKAGES_PATH = "Packages",
 	LUNE_SCRIPTS_PATH = ".lune",
 

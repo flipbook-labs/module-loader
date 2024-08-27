@@ -3,6 +3,7 @@
 /*.rbxm*
 
 # Luau
+dist/
 sourcemap*.json
 globalTypes.d.luau
 
