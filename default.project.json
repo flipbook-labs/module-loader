@@ -1,6 +1,6 @@
 {
-	"name": "module-loader",
-	"tree": {
-		"$path": "src"
-	}
+  "name": "ModuleLoader",
+  "tree": {
+    "$path": "dist"
+  }
 }

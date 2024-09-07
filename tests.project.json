@@ -1,12 +1,12 @@
 {
-    "name": "module-loader (dev)",
+    "name": "Tests",
     "tree": {
         "$className": "DataModel",
         "ReplicatedStorage": {
             "Packages": {
                 "$path": "Packages",
                 "ModuleLoader": {
-                    "$path": "src"
+                    "$path": "default.project.json"
                 }
             }
         },

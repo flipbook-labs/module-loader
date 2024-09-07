@@ -1,7 +1,11 @@
 # Rojo
 /*.rbxl*
 /*.rbxm*
-sourcemap.json
+
+# Luau
+dist/
+sourcemap*.json
+globalTypes.d.luau
 
 # Selene
 /roblox.toml

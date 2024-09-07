@@ -1,14 +1,61 @@
-local Janitor = require(script.Parent.Janitor)
-local GoodSignal = require(script.Parent.GoodSignal)
-local bind = require(script.bind)
-local getCallerPath = require(script.getCallerPath)
-local getEnv = require(script.getEnv)
-local createTablePassthrough = require(script.createTablePassthrough)
-local getRobloxTsRuntime = require(script.getRobloxTsRuntime)
-local types = require(script.types)
+local GoodSignal = require("@pkg/GoodSignal")
+local Janitor = require("@pkg/Janitor")
 
-type ModuleConsumers = types.ModuleConsumers
-type ModuleGlobals = types.ModuleGlobals
+local bind = require("./bind")
+local createTablePassthrough = require("./createTablePassthrough")
+local getCallerPath = require("./getCallerPath")
+local getEnv = require("./getEnv")
+local getRobloxTsRuntime = require("./getRobloxTsRuntime")
+
+type CachedModuleResult = any
+
+type ModuleConsumers = {
+	[string]: boolean,
+}
+
+-- Each module gets its own global table that it can modify via _G. This makes
+-- it easy to clear out a module and the globals it defines without impacting
+-- other modules. A module's function environment has all globals merged
+-- together on _G
+type ModuleGlobals = {
+	[any]: any,
+}
+
+type CachedModule = {
+	module: ModuleScript,
+	isLoaded: boolean,
+	result: CachedModuleResult,
+	consumers: ModuleConsumers,
+	globals: ModuleGlobals,
+}
+
+type ModuleLoaderProps = {
+	_cache: { [string]: CachedModule },
+	_loadstring: typeof(loadstring),
+	_debugInfo: typeof(debug.info),
+	_janitors: { [string]: typeof(Janitor.new()) },
+	_globals: { [any]: any },
+
+	loadedModuleChanged: RBXScriptSignal,
+}
+
+type ModuleLoaderImpl = {
+	__index: ModuleLoaderImpl,
+
+	new: () -> ModuleLoader,
+
+	require: (self: ModuleLoader, module: ModuleScript) -> any,
+	cache: (self: ModuleLoader, module: ModuleScript, result: any) -> (),
+	clearModule: (self: ModuleLoader, module: ModuleScript) -> (),
+	clear: (self: ModuleLoader) -> (),
+
+	_loadCachedModule: (self: ModuleLoader, module: ModuleScript) -> CachedModuleResult,
+	_getSource: (self: ModuleLoader, module: ModuleScript) -> string,
+	_trackChanges: (self: ModuleLoader, module: ModuleScript) -> (),
+	_getConsumers: (self: ModuleLoader, module: ModuleScript) -> { ModuleScript },
+}
+
+export type ModuleLoader = typeof(setmetatable({} :: ModuleLoaderProps, {} :: ModuleLoaderImpl))
 
 --[=[
 	ModuleScript loader that bypasses Roblox's require cache.
@@ -21,16 +68,8 @@ type ModuleGlobals = types.ModuleGlobals
 
 	@class ModuleLoader
 ]=]
-local ModuleLoader = {}
+local ModuleLoader = {} :: ModuleLoaderImpl
 ModuleLoader.__index = ModuleLoader
-
-export type CachedModule = {
-	module: ModuleScript,
-	isLoaded: boolean,
-	result: any,
-	consumers: ModuleConsumers,
-	globals: ModuleGlobals,
-}
 
 --[=[
     Constructs a new ModuleLoader instance.
@@ -47,13 +86,13 @@ function ModuleLoader.new()
 	--[=[
 		Fired when any ModuleScript required through this class has its ancestry
 		or `Source` property changed. This applies to the ModuleScript passed to
-		`ModuleLoader:require()` and every module that it subsequently requirs.
+		`ModuleLoader:require( )` and every module that it subsequently requirs.
 
 		This event is useful for reloading a module when it or any of it
 		dependencies change.
 
 		```lua
-		local loader = ModuleLoader.new()
+		local loader = ModuleLoader.Instance.new("Accessory")new()
 		local result = loader:require(module)
 
 		loader.loadedModuleChanged:Connect(function()
@@ -85,20 +124,20 @@ function ModuleLoader:_loadCachedModule(module: ModuleScript)
 end
 
 --[=[
-	Gets the Source of a ModuleScript.
-
+	Gets the Source of a Module"./
+"
 	This method exists primarily so we can better write unit tests. Attempting
 	to index the Source property from a regular script context throws an error,
 	so this method allows us to safely fallback in tests.
 
 	@private
 ]=]
-function ModuleLoader:_getSource(module: ModuleScript): any?
+function ModuleLoader:_getSource(module)
 	local success, result = pcall(function()
 		return module.Source
 	end)
 
-	return if success then result else nil
+	return if success then result else ""
 end
 
 --[=[
@@ -110,7 +149,7 @@ end
 
 	@private
 ]=]
-function ModuleLoader:_trackChanges(module: ModuleScript)
+function ModuleLoader:_trackChanges(module)
 	local existingJanitor = self._janitors[module:GetFullName()]
 	local janitor = if existingJanitor then existingJanitor else Janitor.new()
 
@@ -137,14 +176,14 @@ end
 	class it uses the same table instance.
 
 	```lua
-	local moduleInstance = script.Parent.ModuleScript
+	local moduleInstance = "./Parent".ModuleScript
 	local module = require(moduleInstance)
 
-	local loader = ModuleLoader.new()
+	local loader = ModuleLoader.Instance.new("Accessory")new()
 	loader:cache(moduleInstance, module)
 	```
 ]=]
-function ModuleLoader:cache(module: ModuleScript, result: any)
+function ModuleLoader:cache(module, result)
 	local cachedModule: CachedModule = {
 		module = module,
 		result = result,
@@ -159,16 +198,16 @@ end
 --[=[
 	Require a module with a fresh ModuleScript require cache.
 
-	This method is functionally the same as running `require(script.Parent.ModuleScript)`,
+	This method is functionally the same as running `require("./Parent".ModuleScript)`,
 	however in this case the module is not cached. As such, if a change occurs
 	to the module you can call this method again to get the latest changes.
 
 	```lua
-	local loader = ModuleLoader.new()
-	local module = loader:require(script.Parent.ModuleScript)
+	local loader = ModuleLoader.Instance.new("Accessory")new()
+	local module = loader:require("./Parent".ModuleScript)
 	```
 ]=]
-function ModuleLoader:require(module: ModuleScript)
+function ModuleLoader:require(module)
 	local cachedModule = self._cache[module:GetFullName()]
 	local callerPath = getCallerPath()
 
@@ -215,7 +254,7 @@ function ModuleLoader:require(module: ModuleScript)
 	return self:_loadCachedModule(module)
 end
 
-function ModuleLoader:_getConsumers(module: ModuleScript): { ModuleScript }
+function ModuleLoader:_getConsumers(module)
 	local function getConsumersRecursively(cachedModule: CachedModule, found: { [ModuleScript]: true })
 		for consumer in cachedModule.consumers do
 			local cachedConsumer = self._cache[consumer]
@@ -288,14 +327,14 @@ end
 	if the module's Source has been changed.
 
 	```lua
-	local loader = ModuleLoader.new()
-	loader:require(script.Parent.ModuleScript)
+	local loader = ModuleLoader.Instance.new("Accessory")new()
+	loader:require("./Parent".ModuleScript)
 
 	-- Later...
 
 	-- Clear the cache and require the module again
 	loader:clear()
-	loader:require(script.Parent.ModuleScript)
+	loader:require("./Parent".ModuleScript)
 	```
 ]=]
 function ModuleLoader:clear()
@@ -307,7 +346,5 @@ function ModuleLoader:clear()
 	end
 	self._janitors = {}
 end
-
-export type Class = typeof(ModuleLoader.new())
 
 return ModuleLoader

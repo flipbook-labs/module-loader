@@ -16,44 +16,40 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install packages
+        run: lune run wally-install
+
       - name: Lint
+        run: lune run lint
+
+      - name: Get model file name
         run: |
-          selene generate-roblox-std
-          selene src/
-
-      - name: Format
-        run: stylua --check src/
-
-      - name: Install dependencies
-        run: wally install
+          name=$(jq -r .name default.project.json)
+          sha=${GITHUB_SHA:0:7}
+          echo "MODEL_FILE=$name-$sha.rbxm" >> $GITHUB_ENV
 
       - name: Build
-        run: rojo build -o build.rbxm
+        run: lune run build -- --target prod --output ${{ env.MODEL_FILE }}
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.MODEL_FILE }}
+          path: ${{ env.MODEL_FILE }}
 
   analyze:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: Roblox/setup-foreman@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install dependencies
-        run: wally install
+      - name: Setup Lune typedefs
+        run: lune setup
 
-      - name: Download global Roblox types
-        shell: bash
-        run: curl -s -O https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/master/scripts/globalTypes.d.lua
+      - name: Install packages
+        run: lune run wally-install
 
-      - name: Generate sourcemap for LSP
-        shell: bash
-        run: rojo sourcemap dev.project.json -o sourcemap.json
-
-      - name: Ignore packages in analysis
-        shell: bash
-        run: mv .github/workflows/.luaurc Packages
-
-      - name: Analyze
-        shell: bash
-        run: luau-lsp analyze --sourcemap=sourcemap.json --defs=globalTypes.d.lua --defs=testez.d.lua --formatter=gnu src/
+      - name: Run Luau analysis
+        run: lune run analyze
