@@ -124,15 +124,15 @@ function ModuleLoader:_loadCachedModule(module: ModuleScript)
 end
 
 --[=[
-	Gets the Source of a Module"./
-"
+	Gets the Source of a ModuleScript.
+
 	This method exists primarily so we can better write unit tests. Attempting
 	to index the Source property from a regular script context throws an error,
 	so this method allows us to safely fallback in tests.
 
 	@private
 ]=]
-function ModuleLoader:_getSource(module)
+function ModuleLoader:_getSource(module: ModuleScript)
 	local success, result = pcall(function()
 		return module.Source
 	end)
@@ -149,7 +149,7 @@ end
 
 	@private
 ]=]
-function ModuleLoader:_trackChanges(module)
+function ModuleLoader:_trackChanges(module: ModuleScript)
 	local existingJanitor = self._janitors[module:GetFullName()]
 	local janitor = if existingJanitor then existingJanitor else Janitor.new()
 
@@ -183,7 +183,7 @@ end
 	loader:cache(moduleInstance, module)
 	```
 ]=]
-function ModuleLoader:cache(module, result)
+function ModuleLoader:cache(module: ModuleScript, result: any)
 	local cachedModule: CachedModule = {
 		module = module,
 		result = result,
@@ -207,7 +207,7 @@ end
 	local module = loader:require("./Parent".ModuleScript)
 	```
 ]=]
-function ModuleLoader:require(module)
+function ModuleLoader:require(module: ModuleScript)
 	local cachedModule = self._cache[module:GetFullName()]
 	local callerPath = getCallerPath()
 
@@ -254,7 +254,7 @@ function ModuleLoader:require(module)
 	return self:_loadCachedModule(module)
 end
 
-function ModuleLoader:_getConsumers(module)
+function ModuleLoader:_getConsumers(module: ModuleScript)
 	local function getConsumersRecursively(cachedModule: CachedModule, found: { [ModuleScript]: true })
 		for consumer in cachedModule.consumers do
 			local cachedConsumer = self._cache[consumer]
