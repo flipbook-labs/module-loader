@@ -7,7 +7,7 @@ local describe = JestGlobals.describe
 local beforeEach = JestGlobals.beforeEach
 local afterEach = JestGlobals.afterEach
 
-local ModuleLoader = require("./")
+local ModuleLoader = require("./ModuleLoader")
 
 local function countDict(dict: { [string]: any })
 	local count = 0
@@ -46,7 +46,7 @@ local function createModuleTest(tree: ModuleTestTree, parent: Instance?)
 end
 
 local mockModuleSource = {}
-local loader: ModuleLoader.Class
+local loader: ModuleLoader.ModuleLoader
 local tree
 
 beforeEach(function()
