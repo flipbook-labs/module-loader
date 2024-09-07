@@ -86,13 +86,13 @@ function ModuleLoader.new()
 	--[=[
 		Fired when any ModuleScript required through this class has its ancestry
 		or `Source` property changed. This applies to the ModuleScript passed to
-		`ModuleLoader:require( )` and every module that it subsequently requirs.
+		`ModuleLoader:require()` and every module that it subsequently requirs.
 
 		This event is useful for reloading a module when it or any of it
 		dependencies change.
 
 		```lua
-		local loader = ModuleLoader.Instance.new("Accessory")new()
+		local loader = ModuleLoader.new()
 		local result = loader:require(module)
 
 		loader.loadedModuleChanged:Connect(function()
@@ -132,7 +132,7 @@ end
 
 	@private
 ]=]
-function ModuleLoader:_getSource(module: ModuleScript)
+function ModuleLoader:_getSource(module: ModuleScript): string
 	local success, result = pcall(function()
 		return module.Source
 	end)
@@ -176,10 +176,10 @@ end
 	class it uses the same table instance.
 
 	```lua
-	local moduleInstance = "./Parent".ModuleScript
+	local moduleInstance = script.Parent.ModuleScript
 	local module = require(moduleInstance)
 
-	local loader = ModuleLoader.Instance.new("Accessory")new()
+	local loader = ModuleLoader.new()
 	loader:cache(moduleInstance, module)
 	```
 ]=]
@@ -198,13 +198,13 @@ end
 --[=[
 	Require a module with a fresh ModuleScript require cache.
 
-	This method is functionally the same as running `require("./Parent".ModuleScript)`,
+	This method is functionally the same as running `require(script.Parent.ModuleScript)`,
 	however in this case the module is not cached. As such, if a change occurs
 	to the module you can call this method again to get the latest changes.
 
 	```lua
-	local loader = ModuleLoader.Instance.new("Accessory")new()
-	local module = loader:require("./Parent".ModuleScript)
+	local loader = ModuleLoader.new()
+	local module = loader:require(script.Parent.ModuleScript)
 	```
 ]=]
 function ModuleLoader:require(module: ModuleScript)
@@ -254,7 +254,7 @@ function ModuleLoader:require(module: ModuleScript)
 	return self:_loadCachedModule(module)
 end
 
-function ModuleLoader:_getConsumers(module: ModuleScript)
+function ModuleLoader:_getConsumers(module: ModuleScript): { ModuleScript }
 	local function getConsumersRecursively(cachedModule: CachedModule, found: { [ModuleScript]: true })
 		for consumer in cachedModule.consumers do
 			local cachedConsumer = self._cache[consumer]
@@ -327,14 +327,14 @@ end
 	if the module's Source has been changed.
 
 	```lua
-	local loader = ModuleLoader.Instance.new("Accessory")new()
-	loader:require("./Parent".ModuleScript)
+	local loader = ModuleLoader.new()
+	loader:require(script.Parent.ModuleScript)
 
 	-- Later...
 
 	-- Clear the cache and require the module again
 	loader:clear()
-	loader:require("./Parent".ModuleScript)
+	loader:require(script.Parent.ModuleScript)
 	```
 ]=]
 function ModuleLoader:clear()
