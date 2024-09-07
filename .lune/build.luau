@@ -8,6 +8,7 @@ local watch = require("./lib/watcher/watch")
 local args = parseArgs(process.args)
 
 local target = if args.target then args.target else "prod"
+assert(target == "dev" or target == "prod", `bad value for target (must be one of "dev" or "prod", got "{target}")`)
 
 local function build()
 	run("rm", { "-rf", project.BUILD_PATH })
