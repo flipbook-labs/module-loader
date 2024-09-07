@@ -1,9 +1,6 @@
 {
   "name": "ModuleLoader",
   "tree": {
-    "Packages": {
-      "$path": "Packages"
-    },
     "$path": "dist"
   }
 }

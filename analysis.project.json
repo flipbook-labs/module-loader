@@ -1,12 +1,15 @@
 {
-  "name": "ModuleLoader",
+  "name": "Analysis",
   "tree": {
+    "$className": "Folder",
     "Lune": {
       "$path": ".lune"
     },
     "TestRunner": {
       "$path": "tests"
     },
-    "$path": "build.project.json"
+    "ModuleLoader": {
+      "$path": "build.project.json"
+    }
   }
 }

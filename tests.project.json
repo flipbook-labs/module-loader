@@ -6,7 +6,7 @@
             "Packages": {
                 "$path": "Packages",
                 "ModuleLoader": {
-                    "$path": "build"
+                    "$path": "default.project.json"
                 }
             }
         },
