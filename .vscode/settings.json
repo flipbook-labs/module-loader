@@ -9,5 +9,5 @@
     "@pkg": "./Packages",
     "@root": "./src",
     "@lune/": "~/.lune/.typedefs/0.8.7"
-  },
+  }
 }
