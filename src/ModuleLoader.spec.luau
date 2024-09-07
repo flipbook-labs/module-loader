@@ -21,7 +21,7 @@ type ModuleTestTree = {
 	[string]: string | ModuleTestTree,
 }
 local testNumber = 0
-local function createModuleTest(tree: ModuleTestTree, parent: Instance?)
+local function createModuleTest(tree: ModuleTestTree, parent: Instance?): any
 	testNumber += 1
 
 	local root = Instance.new("Folder")

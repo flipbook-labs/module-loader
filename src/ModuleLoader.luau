@@ -32,7 +32,7 @@ type ModuleLoaderProps = {
 	_cache: { [string]: CachedModule },
 	_loadstring: typeof(loadstring),
 	_debugInfo: typeof(debug.info),
-	_janitors: { [string]: typeof(Janitor.new()) },
+	_janitors: { [string]: any },
 	_globals: { [any]: any },
 
 	_loadedModuleChangedBindable: BindableEvent,
@@ -212,6 +212,10 @@ function ModuleLoader:require(module)
 	local cachedModule = self._cache[module:GetFullName()]
 	local callerPath = getCallerPath()
 
+	if not callerPath then
+		return nil
+	end
+
 	if cachedModule then
 		cachedModule.consumers[callerPath] = true
 		return self:_loadCachedModule(module)
@@ -221,7 +225,8 @@ function ModuleLoader:require(module)
 	local moduleFn, parseError = self._loadstring(source, module:GetFullName())
 
 	if not moduleFn then
-		error(("Could not parse %s: %s"):format(module:GetFullName(), parseError))
+		local message = if parseError then parseError else "<no error message>"
+		error(`Could not parse {module:GetFullName()}: {message}`)
 	end
 
 	local globals = createTablePassthrough(self._globals)
@@ -237,7 +242,7 @@ function ModuleLoader:require(module)
 	}
 	self._cache[module:GetFullName()] = newCachedModule
 
-	local env = getEnv(module, globals)
+	local env: any = getEnv(module, globals)
 	env.require = bind(self, self.require)
 	setfenv(moduleFn, env)
 
