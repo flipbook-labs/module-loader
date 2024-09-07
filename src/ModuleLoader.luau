@@ -1,4 +1,3 @@
-local GoodSignal = require("@pkg/GoodSignal")
 local Janitor = require("@pkg/Janitor")
 
 local bind = require("./bind")
@@ -36,6 +35,7 @@ type ModuleLoaderProps = {
 	_janitors: { [string]: typeof(Janitor.new()) },
 	_globals: { [any]: any },
 
+	_loadedModuleChangedBindable: BindableEvent,
 	loadedModuleChanged: RBXScriptSignal,
 }
 
@@ -82,6 +82,7 @@ function ModuleLoader.new()
 	self._debugInfo = debug.info
 	self._janitors = {}
 	self._globals = {}
+	self._loadedModuleChangedBindable = Instance.new("BindableEvent")
 
 	--[=[
 		Fired when any ModuleScript required through this class has its ancestry
@@ -104,7 +105,7 @@ function ModuleLoader.new()
 		@prop loadedModuleChanged RBXScriptSignal
 		@within ModuleLoader
 	]=]
-	self.loadedModuleChanged = GoodSignal.new()
+	self.loadedModuleChanged = self._loadedModuleChangedBindable.Event
 
 	return setmetatable(self, ModuleLoader)
 end
@@ -312,7 +313,7 @@ function ModuleLoader:clearModule(moduleToClear: ModuleScript)
 	end
 
 	for _, module in modulesToClear do
-		self.loadedModuleChanged:Fire(module)
+		self._loadedModuleChangedBindable:Fire(module)
 	end
 end
 
