@@ -133,7 +133,7 @@ end
 
 	@private
 ]=]
-function ModuleLoader:_getSource(module)
+function ModuleLoader:_getSource(module: ModuleScript): string
 	local success, result = pcall(function()
 		return module.Source
 	end)
