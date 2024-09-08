@@ -150,7 +150,7 @@ end
 
 	@private
 ]=]
-function ModuleLoader:_trackChanges(module)
+function ModuleLoader:_trackChanges(module: ModuleScript)
 	local existingJanitor = self._janitors[module:GetFullName()]
 	local janitor = if existingJanitor then existingJanitor else Janitor.new()
 
@@ -184,7 +184,7 @@ end
 	loader:cache(moduleInstance, module)
 	```
 ]=]
-function ModuleLoader:cache(module, result)
+function ModuleLoader:cache(module: ModuleScript, result: any)
 	local cachedModule: CachedModule = {
 		module = module,
 		result = result,
@@ -208,7 +208,7 @@ end
 	local module = loader:require(script.Parent.ModuleScript)
 	```
 ]=]
-function ModuleLoader:require(module)
+function ModuleLoader:require(module: ModuleScript)
 	local cachedModule = self._cache[module:GetFullName()]
 	local callerPath = getCallerPath()
 
@@ -260,7 +260,7 @@ function ModuleLoader:require(module)
 	return self:_loadCachedModule(module)
 end
 
-function ModuleLoader:_getConsumers(module)
+function ModuleLoader:_getConsumers(module: ModuleScript): { ModuleScript }
 	local function getConsumersRecursively(cachedModule: CachedModule, found: { [ModuleScript]: true })
 		for consumer in cachedModule.consumers do
 			local cachedConsumer = self._cache[consumer]
