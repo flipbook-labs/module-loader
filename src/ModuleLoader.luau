@@ -87,13 +87,13 @@ function ModuleLoader.new()
 	--[=[
 		Fired when any ModuleScript required through this class has its ancestry
 		or `Source` property changed. This applies to the ModuleScript passed to
-		`ModuleLoader:require( )` and every module that it subsequently requirs.
+		`ModuleLoader:require()` and every module that it subsequently requirs.
 
 		This event is useful for reloading a module when it or any of it
 		dependencies change.
 
 		```lua
-		local loader = ModuleLoader.Instance.new("Accessory")new()
+		local loader = ModuleLoader.new()
 		local result = loader:require(module)
 
 		loader.loadedModuleChanged:Connect(function()
@@ -125,8 +125,8 @@ function ModuleLoader:_loadCachedModule(module: ModuleScript)
 end
 
 --[=[
-	Gets the Source of a Module"./
-"
+	Gets the Source of a ModuleScript.
+
 	This method exists primarily so we can better write unit tests. Attempting
 	to index the Source property from a regular script context throws an error,
 	so this method allows us to safely fallback in tests.
@@ -177,10 +177,10 @@ end
 	class it uses the same table instance.
 
 	```lua
-	local moduleInstance = "./Parent".ModuleScript
+	local moduleInstance = script.Parent.ModuleScript
 	local module = require(moduleInstance)
 
-	local loader = ModuleLoader.Instance.new("Accessory")new()
+	local loader = ModuleLoader.new()
 	loader:cache(moduleInstance, module)
 	```
 ]=]
@@ -199,13 +199,13 @@ end
 --[=[
 	Require a module with a fresh ModuleScript require cache.
 
-	This method is functionally the same as running `require("./Parent".ModuleScript)`,
+	This method is functionally the same as running `require(script.Parent.ModuleScript)`,
 	however in this case the module is not cached. As such, if a change occurs
 	to the module you can call this method again to get the latest changes.
 
 	```lua
-	local loader = ModuleLoader.Instance.new("Accessory")new()
-	local module = loader:require("./Parent".ModuleScript)
+	local loader = ModuleLoader.new()
+	local module = loader:require(script.Parent.ModuleScript)
 	```
 ]=]
 function ModuleLoader:require(module)
@@ -333,14 +333,14 @@ end
 	if the module's Source has been changed.
 
 	```lua
-	local loader = ModuleLoader.Instance.new("Accessory")new()
-	loader:require("./Parent".ModuleScript)
+	local loader = ModuleLoader.new()
+	loader:require(script.Parent.ModuleScript)
 
 	-- Later...
 
 	-- Clear the cache and require the module again
 	loader:clear()
-	loader:require("./Parent".ModuleScript)
+	loader:require(script.Parent.ModuleScript)
 	```
 ]=]
 function ModuleLoader:clear()
