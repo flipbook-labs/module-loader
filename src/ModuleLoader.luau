@@ -1,14 +1,61 @@
-local Janitor = require(script.Parent.Janitor)
-local GoodSignal = require(script.Parent.GoodSignal)
-local bind = require(script.bind)
-local getCallerPath = require(script.getCallerPath)
-local getEnv = require(script.getEnv)
-local createTablePassthrough = require(script.createTablePassthrough)
-local getRobloxTsRuntime = require(script.getRobloxTsRuntime)
-local types = require(script.types)
+local GoodSignal = require("@pkg/GoodSignal")
+local Janitor = require("@pkg/Janitor")
 
-type ModuleConsumers = types.ModuleConsumers
-type ModuleGlobals = types.ModuleGlobals
+local bind = require("./bind")
+local createTablePassthrough = require("./createTablePassthrough")
+local getCallerPath = require("./getCallerPath")
+local getEnv = require("./getEnv")
+local getRobloxTsRuntime = require("./getRobloxTsRuntime")
+
+type CachedModuleResult = any
+
+type ModuleConsumers = {
+	[string]: boolean,
+}
+
+-- Each module gets its own global table that it can modify via _G. This makes
+-- it easy to clear out a module and the globals it defines without impacting
+-- other modules. A module's function environment has all globals merged
+-- together on _G
+type ModuleGlobals = {
+	[any]: any,
+}
+
+type CachedModule = {
+	module: ModuleScript,
+	isLoaded: boolean,
+	result: CachedModuleResult,
+	consumers: ModuleConsumers,
+	globals: ModuleGlobals,
+}
+
+type ModuleLoaderProps = {
+	_cache: { [string]: CachedModule },
+	_loadstring: typeof(loadstring),
+	_debugInfo: typeof(debug.info),
+	_janitors: { [string]: typeof(Janitor.new()) },
+	_globals: { [any]: any },
+
+	loadedModuleChanged: RBXScriptSignal,
+}
+
+type ModuleLoaderImpl = {
+	__index: ModuleLoaderImpl,
+
+	new: () -> ModuleLoader,
+
+	require: (self: ModuleLoader, module: ModuleScript) -> any,
+	cache: (self: ModuleLoader, module: ModuleScript, result: any) -> (),
+	clearModule: (self: ModuleLoader, module: ModuleScript) -> (),
+	clear: (self: ModuleLoader) -> (),
+
+	_loadCachedModule: (self: ModuleLoader, module: ModuleScript) -> CachedModuleResult,
+	_getSource: (self: ModuleLoader, module: ModuleScript) -> string,
+	_trackChanges: (self: ModuleLoader, module: ModuleScript) -> (),
+	_getConsumers: (self: ModuleLoader, module: ModuleScript) -> { ModuleScript },
+}
+
+export type ModuleLoader = typeof(setmetatable({} :: ModuleLoaderProps, {} :: ModuleLoaderImpl))
 
 --[=[
 	ModuleScript loader that bypasses Roblox's require cache.
@@ -21,16 +68,8 @@ type ModuleGlobals = types.ModuleGlobals
 
 	@class ModuleLoader
 ]=]
-local ModuleLoader = {}
+local ModuleLoader = {} :: ModuleLoaderImpl
 ModuleLoader.__index = ModuleLoader
-
-export type CachedModule = {
-	module: ModuleScript,
-	isLoaded: boolean,
-	result: any,
-	consumers: ModuleConsumers,
-	globals: ModuleGlobals,
-}
 
 --[=[
     Constructs a new ModuleLoader instance.
@@ -93,12 +132,12 @@ end
 
 	@private
 ]=]
-function ModuleLoader:_getSource(module: ModuleScript): any?
+function ModuleLoader:_getSource(module: ModuleScript): string
 	local success, result = pcall(function()
 		return module.Source
 	end)
 
-	return if success then result else nil
+	return if success then result else ""
 end
 
 --[=[
@@ -307,7 +346,5 @@ function ModuleLoader:clear()
 	end
 	self._janitors = {}
 end
-
-export type Class = typeof(ModuleLoader.new())
 
 return ModuleLoader
