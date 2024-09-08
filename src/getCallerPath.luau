@@ -2,7 +2,7 @@ local root = script.Parent
 
 local LOADSTRING_PATH_PATTERN = '%[string "(.*)"%]'
 
-local function getCallerPath()
+local function getCallerPath(): string?
 	local level = 1
 
 	while true do
