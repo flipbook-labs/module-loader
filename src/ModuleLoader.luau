@@ -6,6 +6,9 @@ local getCallerPath = require("./getCallerPath")
 local getEnv = require("./getEnv")
 local getRobloxTsRuntime = require("./getRobloxTsRuntime")
 
+local loadmodule = (debug :: any).loadmodule
+local loadmoduleEnabled = pcall(loadmodule, Instance.new("ModuleScript"))
+
 type CachedModuleResult = any
 
 type ModuleConsumers = {
@@ -222,7 +225,13 @@ function ModuleLoader:require(module: ModuleScript)
 	end
 
 	local source = self:_getSource(module)
-	local moduleFn, parseError = self._loadstring(source, module:GetFullName())
+	local moduleFn, parseError
+
+	if loadmoduleEnabled then
+		moduleFn, parseError = loadmodule(module)
+	else
+		moduleFn, parseError = self._loadstring(source, module:GetFullName())
+	end
 
 	if not moduleFn then
 		local message = if parseError then parseError else "<no error message>"
