@@ -1,10 +1,10 @@
 local JestGlobals = require("@pkg/JestGlobals")
-local it = JestGlobals.it
+local test = JestGlobals.test
 local expect = JestGlobals.expect
 
 local createTablePassthrough = require("./createTablePassthrough")
 
-it("should work for the use case of maintaining global variables", function()
+test("works for the use case of maintaining global variables", function()
 	local allGlobals = {}
 	local moduleGlobals1 = createTablePassthrough(allGlobals)
 	local moduleGlobals2 = createTablePassthrough(allGlobals)

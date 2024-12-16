@@ -1,10 +1,10 @@
 local JestGlobals = require("@pkg/JestGlobals")
-local it = JestGlobals.it
+local test = JestGlobals.test
 local expect = JestGlobals.expect
 
 local bind = require("./bind")
 
-it("should bind 'self' to the given callback", function()
+test("binds 'self' to the given callback", function()
 	local module = {
 		value = "foo",
 		callback = function(self)
@@ -17,7 +17,7 @@ it("should bind 'self' to the given callback", function()
 	expect(callback()).toBe("foo")
 end)
 
-it("should work for the usage example", function()
+test("works for the usage example", function()
 	local Class = {}
 	Class.__index = Class
 

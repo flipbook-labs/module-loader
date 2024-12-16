@@ -1,19 +1,19 @@
 local JestGlobals = require("@pkg/JestGlobals")
-local it = JestGlobals.it
+local test = JestGlobals.test
 local expect = JestGlobals.expect
 
 local getEnv = require("./getEnv")
 
-it("should return a table", function()
+test("returns a table", function()
 	expect(typeof(getEnv())).toBe("table")
 end)
 
-it("should have the correct 'script' global", function()
+test("has the correct 'script' global", function()
 	local env = getEnv(script.Parent.getEnv)
 	expect(env.script).toBe(script.Parent.getEnv)
 end)
 
-it("should set _G to the 'globals' argument", function()
+test("sets _G to the 'globals' argument", function()
 	local globals = {}
 	local env = getEnv(script.Parent.getEnv, globals)
 
