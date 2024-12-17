@@ -1,41 +1,35 @@
 local Janitor = require("@pkg/Janitor")
 
-local bind = require("./bind")
 local cleanLoadstringStack = require("./cleanLoadstringStack")
-local createTablePassthrough = require("./createTablePassthrough")
-local getCallerPath = require("./getCallerPath")
-local getEnv = require("./getEnv")
-local getInstanceFromFullName = require("./getInstanceFromFullName")
 local getRobloxTsRuntime = require("./getRobloxTsRuntime")
 
-type CachedModuleResult = any
+local loadmodule = (debug :: any).loadmodule
+local loadModuleEnabled = pcall(function()
+	return loadmodule(Instance.new("ModuleScript"))
+end)
 
-type ModuleConsumers = {
-	[LuaSourceContainer]: boolean,
-}
+local function getModuleSource(moduleScript: ModuleScript): string
+	local success, result = pcall(function()
+		return moduleScript.Source
+	end)
 
--- Each module gets its own global table that it can modify via _G. This makes
--- it easy to clear out a module and the globals it defines without impacting
--- other modules. A module's function environment has all globals merged
--- together on _G
-type ModuleGlobals = {
-	[any]: any,
-}
+	return if success then result else ""
+end
 
-type CachedModule = {
-	module: ModuleScript,
+type LoadedModuleExports = unknown
+
+type LoadedModule = {
+	instance: ModuleScript,
 	isLoaded: boolean,
-	result: CachedModuleResult,
-	consumers: ModuleConsumers,
-	globals: ModuleGlobals,
+	exports: LoadedModuleExports,
+	children: { [ModuleScript]: boolean },
 }
 
 type ModuleLoaderProps = {
-	_cache: { [LuaSourceContainer]: CachedModule },
+	_moduleRegistry: { [ModuleScript]: LoadedModule },
+	_loadedModuleFns: { [ModuleScript]: { any } },
 	_loadstring: typeof(loadstring),
-	_debugInfo: typeof(debug.info),
-	_janitors: { [LuaSourceContainer]: any },
-	_globals: { [any]: any },
+	_janitors: { [ModuleScript]: any },
 
 	_loadedModuleChangedBindable: BindableEvent,
 	loadedModuleChanged: RBXScriptSignal,
@@ -51,8 +45,8 @@ type ModuleLoaderImpl = {
 	clearModule: (self: ModuleLoader, module: ModuleScript) -> (),
 	clear: (self: ModuleLoader) -> (),
 
-	_loadCachedModule: (self: ModuleLoader, module: ModuleScript) -> CachedModuleResult,
-	_getSource: (self: ModuleLoader, module: ModuleScript) -> string,
+	_loadModule: (self: ModuleLoader, loadedModule: LoadedModule) -> (),
+	_execModule: (self: ModuleLoader, loadedModule: LoadedModule) -> (),
 	_trackChanges: (self: ModuleLoader, module: ModuleScript) -> (),
 	_getConsumers: (self: ModuleLoader, module: ModuleScript) -> { ModuleScript },
 }
@@ -79,11 +73,10 @@ ModuleLoader.__index = ModuleLoader
 function ModuleLoader.new()
 	local self = {}
 
-	self._cache = {}
+	self._moduleRegistry = {}
+	self._loadedModuleFns = {}
 	self._loadstring = loadstring
-	self._debugInfo = debug.info
 	self._janitors = {}
-	self._globals = {}
 	self._loadedModuleChangedBindable = Instance.new("BindableEvent")
 
 	--[=[
@@ -110,37 +103,6 @@ function ModuleLoader.new()
 	self.loadedModuleChanged = self._loadedModuleChangedBindable.Event
 
 	return setmetatable(self, ModuleLoader)
-end
-
-function ModuleLoader:_loadCachedModule(module: ModuleScript)
-	local cachedModule: CachedModule = self._cache[module]
-
-	if not cachedModule.isLoaded then
-		error(
-			`requested module experienced an error while loading`
-				.. `\n- MODULE: {module:GetFullName()}`
-				.. `\n- RESULT: {cachedModule.result}`
-		)
-	end
-
-	return cachedModule.result
-end
-
---[=[
-	Gets the Source of a ModuleScript.
-
-	This method exists primarily so we can better write unit tests. Attempting
-	to index the Source property from a regular script context throws an error,
-	so this method allows us to safely fallback in tests.
-
-	@private
-]=]
-function ModuleLoader:_getSource(module: ModuleScript): string
-	local success, result = pcall(function()
-		return module.Source
-	end)
-
-	return if success then result else ""
 end
 
 --[=[
@@ -187,15 +149,102 @@ end
 	```
 ]=]
 function ModuleLoader:cache(module: ModuleScript, result: any)
-	local cachedModule: CachedModule = {
-		module = module,
-		result = result,
+	local loadedModule: LoadedModule = {
+		instance = module,
+		exports = result,
 		isLoaded = true,
-		consumers = {},
-		globals = createTablePassthrough(self._globals),
+		children = {},
 	}
 
-	self._cache[module] = cachedModule
+	self._moduleRegistry[module] = loadedModule
+end
+
+function ModuleLoader:_execModule(localModule: LoadedModule)
+	local moduleFunction, defaultEnvironment, errorMessage, cleanupFn
+	local module = localModule.instance
+
+	local loadedModule = self._loadedModuleFns[module]
+	if loadedModule then
+		moduleFunction = loadedModule[1]
+		defaultEnvironment = loadedModule[2]
+	else
+		-- Narrowing this type here lets us appease the type checker while still
+		-- counting on types for the rest of this file
+		if loadModuleEnabled then
+			moduleFunction, errorMessage, cleanupFn = loadmodule(module)
+		else
+			moduleFunction = loadstring(getModuleSource(module), module:GetFullName())
+		end
+
+		assert(moduleFunction, errorMessage)
+
+		-- Cache initial environment table to inherit from later
+		defaultEnvironment = getfenv(moduleFunction)
+
+		self._loadedModuleFns[module] = { moduleFunction, defaultEnvironment, cleanupFn }
+	end
+
+	-- The default behavior for function environments is to inherit the table
+	-- instance from the parent environment. This means that each invocation of
+	-- `moduleFunction()` will return a new module instance but with the same
+	-- environment table as `moduleFunction` itself at the time of invocation.
+	-- In order to properly sanbox module instances, we need to ensure that each
+	-- instance has its own distinct environment table containing the specific
+	-- overrides for it, but still inherits from the default parent environment
+	-- for non-overriden environment goodies.
+
+	-- This is the 'least mocked' environment that scripts will be able to see.
+	-- The final function environment inherits from this sandbox. This is
+	-- separate so that, in the future, `globalEnv` could expose these
+	-- 'unmocked' functions instead of the ones in the global environment.
+	local sandboxEnvironment = setmetatable({
+		script = if loadModuleEnabled then defaultEnvironment.script else module,
+		game = defaultEnvironment.game,
+		workspace = defaultEnvironment.workspace,
+		plugin = defaultEnvironment.plugin,
+
+		-- legacy aliases for data model
+		Game = defaultEnvironment.game,
+		Workspace = defaultEnvironment.workspace,
+
+		require = function(otherModule: ModuleScript | string)
+			if typeof(otherModule) == "string" then
+				-- Disabling this at the surface level of the API until we have
+				-- deeper support in Jest.
+				error("Require-by-string is not enabled for use inside Jest at this time.")
+			end
+			return self:require(otherModule)
+		end,
+	}, {
+		__index = defaultEnvironment,
+	})
+
+	-- This is the environment actually passed to scripts, including all global
+	-- mocks and other customisations the user might choose to apply.
+	local mockedSandboxEnvironment = setmetatable({}, {
+		__index = sandboxEnvironment,
+	})
+
+	setfenv(moduleFunction, mockedSandboxEnvironment :: any)
+	local moduleResult = table.pack(moduleFunction())
+
+	if moduleResult.n ~= 1 then
+		error(
+			string.format(
+				"[Module Error]: %s did not return a valid result\n" .. "\tModuleScripts must return exactly one value",
+				tostring(module)
+			)
+		)
+	end
+
+	self:_trackChanges(module)
+
+	localModule.exports = moduleResult[1]
+end
+
+function ModuleLoader:_loadModule(localModule: LoadedModule)
+	self:_execModule(localModule)
+	localModule.isLoaded = true
 end
 
 --[=[
@@ -210,75 +259,57 @@ end
 	local module = loader:require(script.Parent.ModuleScript)
 	```
 ]=]
-function ModuleLoader:require(module: ModuleScript)
-	local cachedModule = self._cache[module]
-	local callerPath = getCallerPath()
-	local caller = if callerPath then getInstanceFromFullName(callerPath) else nil
-
-	if cachedModule then
-		if caller and caller:IsA("LuaSourceContainer") then
-			cachedModule.consumers[caller] = true
-		end
-
-		return self:_loadCachedModule(module)
+function ModuleLoader:require(module: ModuleScript): unknown
+	if module.Name:find(".global$") then
+		return (require :: any)(module)
 	end
 
-	local source = self:_getSource(module)
-	local moduleFn, parseError = self._loadstring(source, module:GetFullName())
-
-	if not moduleFn then
-		error(if parseError then cleanLoadstringStack(parseError) else "<no error message>")
+	local existingModule = self._moduleRegistry[module]
+	if existingModule then
+		return existingModule.exports
 	end
 
-	local globals = createTablePassthrough(self._globals)
-
-	local newCachedModule: CachedModule = {
-		module = module,
-		result = nil,
+	-- We must register the pre-allocated module object first so that any
+	-- circular dependencies that may arise while evaluating the module can
+	-- be satisfied.
+	local loadedModule: LoadedModule = {
+		instance = module,
+		exports = nil,
 		isLoaded = false,
-		consumers = {},
-		globals = globals,
+		children = {},
 	}
-	if caller and caller:IsA("LuaSourceContainer") then
-		newCachedModule.consumers[caller] = true
-	end
-	self._cache[module] = newCachedModule
 
-	local env: any = getEnv(module, globals)
-	env.require = bind(self, self.require)
-	setfenv(moduleFn, env)
+	self._moduleRegistry[module] = loadedModule
 
-	local success, result = xpcall(moduleFn, debug.traceback)
-	if success then
-		newCachedModule.isLoaded = true
-		newCachedModule.result = result
-	else
+	local success, result = pcall(function()
+		self:_loadModule(loadedModule)
+	end)
+	if not success then
+		self._moduleRegistry[module] = nil
 		error(result)
 	end
 
-	self:_trackChanges(module)
-
-	return self:_loadCachedModule(module)
+	return loadedModule.exports
 end
 
 function ModuleLoader:_getConsumers(module: ModuleScript): { ModuleScript }
-	local function getConsumersRecursively(cachedModule: CachedModule, found: { [ModuleScript]: true })
-		for consumer in cachedModule.consumers do
-			local cachedConsumer = self._cache[consumer]
+	local function getConsumersRecursively(loadedModule: LoadedModule, found: { [ModuleScript]: true })
+		for consumer in loadedModule.children do
+			local loadedChildModule = self._moduleRegistry[consumer]
 
-			if cachedConsumer then
-				if not found[cachedConsumer.module] then
-					found[cachedConsumer.module] = true
-					getConsumersRecursively(cachedConsumer, found)
+			if loadedChildModule then
+				if not found[loadedChildModule.instance] then
+					found[loadedChildModule.instance] = true
+					getConsumersRecursively(loadedModule, found)
 				end
 			end
 		end
 	end
 
-	local cachedModule: CachedModule = self._cache[module]
+	local loadedModule: LoadedModule = self._moduleRegistry[module]
 	local found = {}
 
-	getConsumersRecursively(cachedModule, found)
+	getConsumersRecursively(loadedModule, found)
 
 	local consumers = {}
 	for consumer in found do
@@ -290,7 +321,7 @@ end
 
 --
 function ModuleLoader:clearModule(moduleToClear: ModuleScript)
-	if not self._cache[moduleToClear] then
+	if not self._moduleRegistry[moduleToClear] then
 		return
 	end
 
@@ -303,14 +334,10 @@ function ModuleLoader:clearModule(moduleToClear: ModuleScript)
 	end
 
 	for _, module in modulesToClear do
-		local cachedModule = self._cache[module]
+		local loadedModule = self._moduleRegistry[module]
 
-		if cachedModule then
-			self._cache[module] = nil
-
-			for key in cachedModule.globals do
-				self._globals[key] = nil
-			end
+		if loadedModule then
+			self._moduleRegistry[module] = nil
 
 			local janitor = self._janitors[module]
 			janitor:Cleanup()
@@ -344,7 +371,7 @@ end
 	```
 ]=]
 function ModuleLoader:clear()
-	self._cache = {}
+	self._moduleRegistry = {}
 	self._globals = {}
 
 	for _, janitor in self._janitors do

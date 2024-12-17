@@ -170,7 +170,7 @@ describe("cache", function()
 
 		loader:cache(mockModuleInstance, mockModuleSource)
 
-		local cachedModule = loader._cache[mockModuleInstance:GetFullName()]
+		local cachedModule = loader._moduleRegistry[mockModuleInstance:GetFullName()]
 
 		expect(cachedModule).toBeDefined()
 		expect(cachedModule.result).toBe(mockModuleSource)
@@ -182,7 +182,7 @@ describe("require", function()
 		local mockModuleInstance = Instance.new("ModuleScript")
 
 		loader:require(mockModuleInstance)
-		expect(loader._cache[mockModuleInstance:GetFullName()]).toBeDefined()
+		expect(loader._moduleRegistry[mockModuleInstance:GetFullName()]).toBeDefined()
 	end)
 
 	test("returns cached results", function()
@@ -224,7 +224,7 @@ describe("require", function()
 
 		loader:require(tree.Consumer)
 
-		local cachedModule = loader._cache[tree.SharedModule:GetFullName()]
+		local cachedModule = loader._moduleRegistry[tree.SharedModule:GetFullName()]
 
 		expect(cachedModule).toBeDefined()
 		expect(cachedModule.consumers[tree.Consumer:GetFullName()]).toBeDefined()
@@ -248,7 +248,7 @@ describe("require", function()
 
 		loader:require(tree.Consumer1)
 
-		local cachedModule = loader._cache[tree.SharedModule:GetFullName()]
+		local cachedModule = loader._moduleRegistry[tree.SharedModule:GetFullName()]
 
 		expect(cachedModule.consumers[tree.Consumer1:GetFullName()]).toBeDefined()
 		expect(cachedModule.consumers[tree.Consumer2:GetFullName()]).toBeUndefined()
@@ -310,7 +310,7 @@ describe("require", function()
 
 		loader:require(tree.DefineGlobal)
 
-		local cachedModule = loader._cache[tree.DefineGlobal:GetFullName()]
+		local cachedModule = loader._moduleRegistry[tree.DefineGlobal:GetFullName()]
 		expect(cachedModule.globals.foo).toBe(true)
 	end)
 
@@ -363,11 +363,11 @@ describe("clearModule", function()
 
 		loader:require(tree.Module)
 
-		expect(loader._cache[tree.Module:GetFullName()]).toBeDefined()
+		expect(loader._moduleRegistry[tree.Module:GetFullName()]).toBeDefined()
 
 		loader:clearModule(tree.Module)
 
-		expect(loader._cache[tree.Module:GetFullName()]).toBeUndefined()
+		expect(loader._moduleRegistry[tree.Module:GetFullName()]).toBeUndefined()
 	end)
 
 	test("clears all consumers of a module from the cache", function()
@@ -389,15 +389,15 @@ describe("clearModule", function()
 		loader:require(tree.Consumer1)
 		loader:require(tree.Consumer2)
 
-		expect(loader._cache[tree.Consumer1:GetFullName()]).toBeDefined()
-		expect(loader._cache[tree.Consumer2:GetFullName()]).toBeDefined()
-		expect(loader._cache[tree.SharedModule:GetFullName()]).toBeDefined()
+		expect(loader._moduleRegistry[tree.Consumer1:GetFullName()]).toBeDefined()
+		expect(loader._moduleRegistry[tree.Consumer2:GetFullName()]).toBeDefined()
+		expect(loader._moduleRegistry[tree.SharedModule:GetFullName()]).toBeDefined()
 
 		loader:clearModule(tree.SharedModule)
 
-		expect(loader._cache[tree.Consumer1:GetFullName()]).toBeUndefined()
-		expect(loader._cache[tree.Consumer2:GetFullName()]).toBeUndefined()
-		expect(loader._cache[tree.SharedModule:GetFullName()]).toBeUndefined()
+		expect(loader._moduleRegistry[tree.Consumer1:GetFullName()]).toBeUndefined()
+		expect(loader._moduleRegistry[tree.Consumer2:GetFullName()]).toBeUndefined()
+		expect(loader._moduleRegistry[tree.SharedModule:GetFullName()]).toBeUndefined()
 	end)
 
 	test("only clears modules in the consumer chain", function()
@@ -417,12 +417,12 @@ describe("clearModule", function()
 		loader:require(tree.Consumer)
 		loader:require(tree.Independent)
 
-		expect(countDict(loader._cache)).toBe(3)
+		expect(countDict(loader._moduleRegistry)).toBe(3)
 
 		loader:clearModule(tree.Module)
 
-		expect(countDict(loader._cache)).toBe(1)
-		expect(loader._cache[tree.Independent:GetFullName()]).toBeDefined()
+		expect(countDict(loader._moduleRegistry)).toBe(1)
+		expect(loader._moduleRegistry[tree.Independent:GetFullName()]).toBeDefined()
 	end)
 
 	test("clears all globals that a module supplied", function()
@@ -520,11 +520,11 @@ describe("clear", function()
 
 		loader:cache(mockModuleInstance, mockModuleSource)
 
-		expect(countDict(loader._cache)).toBe(1)
+		expect(countDict(loader._moduleRegistry)).toBe(1)
 
 		loader:clear()
 
-		expect(countDict(loader._cache)).toBe(0)
+		expect(countDict(loader._moduleRegistry)).toBe(0)
 	end)
 
 	test("reset globals", function()
@@ -557,13 +557,13 @@ describe("consumers", function()
 	test("removes all consumers of a changed module from the cache", function()
 		loader:require(tree.ModuleA)
 
-		local hasItems = next(loader._cache) ~= nil
+		local hasItems = next(loader._moduleRegistry) ~= nil
 		expect(hasItems).toBe(true)
 
 		tree.ModuleB.Source = 'return "ModuleB Reloaded"'
 		task.wait()
 
-		hasItems = next(loader._cache) ~= nil
+		hasItems = next(loader._moduleRegistry) ~= nil
 		expect(hasItems).toBe(false)
 	end)
 
@@ -571,15 +571,15 @@ describe("consumers", function()
 		loader:require(tree.ModuleA)
 		loader:require(tree.ModuleC)
 
-		local hasItems = next(loader._cache) ~= nil
+		local hasItems = next(loader._moduleRegistry) ~= nil
 		expect(hasItems).toBe(true)
 
 		tree.ModuleB.Source = 'return "ModuleB Reloaded"'
 		task.wait()
 
-		expect(loader._cache[tree.ModuleA:GetFullName()]).toBeUndefined()
-		expect(loader._cache[tree.ModuleB:GetFullName()]).toBeUndefined()
-		expect(loader._cache[tree.ModuleC:GetFullName()]).toBeDefined()
+		expect(loader._moduleRegistry[tree.ModuleA:GetFullName()]).toBeUndefined()
+		expect(loader._moduleRegistry[tree.ModuleB:GetFullName()]).toBeUndefined()
+		expect(loader._moduleRegistry[tree.ModuleC:GetFullName()]).toBeDefined()
 	end)
 end)
 
@@ -640,11 +640,11 @@ describe("roblox-ts", function()
 		loader:require(tree.Root)
 		loader:clearModule(tree.Shared)
 
-		expect(loader._cache[mockRuntime:GetFullName()]).toBeDefined()
-		expect(loader._cache[tree.Shared:GetFullName()]).toBeUndefined()
-		expect(loader._cache[tree.Module1:GetFullName()]).toBeUndefined()
-		expect(loader._cache[tree.Module2:GetFullName()]).toBeUndefined()
-		expect(loader._cache[tree.Root:GetFullName()]).toBeUndefined()
+		expect(loader._moduleRegistry[mockRuntime:GetFullName()]).toBeDefined()
+		expect(loader._moduleRegistry[tree.Shared:GetFullName()]).toBeUndefined()
+		expect(loader._moduleRegistry[tree.Module1:GetFullName()]).toBeUndefined()
+		expect(loader._moduleRegistry[tree.Module2:GetFullName()]).toBeUndefined()
+		expect(loader._moduleRegistry[tree.Root:GetFullName()]).toBeUndefined()
 	end)
 
 	test("clear() clears the roblox-ts runtime when calling", function()
@@ -657,7 +657,7 @@ describe("roblox-ts", function()
 		loader:require(tree.Module)
 		loader:clear()
 
-		expect(loader._cache[mockRuntime:GetFullName()]).toBeUndefined()
-		expect(loader._cache[tree.Module:GetFullName()]).toBeUndefined()
+		expect(loader._moduleRegistry[mockRuntime:GetFullName()]).toBeUndefined()
+		expect(loader._moduleRegistry[tree.Module:GetFullName()]).toBeUndefined()
 	end)
 end)
