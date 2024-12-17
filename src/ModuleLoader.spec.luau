@@ -313,6 +313,44 @@ describe("require", function()
 		local cachedModule = loader._cache[tree.DefineGlobal:GetFullName()]
 		expect(cachedModule.globals.foo).toBe(true)
 	end)
+
+	test("handles syntax errors for direct require", function()
+		tree = createModuleTest({
+			Module = [[
+				syntax error
+			]],
+		})
+		tree.Name = "SyntaxError"
+
+		expect(function()
+			loader:require(tree.Module)
+		end).toThrow(`SyntaxError.Module:1: Incomplete statement: expected assignment or a function call`)
+	end)
+
+	test("handles syntax errors for nested requires", function()
+		tree = createModuleTest({
+			Module3 = [[
+					syntax error
+				]],
+			Module2 = [[
+					require(script.Parent.Module3)
+					return {}
+				]],
+			Module1 = [[
+					require(script.Parent.Module2)
+					return {}
+				]],
+			Consumer = [[
+					require(script.Parent.Module1)
+					return nil
+				]],
+		})
+		tree.Name = "SyntaxError"
+
+		expect(function()
+			loader:require(tree.Consumer)
+		end).toThrow(`SyntaxError.Consumer:1: Incomplete statement: expected assignment or a function call`)
+	end)
 end)
 
 describe("clearModule", function()

@@ -1,6 +1,7 @@
 local Janitor = require("@pkg/Janitor")
 
 local bind = require("./bind")
+local cleanLoadstringStack = require("./cleanLoadstringStack")
 local createTablePassthrough = require("./createTablePassthrough")
 local getCallerPath = require("./getCallerPath")
 local getEnv = require("./getEnv")
@@ -113,13 +114,13 @@ end
 function ModuleLoader:_loadCachedModule(module: ModuleScript)
 	local cachedModule: CachedModule = self._cache[module:GetFullName()]
 
-	assert(
-		cachedModule.isLoaded,
-		"Requested module experienced an error while loading MODULE: "
-			.. module:GetFullName()
-			.. " - RESULT: "
-			.. tostring(cachedModule.result)
-	)
+	if not cachedModule.isLoaded then
+		error(
+			`requested module experienced an error while loading`
+				.. `\n- MODULE: {module:GetFullName()}`
+				.. `\n- RESULT: {cachedModule.result}`
+		)
+	end
 
 	return cachedModule.result
 end
@@ -225,8 +226,7 @@ function ModuleLoader:require(module: ModuleScript)
 	local moduleFn, parseError = self._loadstring(source, module:GetFullName())
 
 	if not moduleFn then
-		local message = if parseError then parseError else "<no error message>"
-		error(`Could not parse {module:GetFullName()}: {message}`)
+		error(if parseError then cleanLoadstringStack(parseError) else "<no error message>")
 	end
 
 	local globals = createTablePassthrough(self._globals)
@@ -247,12 +247,11 @@ function ModuleLoader:require(module: ModuleScript)
 	setfenv(moduleFn, env)
 
 	local success, result = xpcall(moduleFn, debug.traceback)
-
 	if success then
 		newCachedModule.isLoaded = true
 		newCachedModule.result = result
 	else
-		error(("Error requiring %s: %s"):format(module.Name, result))
+		error(result)
 	end
 
 	self:_trackChanges(module)
