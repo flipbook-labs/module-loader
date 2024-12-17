@@ -5,12 +5,13 @@ local cleanLoadstringStack = require("./cleanLoadstringStack")
 local createTablePassthrough = require("./createTablePassthrough")
 local getCallerPath = require("./getCallerPath")
 local getEnv = require("./getEnv")
+local getInstanceFromFullName = require("./getInstanceFromFullName")
 local getRobloxTsRuntime = require("./getRobloxTsRuntime")
 
 type CachedModuleResult = any
 
 type ModuleConsumers = {
-	[string]: boolean,
+	[LuaSourceContainer]: boolean,
 }
 
 -- Each module gets its own global table that it can modify via _G. This makes
@@ -30,10 +31,10 @@ type CachedModule = {
 }
 
 type ModuleLoaderProps = {
-	_cache: { [string]: CachedModule },
+	_cache: { [LuaSourceContainer]: CachedModule },
 	_loadstring: typeof(loadstring),
 	_debugInfo: typeof(debug.info),
-	_janitors: { [string]: any },
+	_janitors: { [LuaSourceContainer]: any },
 	_globals: { [any]: any },
 
 	_loadedModuleChangedBindable: BindableEvent,
@@ -112,7 +113,7 @@ function ModuleLoader.new()
 end
 
 function ModuleLoader:_loadCachedModule(module: ModuleScript)
-	local cachedModule: CachedModule = self._cache[module:GetFullName()]
+	local cachedModule: CachedModule = self._cache[module]
 
 	if not cachedModule.isLoaded then
 		error(
@@ -152,7 +153,7 @@ end
 	@private
 ]=]
 function ModuleLoader:_trackChanges(module: ModuleScript)
-	local existingJanitor = self._janitors[module:GetFullName()]
+	local existingJanitor = self._janitors[module]
 	local janitor = if existingJanitor then existingJanitor else Janitor.new()
 
 	janitor:Cleanup()
@@ -167,7 +168,7 @@ function ModuleLoader:_trackChanges(module: ModuleScript)
 		end
 	end))
 
-	self._janitors[module:GetFullName()] = janitor
+	self._janitors[module] = janitor
 end
 
 --[=[
@@ -194,7 +195,7 @@ function ModuleLoader:cache(module: ModuleScript, result: any)
 		globals = createTablePassthrough(self._globals),
 	}
 
-	self._cache[module:GetFullName()] = cachedModule
+	self._cache[module] = cachedModule
 end
 
 --[=[
@@ -210,15 +211,15 @@ end
 	```
 ]=]
 function ModuleLoader:require(module: ModuleScript)
-	local cachedModule = self._cache[module:GetFullName()]
+	local cachedModule = self._cache[module]
 	local callerPath = getCallerPath()
-
-	if not callerPath then
-		return nil
-	end
+	local caller = if callerPath then getInstanceFromFullName(callerPath) else nil
 
 	if cachedModule then
-		cachedModule.consumers[callerPath] = true
+		if caller and caller:IsA("LuaSourceContainer") then
+			cachedModule.consumers[caller] = true
+		end
+
 		return self:_loadCachedModule(module)
 	end
 
@@ -235,12 +236,13 @@ function ModuleLoader:require(module: ModuleScript)
 		module = module,
 		result = nil,
 		isLoaded = false,
-		consumers = {
-			[callerPath] = true,
-		},
+		consumers = {},
 		globals = globals,
 	}
-	self._cache[module:GetFullName()] = newCachedModule
+	if caller and caller:IsA("LuaSourceContainer") then
+		newCachedModule.consumers[caller] = true
+	end
+	self._cache[module] = newCachedModule
 
 	local env: any = getEnv(module, globals)
 	env.require = bind(self, self.require)
@@ -273,7 +275,7 @@ function ModuleLoader:_getConsumers(module: ModuleScript): { ModuleScript }
 		end
 	end
 
-	local cachedModule: CachedModule = self._cache[module:GetFullName()]
+	local cachedModule: CachedModule = self._cache[module]
 	local found = {}
 
 	getConsumersRecursively(cachedModule, found)
@@ -286,8 +288,9 @@ function ModuleLoader:_getConsumers(module: ModuleScript): { ModuleScript }
 	return consumers
 end
 
+--
 function ModuleLoader:clearModule(moduleToClear: ModuleScript)
-	if not self._cache[moduleToClear:GetFullName()] then
+	if not self._cache[moduleToClear] then
 		return
 	end
 
@@ -300,18 +303,16 @@ function ModuleLoader:clearModule(moduleToClear: ModuleScript)
 	end
 
 	for _, module in modulesToClear do
-		local fullName = module:GetFullName()
-
-		local cachedModule = self._cache[fullName]
+		local cachedModule = self._cache[module]
 
 		if cachedModule then
-			self._cache[fullName] = nil
+			self._cache[module] = nil
 
 			for key in cachedModule.globals do
 				self._globals[key] = nil
 			end
 
-			local janitor = self._janitors[fullName]
+			local janitor = self._janitors[module]
 			janitor:Cleanup()
 		end
 	end
