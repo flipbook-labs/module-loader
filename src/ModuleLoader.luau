@@ -372,7 +372,6 @@ end
 ]=]
 function ModuleLoader:clear()
 	self._moduleRegistry = {}
-	self._globals = {}
 
 	for _, janitor in self._janitors do
 		janitor:Cleanup()
