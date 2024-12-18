@@ -45,7 +45,6 @@ type ModuleLoaderImpl = {
 	clearModule: (self: ModuleLoader, module: ModuleScript) -> (),
 	clear: (self: ModuleLoader) -> (),
 
-	_loadModule: (self: ModuleLoader, loadedModule: LoadedModule) -> (),
 	_execModule: (self: ModuleLoader, loadedModule: LoadedModule) -> (),
 	_trackChanges: (self: ModuleLoader, module: ModuleScript) -> (),
 	_getConsumers: (self: ModuleLoader, module: ModuleScript) -> { ModuleScript },
@@ -159,14 +158,14 @@ function ModuleLoader:cache(module: ModuleScript, result: any)
 	self._moduleRegistry[module] = loadedModule
 end
 
-function ModuleLoader:_execModule(localModule: LoadedModule)
+function ModuleLoader:_execModule(loadedModule: LoadedModule)
 	local moduleFunction, defaultEnvironment, errorMessage, cleanupFn
-	local module = localModule.instance
+	local module = loadedModule.instance
 
-	local loadedModule = self._loadedModuleFns[module]
-	if loadedModule then
-		moduleFunction = loadedModule[1]
-		defaultEnvironment = loadedModule[2]
+	local loadedModuleFns = self._loadedModuleFns[module]
+	if loadedModuleFns then
+		moduleFunction = loadedModuleFns[1]
+		defaultEnvironment = loadedModuleFns[2]
 	else
 		-- Narrowing this type here lets us appease the type checker while still
 		-- counting on types for the rest of this file
@@ -239,12 +238,7 @@ function ModuleLoader:_execModule(localModule: LoadedModule)
 
 	self:_trackChanges(module)
 
-	localModule.exports = moduleResult[1]
-end
-
-function ModuleLoader:_loadModule(localModule: LoadedModule)
-	self:_execModule(localModule)
-	localModule.isLoaded = true
+	loadedModule.exports = moduleResult[1]
 end
 
 --[=[
@@ -282,7 +276,8 @@ function ModuleLoader:require(module: ModuleScript): unknown
 	self._moduleRegistry[module] = loadedModule
 
 	local success, result = pcall(function()
-		self:_loadModule(loadedModule)
+		self:_execModule(loadedModule)
+		loadedModule.isLoaded = true
 	end)
 	if not success then
 		self._moduleRegistry[module] = nil
