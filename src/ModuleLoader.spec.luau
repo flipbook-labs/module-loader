@@ -6,6 +6,7 @@ local expect = JestGlobals.expect
 local describe = JestGlobals.describe
 local beforeEach = JestGlobals.beforeEach
 local afterEach = JestGlobals.afterEach
+local describeEach = describe.each :: any
 
 local ModuleLoader = require("./ModuleLoader")
 
@@ -49,8 +50,13 @@ local mockModuleSource = {}
 local loader: ModuleLoader.ModuleLoader
 local tree
 
+describeEach({
+	"loadstring",
+	"loadmodule",
+})("%s", function(loadingStrategy)
 beforeEach(function()
 	loader = ModuleLoader.new()
+		loader._forceLoadstring = loadingStrategy == "loadstring"
 end)
 
 afterEach(function()
@@ -659,5 +665,6 @@ describe("roblox-ts", function()
 
 		expect(loader._moduleRegistry[mockRuntime:GetFullName()]).toBeUndefined()
 		expect(loader._moduleRegistry[tree.Module:GetFullName()]).toBeUndefined()
+		end)
 	end)
 end)

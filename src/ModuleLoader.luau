@@ -28,7 +28,7 @@ type LoadedModule = {
 type ModuleLoaderProps = {
 	_moduleRegistry: { [ModuleScript]: LoadedModule },
 	_loadedModuleFns: { [ModuleScript]: { any } },
-	_loadstring: typeof(loadstring),
+	_forceLoadstring: boolean,
 	_janitors: { [ModuleScript]: any },
 
 	_loadedModuleChangedBindable: BindableEvent,
@@ -74,7 +74,7 @@ function ModuleLoader.new()
 
 	self._moduleRegistry = {}
 	self._loadedModuleFns = {}
-	self._loadstring = loadstring
+	self._forceLoadstring = false
 	self._janitors = {}
 	self._loadedModuleChangedBindable = Instance.new("BindableEvent")
 
@@ -162,6 +162,8 @@ function ModuleLoader:_execModule(loadedModule: LoadedModule)
 	local moduleFunction, defaultEnvironment, errorMessage, cleanupFn
 	local module = loadedModule.instance
 
+	local shouldUseLoadmodule = self._forceLoadstring or not loadModuleEnabled
+
 	local loadedModuleFns = self._loadedModuleFns[module]
 	if loadedModuleFns then
 		moduleFunction = loadedModuleFns[1]
@@ -169,10 +171,10 @@ function ModuleLoader:_execModule(loadedModule: LoadedModule)
 	else
 		-- Narrowing this type here lets us appease the type checker while still
 		-- counting on types for the rest of this file
-		if loadModuleEnabled then
+		if shouldUseLoadmodule then
 			moduleFunction, errorMessage, cleanupFn = loadmodule(module)
 		else
-			moduleFunction = loadstring(getModuleSource(module), module:GetFullName())
+			moduleFunction, errorMessage = loadstring(getModuleSource(module), module:GetFullName())
 		end
 
 		assert(moduleFunction, errorMessage)
@@ -197,7 +199,7 @@ function ModuleLoader:_execModule(loadedModule: LoadedModule)
 	-- separate so that, in the future, `globalEnv` could expose these
 	-- 'unmocked' functions instead of the ones in the global environment.
 	local sandboxEnvironment = setmetatable({
-		script = if loadModuleEnabled then defaultEnvironment.script else module,
+		script = if shouldUseLoadmodule then defaultEnvironment.script else module,
 		game = defaultEnvironment.game,
 		workspace = defaultEnvironment.workspace,
 		plugin = defaultEnvironment.plugin,
