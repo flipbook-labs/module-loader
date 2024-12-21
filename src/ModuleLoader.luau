@@ -1,7 +1,10 @@
 local Janitor = require("@pkg/Janitor")
+local LuauPolyfill = require("@pkg/LuauPolyfill")
 
 local cleanLoadstringStack = require("./cleanLoadstringStack")
 local getRobloxTsRuntime = require("./getRobloxTsRuntime")
+
+local Error = LuauPolyfill.Error
 
 local loadmodule = (debug :: any).loadmodule
 local loadModuleEnabled = pcall(function()
@@ -175,9 +178,15 @@ function ModuleLoader:_execModule(loadedModule: LoadedModule)
 			moduleFunction, errorMessage, cleanupFn = loadmodule(module)
 		else
 			moduleFunction, errorMessage = loadstring(getModuleSource(module), module:GetFullName())
+
+			if errorMessage then
+				errorMessage = cleanLoadstringStack(errorMessage)
+			end
 		end
 
-		assert(moduleFunction, errorMessage)
+		if not moduleFunction then
+			error(Error.new(errorMessage))
+		end
 
 		-- Cache initial environment table to inherit from later
 		defaultEnvironment = getfenv(moduleFunction)
@@ -368,11 +377,12 @@ end
 	```
 ]=]
 function ModuleLoader:clear()
-	self._moduleRegistry = {}
-
 	for _, janitor in self._janitors do
 		janitor:Cleanup()
 	end
+
+	self._moduleRegistry = {}
+	self._loadedModuleFns = {}
 	self._janitors = {}
 end
 
