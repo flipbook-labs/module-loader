@@ -93,11 +93,11 @@ function ModuleLoader.new()
 
 		```lua
 		local loader = ModuleLoader.new()
-		local result = loader:require(module)
+		local result = loader:require(moduleScript)
 
 		loader.loadedModuleChanged:Connect(function()
 			loader:clear()
-			result = loader:require(module)
+			result = loader:require(moduleScript)
 		end)
 		```
 
@@ -118,23 +118,23 @@ end
 
 	@private
 ]=]
-function ModuleLoader:_trackChanges(module: ModuleScript)
-	local existingJanitor = self._janitors[module]
+function ModuleLoader:_trackChanges(moduleScript: ModuleScript)
+	local existingJanitor = self._janitors[moduleScript]
 	local janitor = if existingJanitor then existingJanitor else Janitor.new()
 
 	janitor:Cleanup()
 
-	janitor:Add(module.AncestryChanged:Connect(function()
-		self:clearModule(module)
+	janitor:Add(moduleScript.AncestryChanged:Connect(function()
+		self:clearModule(moduleScript)
 	end))
 
-	janitor:Add(module.Changed:Connect(function(prop: string)
+	janitor:Add(moduleScript.Changed:Connect(function(prop: string)
 		if prop == "Source" then
-			self:clearModule(module)
+			self:clearModule(moduleScript)
 		end
 	end))
 
-	self._janitors[module] = janitor
+	self._janitors[moduleScript] = janitor
 end
 
 --[=[
@@ -146,40 +146,39 @@ end
 
 	```lua
 	local moduleInstance = script.Parent.ModuleScript
-	local module = require(moduleInstance)
+	local moduleScript = require(moduleInstance)
 
 	local loader = ModuleLoader.new()
-	loader:cache(moduleInstance, module)
+	loader:cache(moduleInstance, moduleScript)
 	```
 ]=]
-function ModuleLoader:cache(module: ModuleScript, result: any)
+function ModuleLoader:cache(moduleScript: ModuleScript, result: any)
 	local loadedModule: LoadedModule = {
-		instance = module,
+		instance = moduleScript,
 		exports = result,
 		isLoaded = true,
-		children = {},
+		dependencies = {},
+		consumers = {},
 	}
 
-	self._moduleRegistry[module] = loadedModule
+	self._moduleRegistry[moduleScript] = loadedModule
 end
 
 function ModuleLoader:_execModule(loadedModule: LoadedModule)
 	local moduleFunction, defaultEnvironment, errorMessage, cleanupFn
-	local module = loadedModule.instance
+	local moduleScript = loadedModule.instance
 
 	local shouldUseLoadmodule = self._forceLoadstring or not loadModuleEnabled
 
-	local loadedModuleFns = self._loadedModuleFns[module]
+	local loadedModuleFns = self._loadedModuleFns[moduleScript]
 	if loadedModuleFns then
 		moduleFunction = loadedModuleFns[1]
 		defaultEnvironment = loadedModuleFns[2]
 	else
-		-- Narrowing this type here lets us appease the type checker while still
-		-- counting on types for the rest of this file
 		if shouldUseLoadmodule then
-			moduleFunction, errorMessage, cleanupFn = loadmodule(module)
+			moduleFunction, errorMessage, cleanupFn = loadmodule(moduleScript)
 		else
-			moduleFunction, errorMessage = loadstring(getModuleSource(module), module:GetFullName())
+			moduleFunction, errorMessage = loadstring(getModuleSource(moduleScript), moduleScript:GetFullName())
 
 			if errorMessage then
 				errorMessage = cleanLoadstringStack(errorMessage)
@@ -194,7 +193,7 @@ function ModuleLoader:_execModule(loadedModule: LoadedModule)
 		defaultEnvironment = getfenv(moduleFunction)
 
 		if self._loadedModuleFns then
-		self._loadedModuleFns[module] = { moduleFunction, defaultEnvironment, cleanupFn }
+			self._loadedModuleFns[moduleScript] = { moduleFunction, defaultEnvironment, cleanupFn }
 		else
 			if cleanupFn ~= nil then
 				table.insert(self._cleanupFns, cleanupFn)
@@ -216,7 +215,7 @@ function ModuleLoader:_execModule(loadedModule: LoadedModule)
 	-- separate so that, in the future, `globalEnv` could expose these
 	-- 'unmocked' functions instead of the ones in the global environment.
 	local sandboxEnvironment = setmetatable({
-		script = if shouldUseLoadmodule then defaultEnvironment.script else module,
+		script = if shouldUseLoadmodule then defaultEnvironment.script else moduleScript,
 		game = defaultEnvironment.game,
 		workspace = defaultEnvironment.workspace,
 		plugin = defaultEnvironment.plugin,
@@ -250,12 +249,12 @@ function ModuleLoader:_execModule(loadedModule: LoadedModule)
 		error(
 			string.format(
 				"[Module Error]: %s did not return a valid result\n" .. "\tModuleScripts must return exactly one value",
-				tostring(module)
+				tostring(moduleScript)
 			)
 		)
 	end
 
-	self:_trackChanges(module)
+	self:_trackChanges(moduleScript)
 
 	loadedModule.exports = moduleResult[1]
 end
@@ -272,12 +271,12 @@ end
 	local module = loader:require(script.Parent.ModuleScript)
 	```
 ]=]
-function ModuleLoader:require(module: ModuleScript): unknown
-	if module.Name:find(".global$") then
-		return (require :: any)(module)
+function ModuleLoader:require(moduleScript: ModuleScript): unknown
+	if moduleScript.Name:find(".global$") then
+		return (require :: any)(moduleScript)
 	end
 
-	local existingModule = self._moduleRegistry[module]
+	local existingModule = self._moduleRegistry[moduleScript]
 	if existingModule then
 		return existingModule.exports
 	end
@@ -286,27 +285,27 @@ function ModuleLoader:require(module: ModuleScript): unknown
 	-- circular dependencies that may arise while evaluating the module can
 	-- be satisfied.
 	local loadedModule: LoadedModule = {
-		instance = module,
+		instance = moduleScript,
 		exports = nil,
 		isLoaded = false,
 		children = {},
 	}
 
-	self._moduleRegistry[module] = loadedModule
+	self._moduleRegistry[moduleScript] = loadedModule
 
 	local success, result = pcall(function()
 		self:_execModule(loadedModule)
 		loadedModule.isLoaded = true
 	end)
 	if not success then
-		self._moduleRegistry[module] = nil
+		self._moduleRegistry[moduleScript] = nil
 		error(result)
 	end
 
 	return loadedModule.exports
 end
 
-function ModuleLoader:_getConsumers(module: ModuleScript): { ModuleScript }
+function ModuleLoader:_getConsumers(moduleScript: ModuleScript): { ModuleScript }
 	local function getConsumersRecursively(loadedModule: LoadedModule, found: { [ModuleScript]: true })
 		for consumer in loadedModule.children do
 			local loadedChildModule = self._moduleRegistry[consumer]
@@ -320,7 +319,7 @@ function ModuleLoader:_getConsumers(module: ModuleScript): { ModuleScript }
 		end
 	end
 
-	local loadedModule: LoadedModule = self._moduleRegistry[module]
+	local loadedModule: LoadedModule = self._moduleRegistry[moduleScript]
 	local found = {}
 
 	getConsumersRecursively(loadedModule, found)
@@ -347,19 +346,19 @@ function ModuleLoader:clearModule(moduleToClear: ModuleScript)
 		table.remove(modulesToClear, index)
 	end
 
-	for _, module in modulesToClear do
-		local loadedModule = self._moduleRegistry[module]
+	for _, moduleScript in modulesToClear do
+		local loadedModule = self._moduleRegistry[moduleScript]
 
 		if loadedModule then
-			self._moduleRegistry[module] = nil
+			self._moduleRegistry[moduleScript] = nil
 
-			local janitor = self._janitors[module]
+			local janitor = self._janitors[moduleScript]
 			janitor:Cleanup()
 		end
 	end
 
-	for _, module in modulesToClear do
-		self._loadedModuleChangedBindable:Fire(module)
+	for _, moduleScript in modulesToClear do
+		self._loadedModuleChangedBindable:Fire(moduleScript)
 	end
 end
 
