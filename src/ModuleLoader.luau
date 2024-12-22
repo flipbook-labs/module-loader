@@ -6,7 +6,7 @@ local getRobloxTsRuntime = require("./getRobloxTsRuntime")
 
 local Error = LuauPolyfill.Error
 
-local loadmodule = (debug :: any).loadmodule
+local loadmodule: (ModuleScript) -> (() -> unknown?, string?, () -> ()) = debug["loadmodule"]
 local loadModuleEnabled = pcall(function()
 	return loadmodule(Instance.new("ModuleScript"))
 end)
@@ -25,7 +25,8 @@ type LoadedModule = {
 	instance: ModuleScript,
 	isLoaded: boolean,
 	exports: LoadedModuleExports,
-	children: { [ModuleScript]: boolean },
+	dependencies: { [ModuleScript]: boolean },
+	consumers: { [ModuleScript]: boolean },
 }
 
 type ModuleLoaderProps = {
@@ -230,6 +231,9 @@ function ModuleLoader:_execModule(loadedModule: LoadedModule)
 				-- deeper support in Jest.
 				error("Require-by-string is not enabled for use inside Jest at this time.")
 			end
+
+			loadedModule.dependencies[otherModule] = true
+
 			return self:require(otherModule)
 		end,
 	}, {
@@ -288,7 +292,8 @@ function ModuleLoader:require(moduleScript: ModuleScript): unknown
 		instance = moduleScript,
 		exports = nil,
 		isLoaded = false,
-		children = {},
+		dependencies = {},
+		consumers = {},
 	}
 
 	self._moduleRegistry[moduleScript] = loadedModule
@@ -307,7 +312,7 @@ end
 
 function ModuleLoader:_getConsumers(moduleScript: ModuleScript): { ModuleScript }
 	local function getConsumersRecursively(loadedModule: LoadedModule, found: { [ModuleScript]: true })
-		for consumer in loadedModule.children do
+		for consumer in loadedModule.consumers do
 			local loadedChildModule = self._moduleRegistry[consumer]
 
 			if loadedChildModule then

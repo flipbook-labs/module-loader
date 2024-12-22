@@ -197,6 +197,47 @@ describeEach({
 			expect(loader._moduleRegistry[mockModuleInstance]).toBeDefined()
 		end)
 
+		test("keeps track of module dependencies", function()
+			tree = createModuleTest({
+				Module3 = [[
+					return nil
+				]],
+				Module2 = [[
+					require(script.Parent.Module3)
+					return nil
+				]],
+				Module1 = [[
+					require(script.Parent.Module2)
+					return nil
+				]],
+				Root = [[
+					require(script.Parent.Module1)
+					return nil
+				]],
+			})
+
+			loader:require(tree.Root)
+
+			expect(loader._moduleRegistry[tree.Root]).toMatchObject({
+				dependencies = {
+					[tree.Module1] = true,
+				},
+			})
+			expect(loader._moduleRegistry[tree.Module1]).toMatchObject({
+				dependencies = {
+					[tree.Module2] = true,
+				},
+			})
+			expect(loader._moduleRegistry[tree.Module2]).toMatchObject({
+				dependencies = {
+					[tree.Module3] = true,
+				},
+			})
+			expect(loader._moduleRegistry[tree.Module3]).toMatchObject({
+				dependencies = {},
+			})
+		end)
+
 		test("returns cached results", function()
 			tree = createModuleTest({
 				-- We return a table since it can act as a unique symbol. So if
