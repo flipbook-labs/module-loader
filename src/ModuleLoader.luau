@@ -31,6 +31,7 @@ type LoadedModule = {
 type ModuleLoaderProps = {
 	_moduleRegistry: { [ModuleScript]: LoadedModule },
 	_loadedModuleFns: { [ModuleScript]: { any } },
+	_cleanupFns: { () -> () },
 	_forceLoadstring: boolean,
 	_janitors: { [ModuleScript]: any },
 
@@ -77,6 +78,7 @@ function ModuleLoader.new()
 
 	self._moduleRegistry = {}
 	self._loadedModuleFns = {}
+	self._cleanupFns = {}
 	self._forceLoadstring = false
 	self._janitors = {}
 	self._loadedModuleChangedBindable = Instance.new("BindableEvent")
@@ -191,7 +193,13 @@ function ModuleLoader:_execModule(loadedModule: LoadedModule)
 		-- Cache initial environment table to inherit from later
 		defaultEnvironment = getfenv(moduleFunction)
 
+		if self._loadedModuleFns then
 		self._loadedModuleFns[module] = { moduleFunction, defaultEnvironment, cleanupFn }
+		else
+			if cleanupFn ~= nil then
+				table.insert(self._cleanupFns, cleanupFn)
+			end
+		end
 	end
 
 	-- The default behavior for function environments is to inherit the table
@@ -381,8 +389,13 @@ function ModuleLoader:clear()
 		janitor:Cleanup()
 	end
 
+	for _, cleanupFn in self._cleanupFns do
+		cleanupFn()
+	end
+
 	self._moduleRegistry = {}
 	self._loadedModuleFns = {}
+	self._cleanupFns = {}
 	self._janitors = {}
 end
 
