@@ -60,7 +60,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: CompeyDev/setup-rokit@v0.1.2
+      - uses: Roblox/setup-foreman@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
