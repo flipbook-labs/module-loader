@@ -2,7 +2,13 @@ local Janitor = require("@pkg/Janitor")
 local LuauPolyfill = require("@pkg/LuauPolyfill")
 
 local cleanLoadstringStack = require("./cleanLoadstringStack")
+local createModuleRegistry = require("./createModuleRegistry")
+local getCallerPath = require("./getCallerPath")
 local getRobloxTsRuntime = require("./getRobloxTsRuntime")
+local types = require("./types")
+
+type ModuleRegistry = types.ModuleRegistry
+type LoadedModule = types.LoadedModule
 
 local Error = LuauPolyfill.Error
 
@@ -19,18 +25,8 @@ local function getModuleSource(moduleScript: ModuleScript): string
 	return if success then result else ""
 end
 
-type LoadedModuleExports = unknown
-
-type LoadedModule = {
-	instance: ModuleScript,
-	isLoaded: boolean,
-	exports: LoadedModuleExports,
-	dependencies: { [ModuleScript]: boolean },
-	consumers: { [ModuleScript]: boolean },
-}
-
 type ModuleLoaderProps = {
-	_moduleRegistry: { [ModuleScript]: LoadedModule },
+	_moduleRegistry: ModuleRegistry,
 	_loadedModuleFns: { [ModuleScript]: { any } },
 	_cleanupFns: { () -> () },
 	_forceLoadstring: boolean,
@@ -77,7 +73,7 @@ ModuleLoader.__index = ModuleLoader
 function ModuleLoader.new()
 	local self = {}
 
-	self._moduleRegistry = {}
+	self._moduleRegistry = createModuleRegistry()
 	self._loadedModuleFns = {}
 	self._cleanupFns = {}
 	self._forceLoadstring = false
@@ -162,7 +158,7 @@ function ModuleLoader:cache(moduleScript: ModuleScript, result: any)
 		consumers = {},
 	}
 
-	self._moduleRegistry[moduleScript] = loadedModule
+	self._moduleRegistry.add(moduleScript, loadedModule)
 end
 
 function ModuleLoader:_execModule(loadedModule: LoadedModule)
@@ -280,8 +276,21 @@ function ModuleLoader:require(moduleScript: ModuleScript): unknown
 		return (require :: any)(moduleScript)
 	end
 
-	local existingModule = self._moduleRegistry[moduleScript]
+	local caller: ModuleScript?
+	local callerPath = getCallerPath()
+	if callerPath then
+		local loadedCallerModule = self._moduleRegistry.getByFullName(callerPath)
+		if loadedCallerModule and loadedCallerModule.instance then
+			caller = loadedCallerModule.instance
+		end
+	end
+
+	local existingModule = self._moduleRegistry.getByInstance(moduleScript)
 	if existingModule then
+		if caller then
+			existingModule.consumers[caller] = true
+		end
+
 		return existingModule.exports
 	end
 
@@ -293,17 +302,21 @@ function ModuleLoader:require(moduleScript: ModuleScript): unknown
 		exports = nil,
 		isLoaded = false,
 		dependencies = {},
-		consumers = {},
+		consumers = if caller
+			then {
+				[caller] = true,
+			}
+			else {},
 	}
 
-	self._moduleRegistry[moduleScript] = loadedModule
+	self._moduleRegistry.add(moduleScript, loadedModule)
 
 	local success, result = pcall(function()
 		self:_execModule(loadedModule)
 		loadedModule.isLoaded = true
 	end)
 	if not success then
-		self._moduleRegistry[moduleScript] = nil
+		self._moduleRegistry.remove(moduleScript)
 		error(result)
 	end
 
@@ -313,7 +326,7 @@ end
 function ModuleLoader:_getConsumers(moduleScript: ModuleScript): { ModuleScript }
 	local function getConsumersRecursively(loadedModule: LoadedModule, found: { [ModuleScript]: true })
 		for consumer in loadedModule.consumers do
-			local loadedChildModule = self._moduleRegistry[consumer]
+			local loadedChildModule = self._moduleRegistry.getByInstance(consumer)
 
 			if loadedChildModule then
 				if not found[loadedChildModule.instance] then
@@ -324,22 +337,26 @@ function ModuleLoader:_getConsumers(moduleScript: ModuleScript): { ModuleScript 
 		end
 	end
 
-	local loadedModule: LoadedModule = self._moduleRegistry[moduleScript]
-	local found = {}
+	local loadedModule: LoadedModule? = self._moduleRegistry.getByInstance(moduleScript)
 
-	getConsumersRecursively(loadedModule, found)
+	if loadedModule then
+		local found = {}
 
-	local consumers = {}
-	for consumer in found do
-		table.insert(consumers, consumer)
+		getConsumersRecursively(loadedModule, found)
+
+		local consumers = {}
+		for consumer in found do
+			table.insert(consumers, consumer)
+		end
+
+		return consumers
+	else
+		return {}
 	end
-
-	return consumers
 end
 
---
 function ModuleLoader:clearModule(moduleToClear: ModuleScript)
-	if not self._moduleRegistry[moduleToClear] then
+	if not self._moduleRegistry.getByInstance(moduleToClear) then
 		return
 	end
 
@@ -352,10 +369,10 @@ function ModuleLoader:clearModule(moduleToClear: ModuleScript)
 	end
 
 	for _, moduleScript in modulesToClear do
-		local loadedModule = self._moduleRegistry[moduleScript]
+		local loadedModule = self._moduleRegistry.getByInstance(moduleScript)
 
 		if loadedModule then
-			self._moduleRegistry[moduleScript] = nil
+			self._moduleRegistry.remove(moduleScript)
 
 			local janitor = self._janitors[moduleScript]
 			janitor:Cleanup()
@@ -397,7 +414,7 @@ function ModuleLoader:clear()
 		cleanupFn()
 	end
 
-	self._moduleRegistry = {}
+	self._moduleRegistry.reset()
 	self._loadedModuleFns = {}
 	self._cleanupFns = {}
 	self._janitors = {}

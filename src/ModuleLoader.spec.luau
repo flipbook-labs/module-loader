@@ -181,9 +181,9 @@ describeEach({
 
 			loader:cache(mockModuleInstance, mockModuleSource)
 
-			local loadedModule = loader._moduleRegistry[mockModuleInstance]
+			local loadedModule = loader._moduleRegistry.getByInstance(mockModuleInstance)
 
-			expect(loadedModule).toBeDefined()
+			assert(loadedModule, "loaded module undefined")
 			expect(loadedModule.exports).toBe(mockModuleSource)
 		end)
 	end)
@@ -194,7 +194,7 @@ describeEach({
 			mockModuleInstance.Source = "return nil"
 
 			loader:require(mockModuleInstance)
-			expect(loader._moduleRegistry[mockModuleInstance]).toBeDefined()
+			expect(loader._moduleRegistry.getByInstance(mockModuleInstance)).toBeDefined()
 		end)
 
 		test("keeps track of module dependencies", function()
@@ -218,22 +218,22 @@ describeEach({
 
 			loader:require(tree.Root)
 
-			expect(loader._moduleRegistry[tree.Root]).toMatchObject({
+			expect(loader._moduleRegistry.getByInstance(tree.Root)).toMatchObject({
 				dependencies = {
 					[tree.Module1] = true,
 				},
 			})
-			expect(loader._moduleRegistry[tree.Module1]).toMatchObject({
+			expect(loader._moduleRegistry.getByInstance(tree.Module1)).toMatchObject({
 				dependencies = {
 					[tree.Module2] = true,
 				},
 			})
-			expect(loader._moduleRegistry[tree.Module2]).toMatchObject({
+			expect(loader._moduleRegistry.getByInstance(tree.Module2)).toMatchObject({
 				dependencies = {
 					[tree.Module3] = true,
 				},
 			})
-			expect(loader._moduleRegistry[tree.Module3]).toMatchObject({
+			expect(loader._moduleRegistry.getByInstance(tree.Module3)).toMatchObject({
 				dependencies = {},
 			})
 		end)
@@ -277,9 +277,8 @@ describeEach({
 
 			loader:require(tree.Consumer)
 
-			local loadedModule = loader._moduleRegistry[tree.SharedModule]
-
-			expect(loadedModule).toBeDefined()
+			local loadedModule = loader._moduleRegistry.getByInstance(tree.SharedModule)
+			assert(loadedModule, "loaded module undefined")
 			expect(loadedModule.consumers[tree.Consumer]).toBeDefined()
 		end)
 
@@ -301,7 +300,9 @@ describeEach({
 
 			loader:require(tree.Consumer1)
 
-			local loadedModule = loader._moduleRegistry[tree.SharedModule]
+			local loadedModule = loader._moduleRegistry.getByInstance(tree.SharedModule)
+
+			assert(loadedModule, "loaded module undefined")
 
 			expect(loadedModule.consumers[tree.Consumer1]).toBeDefined()
 			expect(loadedModule.consumers[tree.Consumer2]).toBeUndefined()
@@ -396,11 +397,11 @@ describeEach({
 
 			loader:require(tree.Module)
 
-			expect(loader._moduleRegistry[tree.Module]).toBeDefined()
+			expect(loader._moduleRegistry.getByInstance(tree.Module)).toBeDefined()
 
 			loader:clearModule(tree.Module)
 
-			expect(loader._moduleRegistry[tree.Module]).toBeUndefined()
+			expect(loader._moduleRegistry.getByInstance(tree.Module)).toBeUndefined()
 		end)
 
 		test("clears all consumers of a module from the cache", function()
@@ -422,15 +423,15 @@ describeEach({
 			loader:require(tree.Consumer1)
 			loader:require(tree.Consumer2)
 
-			expect(loader._moduleRegistry[tree.Consumer1]).toBeDefined()
-			expect(loader._moduleRegistry[tree.Consumer2]).toBeDefined()
-			expect(loader._moduleRegistry[tree.SharedModule]).toBeDefined()
+			expect(loader._moduleRegistry.getByInstance(tree.Consumer1)).toBeDefined()
+			expect(loader._moduleRegistry.getByInstance(tree.Consumer2)).toBeDefined()
+			expect(loader._moduleRegistry.getByInstance(tree.SharedModule)).toBeDefined()
 
 			loader:clearModule(tree.SharedModule)
 
-			expect(loader._moduleRegistry[tree.Consumer1]).toBeUndefined()
-			expect(loader._moduleRegistry[tree.Consumer2]).toBeUndefined()
-			expect(loader._moduleRegistry[tree.SharedModule]).toBeUndefined()
+			expect(loader._moduleRegistry.getByInstance(tree.Consumer1)).toBeUndefined()
+			expect(loader._moduleRegistry.getByInstance(tree.Consumer2)).toBeUndefined()
+			expect(loader._moduleRegistry.getByInstance(tree.SharedModule)).toBeUndefined()
 		end)
 
 		test("only clears modules in the consumer chain", function()
@@ -455,7 +456,7 @@ describeEach({
 			loader:clearModule(tree.Module)
 
 			expect(countDict(loader._moduleRegistry)).toBe(1)
-			expect(loader._moduleRegistry[tree.Independent]).toBeDefined()
+			expect(loader._moduleRegistry.getByInstance(tree.Independent)).toBeDefined()
 		end)
 
 		test("fires loadedModuleChanged when clearing a module", function()
@@ -549,7 +550,7 @@ describeEach({
 		end)
 	end)
 
-	describe.skip("consumers", function()
+	describe("consumers", function()
 		beforeEach(function()
 			tree = createModuleTest({
 				ModuleA = [[
@@ -590,9 +591,9 @@ describeEach({
 			tree.ModuleB.Source = 'return "ModuleB Reloaded"'
 			task.wait()
 
-			expect(loader._moduleRegistry[tree.ModuleA]).toBeUndefined()
-			expect(loader._moduleRegistry[tree.ModuleB]).toBeUndefined()
-			expect(loader._moduleRegistry[tree.ModuleC]).toBeDefined()
+			expect(loader._moduleRegistry.getByInstance(tree.ModuleA)).toBeUndefined()
+			expect(loader._moduleRegistry.getByInstance(tree.ModuleB)).toBeUndefined()
+			expect(loader._moduleRegistry.getByInstance(tree.ModuleC)).toBeDefined()
 		end)
 	end)
 
@@ -653,11 +654,11 @@ describeEach({
 			loader:require(tree.Root)
 			loader:clearModule(tree.Shared)
 
-			expect(loader._moduleRegistry[mockRuntime]).toBeDefined()
-			expect(loader._moduleRegistry[tree.Shared]).toBeUndefined()
-			expect(loader._moduleRegistry[tree.Module1]).toBeUndefined()
-			expect(loader._moduleRegistry[tree.Module2]).toBeUndefined()
-			expect(loader._moduleRegistry[tree.Root]).toBeUndefined()
+			expect(loader._moduleRegistry.getByInstance(mockRuntime)).toBeDefined()
+			expect(loader._moduleRegistry.getByInstance(tree.Shared)).toBeUndefined()
+			expect(loader._moduleRegistry.getByInstance(tree.Module1)).toBeUndefined()
+			expect(loader._moduleRegistry.getByInstance(tree.Module2)).toBeUndefined()
+			expect(loader._moduleRegistry.getByInstance(tree.Root)).toBeUndefined()
 		end)
 
 		test("clear() clears the roblox-ts runtime when calling", function()
@@ -671,8 +672,8 @@ describeEach({
 			loader:require(tree.Module)
 			loader:clear()
 
-			expect(loader._moduleRegistry[mockRuntime]).toBeUndefined()
-			expect(loader._moduleRegistry[tree.Module]).toBeUndefined()
+			expect(loader._moduleRegistry.getByInstance(mockRuntime)).toBeUndefined()
+			expect(loader._moduleRegistry.getByInstance(tree.Module)).toBeUndefined()
 		end)
 	end)
 end)
