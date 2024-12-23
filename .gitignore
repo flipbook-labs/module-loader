@@ -21,3 +21,4 @@ build
 
 # Other
 /*.log
+__pycache__
