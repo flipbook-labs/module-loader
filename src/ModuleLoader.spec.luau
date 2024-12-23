@@ -10,14 +10,6 @@ local describeEach = describe.each :: any
 
 local ModuleLoader = require("./ModuleLoader")
 
-local function countDict(dict: { [any]: any })
-	local count = 0
-	for _ in pairs(dict) do
-		count += 1
-	end
-	return count
-end
-
 type ModuleTestTree = {
 	[string]: string | ModuleTestTree,
 }
@@ -387,7 +379,7 @@ describeEach({
 		end)
 	end)
 
-	describe.skip("clearModule", function()
+	describe("clearModule", function()
 		test("clears a module from the cache", function()
 			tree = createModuleTest({
 				Module = [[
@@ -451,11 +443,11 @@ describeEach({
 			loader:require(tree.Consumer)
 			loader:require(tree.Independent)
 
-			expect(countDict(loader._moduleRegistry)).toBe(3)
+			expect(#loader._moduleRegistry.getAllModules()).toBe(3)
 
 			loader:clearModule(tree.Module)
 
-			expect(countDict(loader._moduleRegistry)).toBe(1)
+			expect(#loader._moduleRegistry.getAllModules()).toBe(1)
 			expect(loader._moduleRegistry.getByInstance(tree.Independent)).toBeDefined()
 		end)
 
@@ -527,26 +519,18 @@ describeEach({
 		end)
 	end)
 
-	describe.skip("clear", function()
+	describe("clear", function()
 		test("removes all modules from the cache", function()
 			local mockModuleInstance = Instance.new("ModuleScript")
 			mockModuleInstance.Source = "return nil"
 
 			loader:cache(mockModuleInstance, mockModuleSource)
 
-			expect(countDict(loader._moduleRegistry)).toBe(1)
+			expect(#loader._moduleRegistry.getAllModules()).toBe(1)
 
 			loader:clear()
 
-			expect(countDict(loader._moduleRegistry)).toBe(0)
-		end)
-
-		test("reset globals", function()
-			local globals = loader._globals
-
-			loader:clear()
-
-			expect(loader._globals).never.toBe(globals)
+			expect(#loader._moduleRegistry.getAllModules()).toBe(0)
 		end)
 	end)
 
@@ -571,13 +555,13 @@ describeEach({
 		test("removes all consumers of a changed module from the cache", function()
 			loader:require(tree.ModuleA)
 
-			local hasItems = next(loader._moduleRegistry) ~= nil
+			local hasItems = next(loader._moduleRegistry.getAllModules()) ~= nil
 			expect(hasItems).toBe(true)
 
 			tree.ModuleB.Source = 'return "ModuleB Reloaded"'
 			task.wait()
 
-			hasItems = next(loader._moduleRegistry) ~= nil
+			hasItems = next(loader._moduleRegistry.getAllModules()) ~= nil
 			expect(hasItems).toBe(false)
 		end)
 
@@ -585,7 +569,7 @@ describeEach({
 			loader:require(tree.ModuleA)
 			loader:require(tree.ModuleC)
 
-			local hasItems = next(loader._moduleRegistry) ~= nil
+			local hasItems = next(loader._moduleRegistry.getAllModules()) ~= nil
 			expect(hasItems).toBe(true)
 
 			tree.ModuleB.Source = 'return "ModuleB Reloaded"'
@@ -597,7 +581,7 @@ describeEach({
 		end)
 	end)
 
-	describe.skip("roblox-ts", function()
+	describe("roblox-ts", function()
 		local rbxtsInclude
 		local mockRuntime
 
@@ -648,6 +632,8 @@ describeEach({
 					local TS = require(game:GetService("ReplicatedStorage").rbxts_include.RuntimeLib)
 					local Module1 = TS.import(script.Parent.Module1)
 					local Module2 = TS.import(script.Parent.Module2)
+
+					return nil
 				]],
 			})
 

@@ -19,6 +19,14 @@ local function createModuleRegistry(): ModuleRegistry
 		registry.byPath[moduleScript:GetFullName()] = nil
 	end
 
+	local function getAllModules(): { ModuleScript }
+		local modules = {}
+		for moduleScript in registry.byInstance do
+			table.insert(modules, moduleScript)
+		end
+		return modules
+	end
+
 	local function reset()
 		table.clear(registry.byInstance)
 		table.clear(registry.byPath)
@@ -36,6 +44,7 @@ local function createModuleRegistry(): ModuleRegistry
 		add = add,
 		remove = remove,
 		reset = reset,
+		getAllModules = getAllModules,
 		getByInstance = getByInstance,
 		getByFullName = getByFullName,
 	}

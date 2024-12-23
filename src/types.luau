@@ -12,6 +12,7 @@ export type ModuleRegistry = {
 	add: (moduleScript: ModuleScript, loadedModule: LoadedModule) -> (),
 	remove: (moduleScript: ModuleScript) -> (),
 	reset: () -> (),
+	getAllModules: () -> { ModuleScript },
 	getByInstance: (moduleScript: ModuleScript) -> LoadedModule?,
 	getByFullName: (fullName: string) -> LoadedModule?,
 }
