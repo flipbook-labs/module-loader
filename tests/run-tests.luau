@@ -16,6 +16,7 @@ local status, result = Jest.runCLI(root, {
 
 if status == "Rejected" then
 	print(result)
+	error(1)
 end
 
 return nil
