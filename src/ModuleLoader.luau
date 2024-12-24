@@ -331,7 +331,7 @@ function ModuleLoader:_getConsumers(moduleScript: ModuleScript): { ModuleScript 
 			if loadedChildModule then
 				if not found[loadedChildModule.instance] then
 					found[loadedChildModule.instance] = true
-					getConsumersRecursively(loadedModule, found)
+					getConsumersRecursively(loadedChildModule, found)
 				end
 			end
 		end
