@@ -51,7 +51,7 @@ describeEach({
 	"loadmodule",
 })("%s", function(loadingStrategy)
 	if loadingStrategy == "loadmodule" and not loadModuleEnabled then
-		test = test.skip
+		test = test.skip :: any
 	end
 
 	beforeEach(function()
@@ -223,17 +223,17 @@ describeEach({
 					[tree.Module1] = true,
 				},
 			})
-			expect(loader._moduleRegistry.getByInstance(tree.Module1)).toMatchObject({
+			expect(loader._moduleRegistry.getByInstance(tree.Module1 :: ModuleScript)).toMatchObject({
 				dependencies = {
 					[tree.Module2] = true,
 				},
 			})
-			expect(loader._moduleRegistry.getByInstance(tree.Module2)).toMatchObject({
+			expect(loader._moduleRegistry.getByInstance(tree.Module2 :: ModuleScript)).toMatchObject({
 				dependencies = {
 					[tree.Module3] = true,
 				},
 			})
-			expect(loader._moduleRegistry.getByInstance(tree.Module3)).toMatchObject({
+			expect(loader._moduleRegistry.getByInstance(tree.Module3 :: ModuleScript)).toMatchObject({
 				dependencies = {},
 			})
 		end)
@@ -508,7 +508,7 @@ describeEach({
 			end)
 
 			loader:require(tree.Consumer)
-			loader:clearModule(tree.Module3)
+			loader:clearModule(tree.Module3 :: ModuleScript)
 
 			expect(count).toBe(4)
 		end)
@@ -650,8 +650,8 @@ describeEach({
 
 			expect(loader._moduleRegistry.getByInstance(mockRuntime)).toBeDefined()
 			expect(loader._moduleRegistry.getByInstance(tree.Shared)).toBeUndefined()
-			expect(loader._moduleRegistry.getByInstance(tree.Module1)).toBeUndefined()
-			expect(loader._moduleRegistry.getByInstance(tree.Module2)).toBeUndefined()
+			expect(loader._moduleRegistry.getByInstance(tree.Module1 :: ModuleScript)).toBeUndefined()
+			expect(loader._moduleRegistry.getByInstance(tree.Module2 :: ModuleScript)).toBeUndefined()
 			expect(loader._moduleRegistry.getByInstance(tree.Root)).toBeUndefined()
 		end)
 
