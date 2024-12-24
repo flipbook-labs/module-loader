@@ -165,7 +165,7 @@ function ModuleLoader:_execModule(loadedModule: LoadedModule)
 	local moduleFunction, defaultEnvironment, errorMessage, cleanupFn
 	local moduleScript = loadedModule.instance
 
-	local shouldUseLoadmodule = self._forceLoadstring or not loadModuleEnabled
+	local shouldUseLoadmodule = not self._forceLoadstring and loadModuleEnabled
 
 	local loadedModuleFns = self._loadedModuleFns[moduleScript]
 	if loadedModuleFns then

@@ -10,6 +10,10 @@ local describeEach = describe.each :: any
 
 local ModuleLoader = require("./ModuleLoader")
 
+local loadModuleEnabled = pcall(function()
+	return debug["loadmodule"](Instance.new("ModuleScript"))
+end)
+
 type ModuleTestTree = {
 	[string]: string | ModuleTestTree,
 }
@@ -46,6 +50,10 @@ describeEach({
 	"loadstring",
 	"loadmodule",
 })("%s", function(loadingStrategy)
+	if loadingStrategy == "loadmodule" and not loadModuleEnabled then
+		test = test.skip
+	end
+
 	beforeEach(function()
 		loader = ModuleLoader.new()
 		loader._forceLoadstring = loadingStrategy == "loadstring"
