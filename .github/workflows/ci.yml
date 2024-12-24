@@ -53,3 +53,19 @@ jobs:
 
       - name: Run Luau analysis
         run: lune run analyze
+
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: Roblox/setup-foreman@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install packages
+        run: lune run wally-install
+
+      - name: Run tests
+        run: lune run test-cloud -- --apiKey ${{ secrets.ROBLOX_API_KEY }}
