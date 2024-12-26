@@ -1,12 +1,12 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local JestGlobals = require("@pkg/JestGlobals")
-local it = JestGlobals.it
+local test = JestGlobals.test
 local expect = JestGlobals.expect
 
 local getRobloxTsRuntime = require("./getRobloxTsRuntime")
 
-it("should retrieve the roblox-ts runtime library", function()
+test("retrieves the roblox-ts runtime library", function()
 	local includes = Instance.new("Folder")
 	includes.Name = "rbxts_include"
 	includes.Parent = ReplicatedStorage
@@ -22,7 +22,7 @@ it("should retrieve the roblox-ts runtime library", function()
 	expect(runtime == mockRuntime).toBe(true)
 end)
 
-it("should return nil if the runtime can't be found", function()
+test("returns nil if the runtime can't be found", function()
 	local runtime = getRobloxTsRuntime()
 	expect(runtime).toBeUndefined()
 end)
