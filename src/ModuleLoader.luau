@@ -4,6 +4,7 @@ local LuauPolyfill = require("@pkg/LuauPolyfill")
 local cleanLoadstringStack = require("./cleanLoadstringStack")
 local createModuleRegistry = require("./createModuleRegistry")
 local getCallerPath = require("./getCallerPath")
+local getModuleSource = require("./getModuleSource")
 local getRobloxTsRuntime = require("./getRobloxTsRuntime")
 local types = require("./types")
 
@@ -16,14 +17,6 @@ local loadmodule: (ModuleScript) -> (() -> unknown?, string?, () -> ()) = debug[
 local loadModuleEnabled = pcall(function()
 	return loadmodule(Instance.new("ModuleScript"))
 end)
-
-local function getModuleSource(moduleScript: ModuleScript): string
-	local success, result = pcall(function()
-		return moduleScript.Source
-	end)
-
-	return if success then result else ""
-end
 
 type ModuleLoaderProps = {
 	_moduleRegistry: ModuleRegistry,
