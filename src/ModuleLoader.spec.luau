@@ -1,7 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local JestGlobals = require("@pkg/JestGlobals")
-local it = JestGlobals.it
+local test = JestGlobals.test
 local expect = JestGlobals.expect
 local describe = JestGlobals.describe
 local beforeEach = JestGlobals.beforeEach
@@ -66,7 +66,7 @@ describe("_getSource", function()
 	-- property requires elevated permissions, so we need the _getSource
 	-- method so that that if tests are being run from within a normal
 	-- script context that an error will not be produced.
-	it("should return the Source property if it can be indexed", function()
+	test("returns the Source property if it can be indexed", function()
 		local mockModuleInstance = Instance.new("ModuleScript")
 
 		local canIndex = pcall(function()
@@ -84,7 +84,7 @@ describe("_getSource", function()
 end)
 
 describe("_trackChanges", function()
-	it("should create a Janitor instance if it doesn't exist", function()
+	test("creates a Janitor instance if it doesn't exist", function()
 		local mockModuleInstance = Instance.new("ModuleScript")
 
 		expect(loader._janitors[mockModuleInstance.Name]).toBeUndefined()
@@ -94,7 +94,7 @@ describe("_trackChanges", function()
 		expect(loader._janitors[mockModuleInstance.Name]).toBeDefined()
 	end)
 
-	it("should reuse the same Janitor instance for future calls", function()
+	test("reuses the same Janitor instance for future calls", function()
 		local mockModuleInstance = Instance.new("ModuleScript")
 
 		loader:_trackChanges(mockModuleInstance)
@@ -108,7 +108,7 @@ describe("_trackChanges", function()
 end)
 
 describe("loadedModuleChanged", function()
-	it("should fire when a required module has its ancestry changed", function()
+	test("fires when a required module has its ancestry changed", function()
 		local mockModuleInstance = Instance.new("ModuleScript")
 
 		local wasFired = false
@@ -132,7 +132,7 @@ describe("loadedModuleChanged", function()
 		expect(wasFired).toBe(true)
 	end)
 
-	it("should fire when a required module has its Source property change", function()
+	test("fires when a required module has its Source property change", function()
 		local mockModuleInstance = Instance.new("ModuleScript")
 
 		local wasFired = false
@@ -150,7 +150,7 @@ describe("loadedModuleChanged", function()
 		expect(wasFired).toBe(true)
 	end)
 
-	it("should fire for every consumer up the chain", function()
+	test("fires for every consumer up the chain", function()
 		tree = createModuleTest({
 			ModuleA = [[
 					return "ModuleA"
@@ -183,7 +183,7 @@ describe("loadedModuleChanged", function()
 end)
 
 describe("cache", function()
-	it("should add a module and its result to the cache", function()
+	test("adds a module and its result to the cache", function()
 		local mockModuleInstance = Instance.new("ModuleScript")
 
 		loader:cache(mockModuleInstance, mockModuleSource)
@@ -196,14 +196,14 @@ describe("cache", function()
 end)
 
 describe("require", function()
-	it("should add the module to the cache", function()
+	test("adds the module to the cache", function()
 		local mockModuleInstance = Instance.new("ModuleScript")
 
 		loader:require(mockModuleInstance)
 		expect(loader._cache[mockModuleInstance:GetFullName()]).toBeDefined()
 	end)
 
-	it("should return cached results", function()
+	test("returns cached results", function()
 		tree = createModuleTest({
 			-- We return a table since it can act as a unique symbol. So if
 			-- both consumers are getting the same table we can perform an
@@ -228,7 +228,7 @@ describe("require", function()
 		expect(sharedModuleFromConsumer1).toBe(sharedModuleFromConsumer2)
 	end)
 
-	it("should add the calling script as a consumer", function()
+	test("adds the calling script as a consumer", function()
 		tree = createModuleTest({
 			SharedModule = [[
 					local module = {}
@@ -248,7 +248,7 @@ describe("require", function()
 		expect(cachedModule.consumers[tree.Consumer:GetFullName()]).toBeDefined()
 	end)
 
-	it("should update consumers when requiring a cached module from a different script", function()
+	test("updates consumers when requiring a cached module from a different script", function()
 		tree = createModuleTest({
 			SharedModule = [[
 					local module = {}
@@ -277,7 +277,7 @@ describe("require", function()
 		expect(cachedModule.consumers[tree.Consumer2:GetFullName()]).toBeDefined()
 	end)
 
-	it("should keep track of _G between modules", function()
+	test("keeps track of _G between modules", function()
 		tree = createModuleTest({
 			WriteGlobal = [[
 					_G.foo = true
@@ -297,7 +297,7 @@ describe("require", function()
 		expect(result).toBe(true)
 	end)
 
-	it("should keep track of _G in nested requires", function()
+	test("keeps track of _G in nested requires", function()
 		tree = createModuleTest({
 			DefineGlobal = [[
 					_G.foo = true
@@ -318,7 +318,7 @@ describe("require", function()
 		expect(loader._globals.foo).toBeUndefined()
 	end)
 
-	it("should add globals on _G to the cachedModule's globals", function()
+	test("adds globals on _G to the cachedModule's globals", function()
 		tree = createModuleTest({
 			DefineGlobal = [[
 					_G.foo = true
@@ -334,7 +334,7 @@ describe("require", function()
 end)
 
 describe("clearModule", function()
-	it("should clear a module from the cache", function()
+	test("clears a module from the cache", function()
 		tree = createModuleTest({
 			Module = [[
 					return "Module"
@@ -350,7 +350,7 @@ describe("clearModule", function()
 		expect(loader._cache[tree.Module:GetFullName()]).toBeUndefined()
 	end)
 
-	it("should clear all consumers of a module from the cache", function()
+	test("clears all consumers of a module from the cache", function()
 		tree = createModuleTest({
 			SharedModule = [[
 					local module = {}
@@ -380,7 +380,7 @@ describe("clearModule", function()
 		expect(loader._cache[tree.SharedModule:GetFullName()]).toBeUndefined()
 	end)
 
-	it("should only clear modules in the consumer chain", function()
+	test("only clears modules in the consumer chain", function()
 		tree = createModuleTest({
 			Module = [[
 					return nil
@@ -405,7 +405,7 @@ describe("clearModule", function()
 		expect(loader._cache[tree.Independent:GetFullName()]).toBeDefined()
 	end)
 
-	it("should clear all globals that a module supplied", function()
+	test("clears all globals that a module supplied", function()
 		tree = createModuleTest({
 			DefineGlobalFoo = [[
 					_G.foo = true
@@ -426,7 +426,7 @@ describe("clearModule", function()
 		expect(loader._globals.bar).toBeUndefined()
 	end)
 
-	it("should fire loadedModuleChanged when clearing a module", function()
+	test("fires loadedModuleChanged when clearing a module", function()
 		tree = createModuleTest({
 			Module = [[
 					return nil
@@ -449,7 +449,7 @@ describe("clearModule", function()
 		expect(wasFired).toBe(true)
 	end)
 
-	it("should fire loadedModuleChanged for every module up the chain", function()
+	test("fires loadedModuleChanged for every module up the chain", function()
 		tree = createModuleTest({
 			Module3 = [[
 					return {}
@@ -480,7 +480,7 @@ describe("clearModule", function()
 		expect(count).toBe(4)
 	end)
 
-	it("should not fire loadedModuleChanged for a module that hasn't been required", function()
+	test("never fires loadedModuleChanged for a module that hasn't been required", function()
 		local wasFired = false
 
 		loader.loadedModuleChanged:Connect(function()
@@ -495,7 +495,7 @@ describe("clearModule", function()
 end)
 
 describe("clear", function()
-	it("should remove all modules from the cache", function()
+	test("removes all modules from the cache", function()
 		local mockModuleInstance = Instance.new("ModuleScript")
 
 		loader:cache(mockModuleInstance, mockModuleSource)
@@ -507,7 +507,7 @@ describe("clear", function()
 		expect(countDict(loader._cache)).toBe(0)
 	end)
 
-	it("should reset globals", function()
+	test("resets globals", function()
 		local globals = loader._globals
 
 		loader:clear()
@@ -534,7 +534,7 @@ describe("consumers", function()
 		})
 	end)
 
-	it("should remove all consumers of a changed module from the cache", function()
+	test("removes all consumers of a changed module from the cache", function()
 		loader:require(tree.ModuleA)
 
 		local hasItems = next(loader._cache) ~= nil
@@ -547,7 +547,7 @@ describe("consumers", function()
 		expect(hasItems).toBe(false)
 	end)
 
-	it("should not interfere with other cached modules", function()
+	test("never interferes with other cached modules", function()
 		loader:require(tree.ModuleA)
 		loader:require(tree.ModuleC)
 
@@ -591,7 +591,7 @@ describe("roblox-ts", function()
 		rbxtsInclude:Destroy()
 	end)
 
-	it("clearModule() should never clear the roblox-ts runtime from the cache", function()
+	test("clearModule() should never clear the roblox-ts runtime from the cache", function()
 		-- This example isn't quite how a roblox-ts project would be setup
 		-- in practice since the require's for `Shared` would be using
 		-- `TS.import`, but it should be close enough for our test case
@@ -627,7 +627,7 @@ describe("roblox-ts", function()
 		expect(loader._cache[tree.Root:GetFullName()]).toBeUndefined()
 	end)
 
-	it("clear() should clear the roblox-ts runtime when calling", function()
+	test("clear() should clear the roblox-ts runtime when calling", function()
 		tree = createModuleTest({
 			Module = [[
 					local TS = require(game:GetService("ReplicatedStorage").rbxts_include.RuntimeLib)
