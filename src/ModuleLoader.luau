@@ -41,14 +41,14 @@ type ModuleLoaderImpl = {
 
 	new: () -> ModuleLoader,
 
-	require: (self: ModuleLoader, module: ModuleScript) -> any,
-	cache: (self: ModuleLoader, module: ModuleScript, result: any) -> (),
-	clearModule: (self: ModuleLoader, module: ModuleScript) -> (),
+	require: (self: ModuleLoader, moduleScript: ModuleScript) -> any,
+	cache: (self: ModuleLoader, moduleScript: ModuleScript, result: any) -> (),
+	clearModule: (self: ModuleLoader, moduleScript: ModuleScript) -> (),
 	clear: (self: ModuleLoader) -> (),
 
 	_execModule: (self: ModuleLoader, loadedModule: LoadedModule) -> (),
-	_trackChanges: (self: ModuleLoader, module: ModuleScript) -> (),
-	_getConsumers: (self: ModuleLoader, module: ModuleScript) -> { ModuleScript },
+	_trackChanges: (self: ModuleLoader, moduleScript: ModuleScript) -> (),
+	_getConsumers: (self: ModuleLoader, moduleScript: ModuleScript) -> { ModuleScript },
 }
 
 export type ModuleLoader = typeof(setmetatable({} :: ModuleLoaderProps, {} :: ModuleLoaderImpl))
