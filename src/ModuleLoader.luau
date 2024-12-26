@@ -155,6 +155,9 @@ function ModuleLoader:cache(moduleScript: ModuleScript, result: any)
 end
 
 function ModuleLoader:_execModule(loadedModule: LoadedModule)
+	-- This method is adapted from:
+	-- https://github.com/Roblox/jest-roblox/blob/408eac/src/jest-runtime/src/init.lua#L1847-L2102
+
 	local moduleFunction, defaultEnvironment, errorMessage, cleanupFn
 	local moduleScript = loadedModule.instance
 
