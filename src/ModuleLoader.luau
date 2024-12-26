@@ -8,15 +8,15 @@ local getModuleSource = require("./getModuleSource")
 local getRobloxTsRuntime = require("./getRobloxTsRuntime")
 local types = require("./types")
 
-type ModuleRegistry = types.ModuleRegistry
-type LoadedModule = types.LoadedModule
-
 local Error = LuauPolyfill.Error
 
 local loadmodule: (ModuleScript) -> (() -> unknown?, string?, () -> ()) = debug["loadmodule"]
 local loadModuleEnabled = pcall(function()
 	return loadmodule(Instance.new("ModuleScript"))
 end)
+
+type ModuleRegistry = types.ModuleRegistry
+type LoadedModule = types.LoadedModule
 
 type ModuleLoaderProps = {
 	_moduleRegistry: ModuleRegistry,
