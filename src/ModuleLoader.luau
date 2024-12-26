@@ -83,11 +83,11 @@ function ModuleLoader.new()
 
 		```lua
 		local loader = ModuleLoader.new()
-		local result = loader:require(moduleScript)
+		local result = loader:require(module)
 
 		loader.loadedModuleChanged:Connect(function()
 			loader:clear()
-			result = loader:require(moduleScript)
+			result = loader:require(module)
 		end)
 		```
 
@@ -264,7 +264,7 @@ end
 	local module = loader:require(script.Parent.ModuleScript)
 	```
 ]=]
-function ModuleLoader:require(moduleScript: ModuleScript): unknown
+function ModuleLoader:require(moduleScript: ModuleScript)
 	if moduleScript.Name:find(".global$") then
 		return (require :: any)(moduleScript)
 	end
