@@ -15,7 +15,7 @@ local function build()
 	compile(target)
 
 	if target == "prod" then
-		run("rm", { "-rf", `{project.BUILD_PATH}/**/*.spec.luau` })
+		run("find", { project.BUILD_PATH, "-name", "*.spec.luau", "-type", "f", "-delete" })
 	end
 end
 
@@ -25,7 +25,6 @@ if args.watch then
 	watch({
 		filePatterns = {
 			"src/.*%.luau",
-			"example/.*%.luau",
 		},
 		onChanged = build,
 	})
