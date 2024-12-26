@@ -21,7 +21,7 @@ type ModuleGlobals = {
 }
 
 type CachedModule = {
-	module: ModuleScript,
+	instance: ModuleScript,
 	isLoaded: boolean,
 	result: CachedModuleResult,
 	consumers: ModuleConsumers,
@@ -44,15 +44,15 @@ type ModuleLoaderImpl = {
 
 	new: () -> ModuleLoader,
 
-	require: (self: ModuleLoader, module: ModuleScript) -> any,
-	cache: (self: ModuleLoader, module: ModuleScript, result: any) -> (),
-	clearModule: (self: ModuleLoader, module: ModuleScript) -> (),
+	require: (self: ModuleLoader, moduleScript: ModuleScript) -> any,
+	cache: (self: ModuleLoader, moduleScript: ModuleScript, result: any) -> (),
+	clearModule: (self: ModuleLoader, moduleScript: ModuleScript) -> (),
 	clear: (self: ModuleLoader) -> (),
 
-	_loadCachedModule: (self: ModuleLoader, module: ModuleScript) -> CachedModuleResult,
-	_getSource: (self: ModuleLoader, module: ModuleScript) -> string,
-	_trackChanges: (self: ModuleLoader, module: ModuleScript) -> (),
-	_getConsumers: (self: ModuleLoader, module: ModuleScript) -> { ModuleScript },
+	_loadCachedModule: (self: ModuleLoader, moduleScript: ModuleScript) -> CachedModuleResult,
+	_getSource: (self: ModuleLoader, moduleScript: ModuleScript) -> string,
+	_trackChanges: (self: ModuleLoader, moduleScript: ModuleScript) -> (),
+	_getConsumers: (self: ModuleLoader, moduleScript: ModuleScript) -> { ModuleScript },
 }
 
 export type ModuleLoader = typeof(setmetatable({} :: ModuleLoaderProps, {} :: ModuleLoaderImpl))
@@ -110,13 +110,13 @@ function ModuleLoader.new()
 	return setmetatable(self, ModuleLoader)
 end
 
-function ModuleLoader:_loadCachedModule(module: ModuleScript)
-	local cachedModule: CachedModule = self._cache[module:GetFullName()]
+function ModuleLoader:_loadCachedModule(moduleScript: ModuleScript)
+	local cachedModule: CachedModule = self._cache[moduleScript:GetFullName()]
 
 	assert(
 		cachedModule.isLoaded,
 		"Requested module experienced an error while loading MODULE: "
-			.. module:GetFullName()
+			.. moduleScript:GetFullName()
 			.. " - RESULT: "
 			.. tostring(cachedModule.result)
 	)
@@ -133,9 +133,9 @@ end
 
 	@private
 ]=]
-function ModuleLoader:_getSource(module: ModuleScript): string
+function ModuleLoader:_getSource(moduleScript: ModuleScript): string
 	local success, result = pcall(function()
-		return module.Source
+		return moduleScript.Source
 	end)
 
 	return if success then result else ""
@@ -150,23 +150,23 @@ end
 
 	@private
 ]=]
-function ModuleLoader:_trackChanges(module: ModuleScript)
-	local existingJanitor = self._janitors[module:GetFullName()]
+function ModuleLoader:_trackChanges(moduleScript: ModuleScript)
+	local existingJanitor = self._janitors[moduleScript:GetFullName()]
 	local janitor = if existingJanitor then existingJanitor else Janitor.new()
 
 	janitor:Cleanup()
 
-	janitor:Add(module.AncestryChanged:Connect(function()
-		self:clearModule(module)
+	janitor:Add(moduleScript.AncestryChanged:Connect(function()
+		self:clearModule(moduleScript)
 	end))
 
-	janitor:Add(module.Changed:Connect(function(prop: string)
+	janitor:Add(moduleScript.Changed:Connect(function(prop: string)
 		if prop == "Source" then
-			self:clearModule(module)
+			self:clearModule(moduleScript)
 		end
 	end))
 
-	self._janitors[module:GetFullName()] = janitor
+	self._janitors[moduleScript:GetFullName()] = janitor
 end
 
 --[=[
@@ -178,22 +178,22 @@ end
 
 	```lua
 	local moduleInstance = script.Parent.ModuleScript
-	local module = require(moduleInstance)
+	local moduleScript = require(moduleInstance)
 
 	local loader = ModuleLoader.new()
-	loader:cache(moduleInstance, module)
+	loader:cache(moduleInstance, moduleScript)
 	```
 ]=]
-function ModuleLoader:cache(module: ModuleScript, result: any)
+function ModuleLoader:cache(moduleScript: ModuleScript, result: any)
 	local cachedModule: CachedModule = {
-		module = module,
+		instance = moduleScript,
 		result = result,
 		isLoaded = true,
 		consumers = {},
 		globals = createTablePassthrough(self._globals),
 	}
 
-	self._cache[module:GetFullName()] = cachedModule
+	self._cache[moduleScript:GetFullName()] = cachedModule
 end
 
 --[=[
@@ -208,8 +208,8 @@ end
 	local module = loader:require(script.Parent.ModuleScript)
 	```
 ]=]
-function ModuleLoader:require(module: ModuleScript)
-	local cachedModule = self._cache[module:GetFullName()]
+function ModuleLoader:require(moduleScript: ModuleScript)
+	local cachedModule = self._cache[moduleScript:GetFullName()]
 	local callerPath = getCallerPath()
 
 	if not callerPath then
@@ -218,21 +218,21 @@ function ModuleLoader:require(module: ModuleScript)
 
 	if cachedModule then
 		cachedModule.consumers[callerPath] = true
-		return self:_loadCachedModule(module)
+		return self:_loadCachedModule(moduleScript)
 	end
 
-	local source = self:_getSource(module)
-	local moduleFn, parseError = self._loadstring(source, module:GetFullName())
+	local source = self:_getSource(moduleScript)
+	local moduleFn, parseError = self._loadstring(source, moduleScript:GetFullName())
 
 	if not moduleFn then
 		local message = if parseError then parseError else "<no error message>"
-		error(`Could not parse {module:GetFullName()}: {message}`)
+		error(`Could not parse {moduleScript:GetFullName()}: {message}`)
 	end
 
 	local globals = createTablePassthrough(self._globals)
 
 	local newCachedModule: CachedModule = {
-		module = module,
+		instance = moduleScript,
 		result = nil,
 		isLoaded = false,
 		consumers = {
@@ -240,9 +240,9 @@ function ModuleLoader:require(module: ModuleScript)
 		},
 		globals = globals,
 	}
-	self._cache[module:GetFullName()] = newCachedModule
+	self._cache[moduleScript:GetFullName()] = newCachedModule
 
-	local env: any = getEnv(module, globals)
+	local env: any = getEnv(moduleScript, globals)
 	env.require = bind(self, self.require)
 	setfenv(moduleFn, env)
 
@@ -252,29 +252,29 @@ function ModuleLoader:require(module: ModuleScript)
 		newCachedModule.isLoaded = true
 		newCachedModule.result = result
 	else
-		error(("Error requiring %s: %s"):format(module.Name, result))
+		error(("Error requiring %s: %s"):format(moduleScript.Name, result))
 	end
 
-	self:_trackChanges(module)
+	self:_trackChanges(moduleScript)
 
-	return self:_loadCachedModule(module)
+	return self:_loadCachedModule(moduleScript)
 end
 
-function ModuleLoader:_getConsumers(module: ModuleScript): { ModuleScript }
+function ModuleLoader:_getConsumers(moduleScript: ModuleScript): { ModuleScript }
 	local function getConsumersRecursively(cachedModule: CachedModule, found: { [ModuleScript]: true })
 		for consumer in cachedModule.consumers do
 			local cachedConsumer = self._cache[consumer]
 
 			if cachedConsumer then
-				if not found[cachedConsumer.module] then
-					found[cachedConsumer.module] = true
+				if not found[cachedConsumer.instance] then
+					found[cachedConsumer.instance] = true
 					getConsumersRecursively(cachedConsumer, found)
 				end
 			end
 		end
 	end
 
-	local cachedModule: CachedModule = self._cache[module:GetFullName()]
+	local cachedModule: CachedModule = self._cache[moduleScript:GetFullName()]
 	local found = {}
 
 	getConsumersRecursively(cachedModule, found)
@@ -300,8 +300,8 @@ function ModuleLoader:clearModule(moduleToClear: ModuleScript)
 		table.remove(modulesToClear, index)
 	end
 
-	for _, module in modulesToClear do
-		local fullName = module:GetFullName()
+	for _, moduleScript in modulesToClear do
+		local fullName = moduleScript:GetFullName()
 
 		local cachedModule = self._cache[fullName]
 
@@ -317,8 +317,8 @@ function ModuleLoader:clearModule(moduleToClear: ModuleScript)
 		end
 	end
 
-	for _, module in modulesToClear do
-		self._loadedModuleChangedBindable:Fire(module)
+	for _, moduleScript in modulesToClear do
+		self._loadedModuleChangedBindable:Fire(moduleScript)
 	end
 end
 
