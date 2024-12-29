@@ -1,4 +1,6 @@
-export type LoadedModuleExports = unknown
+export type LoadingStrategy = "Automatic" | "LoadString" | "LoadModule"
+
+export type LoadedModuleExports = unknown?
 
 export type LoadedModule = {
 	instance: ModuleScript,
@@ -15,6 +17,22 @@ export type ModuleRegistry = {
 	getAllModules: () -> { ModuleScript },
 	getByInstance: (moduleScript: ModuleScript) -> LoadedModule?,
 	getByFullName: (fullName: string) -> LoadedModule?,
+}
+
+export type LoadModuleFn = (moduleScript: ModuleScript) -> LoadedModuleExports
+
+export type ModuleLoader = {
+	_getModuleRegistry: () -> ModuleRegistry,
+
+	require: LoadModuleFn,
+	loadModule: LoadModuleFn,
+	cache: (moduleScript: ModuleScript, result: LoadedModuleExports) -> (),
+	clearModule: (moduleScript: ModuleScript) -> (),
+	clear: () -> (),
+
+	setLoadingStrategy: (loadingStrategy: LoadingStrategy) -> (),
+
+	loadedModuleChanged: RBXScriptSignal,
 }
 
 return nil
