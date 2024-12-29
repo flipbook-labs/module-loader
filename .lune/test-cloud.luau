@@ -10,6 +10,7 @@ local apiKey = assert(args.apiKey, "--apiKey must be supplied with a valid Open 
 
 local testPlaceFile = "test-place.rbxl"
 
+run("rm", { "-rf", project.BUILD_PATH })
 compile("dev")
 run("rojo", { "build", project.ROJO_TESTS_PROJECT, "-o", testPlaceFile })
 
