@@ -1,6 +1,6 @@
 local ModuleLoader = require("./ModuleLoader")
 
-export type ModuleLoader = ModuleLoader.ModuleLoader
-export type Class = ModuleLoader.ModuleLoader
+export type ModuleLoader = ModuleLoader.ModuleLoaderClass
+export type Class = ModuleLoader.ModuleLoaderClass
 
 return ModuleLoader
