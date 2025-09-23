@@ -9,7 +9,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: CompeyDev/setup-rokit@v0.1.2
         with:
@@ -24,7 +24,7 @@ jobs:
         run: lune run install
 
       - name: Build
-        run: lune run build -- --target prod --output ${{ env.MODEL_FILE }}
+        run: lune run build --target prod --output ${{ env.MODEL_FILE }}
 
       - uses: softprops/action-gh-release@v1
         if: ${{ github.event.release }}

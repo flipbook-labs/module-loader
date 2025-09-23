@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: CompeyDev/setup-rokit@v0.1.2
         with:
@@ -29,9 +29,9 @@ jobs:
           echo "MODEL_FILE=$name-$sha.rbxm" >> $GITHUB_ENV
 
       - name: Build
-        run: lune run build -- --target prod --output ${{ env.MODEL_FILE }}
+        run: lune run build --target prod --output ${{ env.MODEL_FILE }}
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.MODEL_FILE }}
           path: ${{ env.MODEL_FILE }}
@@ -39,7 +39,7 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: CompeyDev/setup-rokit@v0.1.2
         with:
@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: CompeyDev/setup-rokit@v0.1.2
         with:
@@ -68,4 +68,4 @@ jobs:
         run: lune run install
 
       - name: Run tests
-        run: lune run test-cloud -- --apiKey ${{ secrets.ROBLOX_API_KEY }}
+        run: lune run test --apiKey ${{ secrets.ROBLOX_API_KEY }}
