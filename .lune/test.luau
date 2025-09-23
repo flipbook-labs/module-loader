@@ -18,7 +18,7 @@ if not apiKey then
 	process.exit(1)
 end
 
-compile("dev")
+compile()
 
 run("rojo", { "build", "tests.project.json", "-o", "tests.rbxl" })
 
