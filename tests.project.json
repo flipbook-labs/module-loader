@@ -1,24 +1,19 @@
 {
-    "name": "Tests",
-    "tree": {
-        "$className": "DataModel",
-        "ServerScriptService": {
-            "$properties": {
-                "LoadStringEnabled": true
-            }
-        },
-        "ReplicatedStorage": {
-            "Packages": {
-                "$path": "Packages",
-                "ModuleLoader": {
-                    "$path": "default.project.json"
-                }
-            }
-        },
-        "TestService": {
-            "tests": {
-                "$path": "tests"
-            }
+  "name": "Tests",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "$properties": {
+        "LoadStringEnabled": true
+      }
+    },
+    "ReplicatedStorage": {
+      "Packages": {
+        "$path": "Packages",
+        "ModuleLoader": {
+          "$path": "default.project.json"
         }
+      }
     }
+  }
 }

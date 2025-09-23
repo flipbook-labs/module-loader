@@ -1,7 +1,8 @@
+local process = require("@lune/process")
+local project = require("@repo/project")
+
 local compile = require("./lib/compile")
 local parseArgs = require("./lib/parseArgs")
-local process = require("@lune/process")
-local project = require("../project")
 local run = require("./lib/run")
 local watch = require("./lib/watcher/watch")
 
@@ -12,7 +13,7 @@ assert(target == "dev" or target == "prod", `bad value for target (must be one o
 
 local function build()
 	run("rm", { "-rf", project.BUILD_PATH })
-	compile(target)
+	compile()
 
 	if target == "prod" then
 		run("find", { project.BUILD_PATH, "-name", "*.spec.luau", "-type", "f", "-delete" })

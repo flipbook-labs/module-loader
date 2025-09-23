@@ -1,4 +1,5 @@
-local project = require("../project")
+local project = require("@repo/project")
+
 local run = require("./lib/run")
 
 local globalDefsPath = "globalTypes.d.luau"

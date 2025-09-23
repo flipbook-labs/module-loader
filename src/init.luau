@@ -1,4 +1,4 @@
-local ModuleLoader = require("./ModuleLoader")
+local ModuleLoader = require("@self/ModuleLoader")
 
 export type ModuleLoader = ModuleLoader.ModuleLoaderClass
 export type Class = ModuleLoader.ModuleLoaderClass
