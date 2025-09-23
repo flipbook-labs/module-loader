@@ -22,7 +22,7 @@ local loadModuleEnabled = pcall(function()
 	return loadmodule(Instance.new("ModuleScript"))
 end)
 
---[=[
+--[[
 	ModuleScript loader that bypasses Roblox's require cache.
 
 	This class aims to solve a common problem where code needs to be run in
@@ -30,9 +30,7 @@ end)
 	place must be reloaded for the cache to be reset. With this class, the cache
 	is ignored when requiring a module so you are able to load a module, make
 	changes, and load it again without reloading the whole place.
-
-	@class ModuleLoader
-]=]
+]]
 function createModuleLoader(): ModuleLoader
 	local moduleRegistry = createModuleRegistry()
 	local loadedModuleFns: { [ModuleScript]: { any } } = {}
@@ -48,7 +46,7 @@ function createModuleLoader(): ModuleLoader
 		loadingStrategy = strategy
 	end
 
-	--[=[
+	--[[
 		Fired when any ModuleScript required through this class has its ancestry
 		or `Source` property changed. This applies to the ModuleScript passed to
 		`ModuleLoader:require()` and every module that it subsequently requirs.
@@ -65,10 +63,7 @@ function createModuleLoader(): ModuleLoader
 			result = loader.require(module)
 		end)
 		```
-
-		@prop loadedModuleChanged RBXScriptSignal
-		@within ModuleLoader
-	]=]
+	]]
 	local loadedModuleChanged = Instance.new("BindableEvent")
 
 	local loadModule: LoadModuleFn
@@ -132,7 +127,7 @@ function createModuleLoader(): ModuleLoader
 		end
 	end
 
-	--[=[
+	--[[
 		Tracks the changes to a required module's ancestry and `Source`.
 
 		When ancestry or `Source` changes, the `loadedModuleChanged` event is fired.
@@ -140,7 +135,7 @@ function createModuleLoader(): ModuleLoader
 		module again to reload.
 
 		@private
-	]=]
+	]]
 	local function trackChanges(moduleScript: ModuleScript)
 		local existingJanitor = janitors[moduleScript]
 		local janitor = if existingJanitor then existingJanitor else Janitor.new()
@@ -165,7 +160,7 @@ function createModuleLoader(): ModuleLoader
 		janitors[moduleScript] = janitor
 	end
 
-	--[=[
+	--[[
 		Set the cached value for a module before it is loaded.
 
 		This is useful is very specific situations. For example, this method is
@@ -179,7 +174,7 @@ function createModuleLoader(): ModuleLoader
 		local loader = createModuleLoader()
 		loader.cache(moduleInstance, moduleScript)
 		```
-	]=]
+	]]
 	local function cache(moduleScript: ModuleScript, result: any)
 		local loadedModule: LoadedModule = {
 			instance = moduleScript,
@@ -295,7 +290,7 @@ function createModuleLoader(): ModuleLoader
 		loadedModule.exports = moduleResult[1]
 	end
 
-	--[=[
+	--[[
 		Require a module with a fresh ModuleScript require cache.
 
 		This method is functionally the same as running `require(script.Parent.ModuleScript)`,
@@ -306,7 +301,7 @@ function createModuleLoader(): ModuleLoader
 		local loader = createModuleLoader()
 		local module = loader.require(script.Parent.ModuleScript)
 		```
-	]=]
+	]]
 	function loadModule(moduleScript: ModuleScript)
 		if moduleScript.Name:find(".global$") then
 			return (require :: any)(moduleScript)
@@ -359,7 +354,7 @@ function createModuleLoader(): ModuleLoader
 		return loadedModule.exports
 	end
 
-	--[=[
+	--[[
 		Clears out the internal cache.
 
 		While this module bypasses Roblox's ModuleScript cache, one is still
@@ -379,7 +374,7 @@ function createModuleLoader(): ModuleLoader
 		loader.clear()
 		loader.require(script.Parent.ModuleScript)
 		```
-	]=]
+	]]
 	local function clear()
 		for _, janitor in janitors do
 			janitor:Cleanup()
