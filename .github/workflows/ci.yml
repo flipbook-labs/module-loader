@@ -10,14 +10,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: Roblox/setup-foreman@v1
+      - uses: CompeyDev/setup-rokit@v0.1.2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          version: v1.1.1
 
       - name: Install packages
-        run: lune run wally-install
+        run: lune run install
 
       - name: Lint
         run: lune run lint
@@ -29,9 +29,9 @@ jobs:
           echo "MODEL_FILE=$name-$sha.rbxm" >> $GITHUB_ENV
 
       - name: Build
-        run: lune run build -- --target prod --output ${{ env.MODEL_FILE }}
+        run: lune run build --target prod --output ${{ env.MODEL_FILE }}
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.MODEL_FILE }}
           path: ${{ env.MODEL_FILE }}
@@ -39,17 +39,17 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: Roblox/setup-foreman@v1
+      - uses: CompeyDev/setup-rokit@v0.1.2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          version: v1.1.1
 
       - name: Setup Lune typedefs
         run: lune setup
 
       - name: Install packages
-        run: lune run wally-install
+        run: lune run install
 
       - name: Run Luau analysis
         run: lune run analyze
@@ -58,14 +58,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: Roblox/setup-foreman@v1
+      - uses: CompeyDev/setup-rokit@v0.1.2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          version: v1.1.1
 
       - name: Install packages
-        run: lune run wally-install
+        run: lune run install
 
       - name: Run tests
-        run: lune run test-cloud -- --apiKey ${{ secrets.ROBLOX_API_KEY }}
+        run: lune run test --apiKey ${{ secrets.ROBLOX_API_KEY }}
