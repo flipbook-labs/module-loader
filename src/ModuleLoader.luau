@@ -1,61 +1,25 @@
-local Janitor = require("@pkg/Janitor")
+local createModuleLoader = require("./createModuleLoader")
+local types = require("./types")
 
-local bind = require("./bind")
-local createTablePassthrough = require("./createTablePassthrough")
-local getCallerPath = require("./getCallerPath")
-local getEnv = require("./getEnv")
-local getRobloxTsRuntime = require("./getRobloxTsRuntime")
-
-type CachedModuleResult = any
-
-type ModuleConsumers = {
-	[string]: boolean,
-}
-
--- Each module gets its own global table that it can modify via _G. This makes
--- it easy to clear out a module and the globals it defines without impacting
--- other modules. A module's function environment has all globals merged
--- together on _G
-type ModuleGlobals = {
-	[any]: any,
-}
-
-type CachedModule = {
-	instance: ModuleScript,
-	isLoaded: boolean,
-	result: CachedModuleResult,
-	consumers: ModuleConsumers,
-	globals: ModuleGlobals,
-}
+type ModuleLoader = types.ModuleLoader
 
 type ModuleLoaderProps = {
-	_cache: { [string]: CachedModule },
-	_loadstring: typeof(loadstring),
-	_debugInfo: typeof(debug.info),
-	_janitors: { [string]: any },
-	_globals: { [any]: any },
-
-	_loadedModuleChangedBindable: BindableEvent,
+	_loader: ModuleLoader,
 	loadedModuleChanged: RBXScriptSignal,
 }
 
 type ModuleLoaderImpl = {
 	__index: ModuleLoaderImpl,
 
-	new: () -> ModuleLoader,
+	new: () -> ModuleLoaderClass,
 
-	require: (self: ModuleLoader, moduleScript: ModuleScript) -> any,
-	cache: (self: ModuleLoader, moduleScript: ModuleScript, result: any) -> (),
-	clearModule: (self: ModuleLoader, moduleScript: ModuleScript) -> (),
-	clear: (self: ModuleLoader) -> (),
-
-	_loadCachedModule: (self: ModuleLoader, moduleScript: ModuleScript) -> CachedModuleResult,
-	_getSource: (self: ModuleLoader, moduleScript: ModuleScript) -> string,
-	_trackChanges: (self: ModuleLoader, moduleScript: ModuleScript) -> (),
-	_getConsumers: (self: ModuleLoader, moduleScript: ModuleScript) -> { ModuleScript },
+	require: (self: ModuleLoaderClass, moduleScript: ModuleScript) -> any,
+	cache: (self: ModuleLoaderClass, moduleScript: ModuleScript, result: any) -> (),
+	clearModule: (self: ModuleLoaderClass, moduleScript: ModuleScript) -> (),
+	clear: (self: ModuleLoaderClass) -> (),
 }
 
-export type ModuleLoader = typeof(setmetatable({} :: ModuleLoaderProps, {} :: ModuleLoaderImpl))
+export type ModuleLoaderClass = typeof(setmetatable({} :: ModuleLoaderProps, {} :: ModuleLoaderImpl))
 
 --[=[
 	ModuleScript loader that bypasses Roblox's require cache.
@@ -77,12 +41,7 @@ ModuleLoader.__index = ModuleLoader
 function ModuleLoader.new()
 	local self = {}
 
-	self._cache = {}
-	self._loadstring = loadstring
-	self._debugInfo = debug.info
-	self._janitors = {}
-	self._globals = {}
-	self._loadedModuleChangedBindable = Instance.new("BindableEvent")
+	self._loader = createModuleLoader()
 
 	--[=[
 		Fired when any ModuleScript required through this class has its ancestry
@@ -105,68 +64,9 @@ function ModuleLoader.new()
 		@prop loadedModuleChanged RBXScriptSignal
 		@within ModuleLoader
 	]=]
-	self.loadedModuleChanged = self._loadedModuleChangedBindable.Event
+	self.loadedModuleChanged = self._loader.loadedModuleChanged
 
 	return setmetatable(self, ModuleLoader)
-end
-
-function ModuleLoader:_loadCachedModule(moduleScript: ModuleScript)
-	local cachedModule: CachedModule = self._cache[moduleScript:GetFullName()]
-
-	assert(
-		cachedModule.isLoaded,
-		"Requested module experienced an error while loading MODULE: "
-			.. moduleScript:GetFullName()
-			.. " - RESULT: "
-			.. tostring(cachedModule.result)
-	)
-
-	return cachedModule.result
-end
-
---[=[
-	Gets the Source of a ModuleScript.
-
-	This method exists primarily so we can better write unit tests. Attempting
-	to index the Source property from a regular script context throws an error,
-	so this method allows us to safely fallback in tests.
-
-	@private
-]=]
-function ModuleLoader:_getSource(moduleScript: ModuleScript): string
-	local success, result = pcall(function()
-		return moduleScript.Source
-	end)
-
-	return if success then result else ""
-end
-
---[=[
-	Tracks the changes to a required module's ancestry and `Source`.
-
-	When ancestry or `Source` changes, the `loadedModuleChanged` event is fired.
-	When this happens, the user should clear the cache and require the root
-	module again to reload.
-
-	@private
-]=]
-function ModuleLoader:_trackChanges(moduleScript: ModuleScript)
-	local existingJanitor = self._janitors[moduleScript:GetFullName()]
-	local janitor = if existingJanitor then existingJanitor else Janitor.new()
-
-	janitor:Cleanup()
-
-	janitor:Add(moduleScript.AncestryChanged:Connect(function()
-		self:clearModule(moduleScript)
-	end))
-
-	janitor:Add(moduleScript.Changed:Connect(function(prop: string)
-		if prop == "Source" then
-			self:clearModule(moduleScript)
-		end
-	end))
-
-	self._janitors[moduleScript:GetFullName()] = janitor
 end
 
 --[=[
@@ -185,15 +85,7 @@ end
 	```
 ]=]
 function ModuleLoader:cache(moduleScript: ModuleScript, result: any)
-	local cachedModule: CachedModule = {
-		instance = moduleScript,
-		result = result,
-		isLoaded = true,
-		consumers = {},
-		globals = createTablePassthrough(self._globals),
-	}
-
-	self._cache[moduleScript:GetFullName()] = cachedModule
+	self._loader.cache(moduleScript, result)
 end
 
 --[=[
@@ -209,117 +101,11 @@ end
 	```
 ]=]
 function ModuleLoader:require(moduleScript: ModuleScript)
-	local cachedModule = self._cache[moduleScript:GetFullName()]
-	local callerPath = getCallerPath()
-
-	if not callerPath then
-		return nil
-	end
-
-	if cachedModule then
-		cachedModule.consumers[callerPath] = true
-		return self:_loadCachedModule(moduleScript)
-	end
-
-	local source = self:_getSource(moduleScript)
-	local moduleFn, parseError = self._loadstring(source, moduleScript:GetFullName())
-
-	if not moduleFn then
-		local message = if parseError then parseError else "<no error message>"
-		error(`Could not parse {moduleScript:GetFullName()}: {message}`)
-	end
-
-	local globals = createTablePassthrough(self._globals)
-
-	local newCachedModule: CachedModule = {
-		instance = moduleScript,
-		result = nil,
-		isLoaded = false,
-		consumers = {
-			[callerPath] = true,
-		},
-		globals = globals,
-	}
-	self._cache[moduleScript:GetFullName()] = newCachedModule
-
-	local env: any = getEnv(moduleScript, globals)
-	env.require = bind(self, self.require)
-	setfenv(moduleFn, env)
-
-	local success, result = xpcall(moduleFn, debug.traceback)
-
-	if success then
-		newCachedModule.isLoaded = true
-		newCachedModule.result = result
-	else
-		error(("Error requiring %s: %s"):format(moduleScript.Name, result))
-	end
-
-	self:_trackChanges(moduleScript)
-
-	return self:_loadCachedModule(moduleScript)
-end
-
-function ModuleLoader:_getConsumers(moduleScript: ModuleScript): { ModuleScript }
-	local function getConsumersRecursively(cachedModule: CachedModule, found: { [ModuleScript]: true })
-		for consumer in cachedModule.consumers do
-			local cachedConsumer = self._cache[consumer]
-
-			if cachedConsumer then
-				if not found[cachedConsumer.instance] then
-					found[cachedConsumer.instance] = true
-					getConsumersRecursively(cachedConsumer, found)
-				end
-			end
-		end
-	end
-
-	local cachedModule: CachedModule = self._cache[moduleScript:GetFullName()]
-	local found = {}
-
-	getConsumersRecursively(cachedModule, found)
-
-	local consumers = {}
-	for consumer in found do
-		table.insert(consumers, consumer)
-	end
-
-	return consumers
+	return self._loader.require(moduleScript)
 end
 
 function ModuleLoader:clearModule(moduleToClear: ModuleScript)
-	if not self._cache[moduleToClear:GetFullName()] then
-		return
-	end
-
-	local consumers = self:_getConsumers(moduleToClear)
-	local modulesToClear = { moduleToClear, table.unpack(consumers) }
-
-	local index = table.find(modulesToClear, getRobloxTsRuntime())
-	if index then
-		table.remove(modulesToClear, index)
-	end
-
-	for _, moduleScript in modulesToClear do
-		local fullName = moduleScript:GetFullName()
-
-		local cachedModule = self._cache[fullName]
-
-		if cachedModule then
-			self._cache[fullName] = nil
-
-			for key in cachedModule.globals do
-				self._globals[key] = nil
-			end
-
-			local janitor = self._janitors[fullName]
-			janitor:Cleanup()
-		end
-	end
-
-	for _, moduleScript in modulesToClear do
-		self._loadedModuleChangedBindable:Fire(moduleScript)
-	end
+	self._loader.clearModule(moduleToClear)
 end
 
 --[=[
@@ -344,13 +130,7 @@ end
 	```
 ]=]
 function ModuleLoader:clear()
-	self._cache = {}
-	self._globals = {}
-
-	for _, janitor in self._janitors do
-		janitor:Cleanup()
-	end
-	self._janitors = {}
+	self._loader.clear()
 end
 
 return ModuleLoader
