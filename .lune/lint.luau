@@ -1,7 +1,7 @@
 local fs = require("@lune/fs")
 local process = require("@lune/process")
+local project = require("@repo/project")
 
-local project = require("../project")
 local run = require("./lib/run")
 
 local function findLuaFiles()

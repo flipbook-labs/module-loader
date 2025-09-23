@@ -1,11 +1,9 @@
 local fs = require("@lune/fs")
+local project = require("@repo/project")
 
-local project = require("../../project")
 local run = require("./run")
 
-type Target = "prod" | "dev"
-
-local function compile(target: Target)
+local function compile()
 	fs.writeDir(project.BUILD_PATH)
 
 	run("rojo", {
@@ -20,14 +18,6 @@ local function compile(target: Target)
 		project.SOURCE_PATH,
 		project.BUILD_PATH,
 	})
-
-	if target == "dev" then
-		run("darklua", {
-			"process",
-			"example",
-			`{project.BUILD_PATH}/Example`,
-		})
-	end
 end
 
 return compile

@@ -12,9 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: Roblox/setup-foreman@v1
+      - uses: CompeyDev/setup-rokit@v0.1.2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          version: v1.1.1
 
       - uses: actions/setup-node@v3
 

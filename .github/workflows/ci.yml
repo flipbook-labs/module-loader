@@ -12,12 +12,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: Roblox/setup-foreman@v1
+      - uses: CompeyDev/setup-rokit@v0.1.2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          version: v1.1.1
 
       - name: Install packages
-        run: lune run wally-install
+        run: lune run install
 
       - name: Lint
         run: lune run lint
@@ -41,15 +41,15 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: Roblox/setup-foreman@v1
+      - uses: CompeyDev/setup-rokit@v0.1.2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          version: v1.1.1
 
       - name: Setup Lune typedefs
         run: lune setup
 
       - name: Install packages
-        run: lune run wally-install
+        run: lune run install
 
       - name: Run Luau analysis
         run: lune run analyze
@@ -60,12 +60,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: Roblox/setup-foreman@v1
+      - uses: CompeyDev/setup-rokit@v0.1.2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          version: v1.1.1
 
       - name: Install packages
-        run: lune run wally-install
+        run: lune run install
 
       - name: Run tests
         run: lune run test-cloud -- --apiKey ${{ secrets.ROBLOX_API_KEY }}
