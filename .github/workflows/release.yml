@@ -26,6 +26,13 @@ jobs:
       - name: Build
         run: lune run build --target prod --output ${{ env.MODEL_FILE }}
 
+      - name: Login to Wally registry
+        run: wally login --token ${{ secrets.WALLY_REGISTRY_TOKEN }}
+
+      - name: Publish to Wally
+        if: ${{ github.event.release }}
+        run: wally publish
+
       - uses: softprops/action-gh-release@v1
         if: ${{ github.event.release }}
         with:
