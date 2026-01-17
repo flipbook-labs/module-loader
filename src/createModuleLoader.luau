@@ -255,7 +255,7 @@ function createModuleLoader(): ModuleLoader
 				if typeof(otherModule) == "string" then
 					-- Disabling this at the surface level of the API until we have
 					-- deeper support in Jest.
-					error("Require-by-string is not enabled for use inside Jest at this time.")
+					error("Require-by-string is not supported in sandboxed environments at this time.")
 				end
 
 				loadedModule.dependencies[otherModule] = true
