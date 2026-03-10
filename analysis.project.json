@@ -2,8 +2,8 @@
   "name": "Analysis",
   "tree": {
     "$className": "Folder",
-    "Lune": {
-      "$path": ".lune"
+    "Lute": {
+      "$path": ".lute"
     },
     "ModuleLoader": {
       "$path": "build.project.json"

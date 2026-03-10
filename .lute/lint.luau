@@ -1,21 +1,24 @@
-local fs = require("@lune/fs")
-local process = require("@lune/process")
+local FlipbookBatteries = require("@luaupkg/flipbook-batteries")
+local fs = require("@std/fs")
+local path = require("@std/path")
+local process = require("@std/process")
+
 local project = require("@repo/project")
 
-local run = require("./lib/run")
+local run = FlipbookBatteries.run
 
 local function findLuaFiles()
 	local matches = {}
 
-	local function search(path: string)
-		for _, file in fs.readDir(path) do
-			local filePath = `{path}/{file}`
+	local function search(filePath: string)
+		for _, file in fs.listdirectory(filePath) do
+			local childPath = path.join(filePath, file)
 
-			if fs.isDir(filePath) then
-				search(filePath)
+			if fs.type(childPath) == "dir" then
+				search(childPath)
 			else
-				if filePath:match(".lua$") then
-					table.insert(matches, filePath)
+				if path.extname(childPath) == ".lua" then
+					table.insert(matches, childPath)
 				end
 			end
 		end
