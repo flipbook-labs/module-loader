@@ -1,5 +1,4 @@
 local FlipbookBatteries = require("@luaupkg/flipbook-batteries")
-local fs = require("@std/fs")
 local path = require("@std/path")
 local process = require("@std/process")
 
@@ -7,20 +6,16 @@ local project = require("@repo/project")
 
 local run = FlipbookBatteries.run
 
-local function findLuaFiles()
-	local matches = {}
+local function findLuaFiles(): { path.path }
+	local matches: { path.path } = {}
 
-	local function search(filePath: string)
-		for _, file in fs.listdirectory(filePath) do
-			local childPath = path.join(filePath, file)
+	local function search(filePath: path.pathlike)
+		local found = FlipbookBatteries.findWhere(filePath, function(descendantPath)
+			return path.extname(descendantPath) == ".lua"
+		end)
 
-			if fs.type(childPath) == "dir" then
-				search(childPath)
-			else
-				if path.extname(childPath) == ".lua" then
-					table.insert(matches, childPath)
-				end
-			end
+		for _, file in found do
+			table.insert(matches, file)
 		end
 	end
 
@@ -31,7 +26,7 @@ local function findLuaFiles()
 	return matches
 end
 
-run("selene", project.FOLDERS_TO_LINT)
+run("selene", { table.unpack(project.FOLDERS_TO_LINT) })
 
 run("stylua", {
 	"--check",
@@ -41,6 +36,8 @@ run("stylua", {
 local files = findLuaFiles()
 if #files > 0 then
 	print("[err] the following file(s) are using the '.lua' extension. Please change to '.luau' and try again")
-	print(`{table.concat(files, "\n")}`)
+	for _, file in files do
+		print(file)
+	end
 	process.exit(1)
 end

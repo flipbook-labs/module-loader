@@ -28,7 +28,7 @@ do
 	table.insert(args, "--flag:LuauSolverV2=true")
 	table.insert(args, project.LUTE_SCRIPTS_PATH)
 
-	run("luau-lsp", args)
+	run("luau-lsp", { table.unpack(args) })
 end
 
 do
@@ -43,5 +43,5 @@ do
 	table.insert(args, `--sourcemap={project.SOURCEMAP_PATH}`)
 	table.insert(args, project.SOURCE_PATH)
 
-	run("luau-lsp", args)
+	run("luau-lsp", { table.unpack(args) })
 end
