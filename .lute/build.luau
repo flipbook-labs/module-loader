@@ -19,11 +19,22 @@ args:add("watch", "flag", {
 	help = "Watch for changes and recompile automatically",
 	aliases = { "w" },
 })
+args:add("output", "option", {
+	help = "Choose where to output to. This should be the full name of the file, including the .rbxm extension",
+	aliases = { "o" },
+})
 
 args:parse({ ... })
 
 local channel = args:get("channel")
 assert(channel == "dev" or channel == "prod", `bad value for channel (must be one of "dev" or "prod", got "{channel}")`)
+
+local output = args:get("output")
+if output then
+	assert(output ~= "", `bad value for --output (pathto an rbxm file expected, got {output})`)
+end
+
+print("output", output)
 
 local function build()
 	fs.removedirectory(project.BUILD_PATH, {
@@ -50,6 +61,10 @@ local function build()
 		for _, specFile in find(project.BUILD_PATH, ".*%.spec%.luau") do
 			fs.remove(specFile)
 		end
+	end
+
+	if output then
+		run("rojo", { "build", "-o", output })
 	end
 end
 
