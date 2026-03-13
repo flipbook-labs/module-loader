@@ -24,7 +24,7 @@ jobs:
         run: lute run install
 
       - name: Build
-        run: lute run build --target prod --output ${{ env.MODEL_FILE }}
+        run: lute run build --channel prod --output ${{ env.MODEL_FILE }}
 
       - name: Login to Wally registry
         run: wally login --token ${{ secrets.WALLY_REGISTRY_TOKEN }}
