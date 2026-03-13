@@ -15,7 +15,10 @@ local function findLuaFiles(): { path.path }
 		end)
 
 		for _, file in found do
-			table.insert(matches, file)
+			-- FIXME: Without this `{ any }` cast Luau gets upset:
+			-- TypeError: None of the overloads for function that accept 2 arguments are compatible.
+			-- TypeError: Available overloads: <V>({V}, V) -> (); and <V>({V}, number, V) -> ()
+			table.insert(matches :: { any }, file)
 		end
 	end
 
