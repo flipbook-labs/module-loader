@@ -143,7 +143,7 @@ function cli.parse(self: Parser, args: { string }): ()
 
 	-- check that all required arguments are present, and set any default values as needed
 	for _, argument in self.arguments do
-		assert(argument)
+		assert(argument, "Luau")
 
 		if argument.options.required and self.parsed.values[argument.name] == nil then
 			assert(self.parsed.values[argument.name], "Missing required argument: " .. argument.name)
