@@ -1,6 +1,6 @@
 --!nocheck
 
--- upstream: https://github.com/luau-lang/lute/blob/e8cc449b665e61d24b1877f7c998cbbad9915179/batteries/cli.luau
+-- upstream: https://github.com/luau-lang/lute/blob/6c347614b0d4755800811dd3203134706c9f2f4f/batteries/cli.luau
 
 local cli = {}
 cli.__index = cli
@@ -20,7 +20,7 @@ type ArgData = {
 }
 
 type ParseResult = {
-	values: { [string]: string },
+	values: { [string]: string? },
 	flags: { [string]: boolean },
 	fwdArgs: { string },
 }
@@ -143,7 +143,7 @@ function cli.parse(self: Parser, args: { string }): ()
 
 	-- check that all required arguments are present, and set any default values as needed
 	for _, argument in self.arguments do
-		assert(argument, "Luau")
+		assert(argument)
 
 		if argument.options.required and self.parsed.values[argument.name] == nil then
 			assert(self.parsed.values[argument.name], "Missing required argument: " .. argument.name)
