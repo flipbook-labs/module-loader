@@ -8,15 +8,13 @@
 # Luau
 dist/
 sourcemap*.json
-globalTypes.d.luau
 
-# Selene
-/roblox.toml
-
-# Wally
+# Third-party Packages
 /DevPackages
 /Packages
-/wally.lock
+/*.lock*
+/LuauPackages
+
 
 # Moonwave
 /node_modules
