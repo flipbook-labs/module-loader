@@ -45,9 +45,6 @@ jobs:
         with:
           version: v1.1.1
 
-      - name: Setup Lute typedefs
-        run: lute setup
-
       - name: Install packages
         run: lute run install
 
