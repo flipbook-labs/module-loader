@@ -24,7 +24,7 @@ test("supports @self alias", function()
 	expect(resolveInstancePath(root, "@self/ModuleScript")).toBe(child)
 end)
 
-test("supports ascending", function()
+test("supports ascending with ./ and ../", function()
 	local root = Instance.new("ModuleScript")
 	root.Name = "Root"
 
@@ -45,6 +45,14 @@ test("supports ascending", function()
 	expect(resolveInstancePath(descendant, "../../")).toBe(root)
 end)
 
+test("throws if the path doesn't resolve to an instance", function()
+	local moduleScript = Instance.new("ModuleScript")
+
+	expect(function()
+		resolveInstancePath(moduleScript, "@self/DoesNotExist")
+	end).toThrow()
+end)
+
 test("throws for absolute paths", function()
 	local moduleScript = Instance.new("ModuleScript")
 
@@ -53,10 +61,18 @@ test("throws for absolute paths", function()
 	end).toThrow("paths beginning with '/' are not supported in sandboxed string requires")
 end)
 
-test("throws if the path doesn't resolve to an instance", function()
-	local moduleScript = Instance.new("ModuleScript")
+test("throws when including '..' anywhere after the first part of the path", function()
+	local root = Instance.new("ModuleScript")
+
+	local child = Instance.new("ModuleScript")
+	child.Name = "Child"
+	child.Parent = root
+
+	local sibling = Instance.new("ModuleScript")
+	sibling.Name = "Sibling"
+	sibling.Parent = root
 
 	expect(function()
-		resolveInstancePath(moduleScript, "@self/DoesNotExist")
-	end).toThrow()
+		resolveInstancePath(root, "@self/Child/../Sibling")
+	end).toThrow("paths including '..' after the beginning are not supported in sandboxed string requires")
 end)
