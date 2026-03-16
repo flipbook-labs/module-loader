@@ -34,8 +34,6 @@ if output then
 	assert(output ~= "", `bad value for --output (pathto an rbxm file expected, got {output})`)
 end
 
-print("output", output)
-
 local function build()
 	fs.removedirectory(project.BUILD_PATH, {
 		recursive = true,

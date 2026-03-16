@@ -6,6 +6,7 @@ local createModuleRegistry = require("./createModuleRegistry")
 local getCallerPath = require("./getCallerPath")
 local getModuleSource = require("./getModuleSource")
 local getRobloxTsRuntime = require("./getRobloxTsRuntime")
+local resolveInstancePath = require("./resolveInstancePath")
 local types = require("./types")
 
 local Error = LuauPolyfill.Error
@@ -252,15 +253,17 @@ function createModuleLoader(): ModuleLoader
 			Workspace = defaultEnvironment.workspace,
 
 			require = function(otherModule: ModuleScript | string)
+				local resolvedModule: ModuleScript
 				if typeof(otherModule) == "string" then
-					-- Disabling this at the surface level of the API until we have
-					-- deeper support in Jest.
-					error("Require-by-string is not enabled for use inside Jest at this time.")
+					-- How do we get the caller in here?
+					resolvedModule = resolveInstancePath(moduleScript, otherModule) :: ModuleScript
+				else
+					resolvedModule = otherModule
 				end
 
-				loadedModule.dependencies[otherModule] = true
+				loadedModule.dependencies[resolvedModule] = true
 
-				return loadModule(otherModule)
+				return loadModule(resolvedModule)
 			end,
 		}, {
 			__index = defaultEnvironment,
