@@ -14,7 +14,7 @@ local find = FlipbookBatteries.find
 
 local BUNDLE_DIR_NAME = "dist"
 
-local function resolveScriptPath(scriptPath: string)
+local function resolveScriptPath(scriptPath: string): path.path
 	--[[
         Lute's script paths are inconsistent depending on how you invoke them.
         With `lute run <scriptName>`, scriptPath is exactly `scriptName`. As
@@ -26,7 +26,7 @@ local function resolveScriptPath(scriptPath: string)
 		return path.resolve(`.lute/{scriptPath}.luau`)
 	end
 
-	return scriptPath
+	return path.parse(scriptPath)
 end
 
 local args = { ... }
