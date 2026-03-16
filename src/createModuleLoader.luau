@@ -1,6 +1,7 @@
 local Janitor = require("@pkg/Janitor")
 local LuauPolyfill = require("@pkg/LuauPolyfill")
 
+local LoadingStrategy = require("@root/enums/LoadingStrategy")
 local cleanLoadstringStack = require("./cleanLoadstringStack")
 local createModuleRegistry = require("./createModuleRegistry")
 local getCallerPath = require("./getCallerPath")
@@ -13,7 +14,7 @@ local Error = LuauPolyfill.Error
 
 type LoadedModule = types.LoadedModule
 type LoadedModuleExports = types.LoadedModuleExports
-type LoadingStrategy = types.LoadingStrategy
+type LoadingStrategy = LoadingStrategy.LoadingStrategy
 type LoadModuleFn = types.LoadModuleFn
 type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
@@ -36,7 +37,7 @@ function createModuleLoader(): ModuleLoader
 	local moduleRegistry = createModuleRegistry()
 	local loadedModuleFns: { [ModuleScript]: { any } } = {}
 	local cleanupFns: { () -> () } = {}
-	local loadingStrategy: LoadingStrategy = "Automatic"
+	local loadingStrategy: LoadingStrategy = LoadingStrategy.Automatic
 	local janitors: { [ModuleScript]: any } = {}
 
 	local function _getModuleRegistry()
@@ -45,6 +46,27 @@ function createModuleLoader(): ModuleLoader
 
 	local function setLoadingStrategy(strategy: LoadingStrategy)
 		loadingStrategy = strategy
+	end
+
+	local function resolveLoadingStrategy(): LoadingStrategy
+		if loadingStrategy ~= LoadingStrategy.Automatic then
+			return loadingStrategy
+		end
+
+		if loadModuleEnabled then
+			return LoadingStrategy.LoadModule
+		end
+
+		return LoadingStrategy.CloneRequire
+	end
+
+	local function compileWithLoadstring(moduleScript: ModuleScript)
+		local moduleFunction, errorMessage = loadstring(getModuleSource(moduleScript), moduleScript:GetFullName())
+		if errorMessage then
+			errorMessage = cleanLoadstringStack(errorMessage)
+		end
+
+		return moduleFunction, errorMessage
 	end
 
 	--[[
@@ -194,23 +216,38 @@ function createModuleLoader(): ModuleLoader
 
 		local moduleFunction, defaultEnvironment, errorMessage, cleanupFn
 		local moduleScript = loadedModule.instance
-
-		local shouldUseLoadmodule = loadingStrategy == "LoadModule"
-			or (loadingStrategy == "Automatic" and loadModuleEnabled)
+		local strategy = resolveLoadingStrategy()
 
 		local existingLoadedModuleFns = loadedModuleFns[moduleScript]
 		if existingLoadedModuleFns then
 			moduleFunction = existingLoadedModuleFns[1]
 			defaultEnvironment = existingLoadedModuleFns[2]
 		else
-			if shouldUseLoadmodule then
+			if strategy == LoadingStrategy.LoadModule then
 				moduleFunction, errorMessage, cleanupFn = loadmodule(moduleScript)
-			else
-				moduleFunction, errorMessage = loadstring(getModuleSource(moduleScript), moduleScript:GetFullName())
+			elseif strategy == LoadingStrategy.LoadString then
+				moduleFunction, errorMessage = compileWithLoadstring(moduleScript)
+			elseif strategy == LoadingStrategy.CloneRequire then
+				local wrappedModule = moduleScript:Clone()
+				wrappedModule.Source = "return function() local _;" .. moduleScript.Source .. "\nend"
 
-				if errorMessage then
-					errorMessage = cleanLoadstringStack(errorMessage)
+				wrappedModule.Parent, moduleScript.Parent = moduleScript.Parent, wrappedModule.Parent
+				local didRequireSucceed, wrappedModuleRequireResult = (pcall :: any)(require, wrappedModule)
+				wrappedModule.Parent, moduleScript.Parent = moduleScript.Parent, wrappedModule.Parent
+				wrappedModule:Destroy()
+
+				if didRequireSucceed then
+					moduleFunction = wrappedModuleRequireResult
+				else
+					local _, syntaxErrorMessage = compileWithLoadstring(moduleScript)
+					if syntaxErrorMessage then
+						error(syntaxErrorMessage)
+					end
+
+					error(wrappedModuleRequireResult)
 				end
+			else
+				error(`Invalid loading strategy: {strategy}`)
 			end
 
 			if not moduleFunction then
@@ -243,7 +280,7 @@ function createModuleLoader(): ModuleLoader
 		-- separate so that, in the future, `globalEnv` could expose these
 		-- 'unmocked' functions instead of the ones in the global environment.
 		local sandboxEnvironment = setmetatable({
-			script = if shouldUseLoadmodule then defaultEnvironment.script else moduleScript,
+			script = if strategy == LoadingStrategy.LoadModule then defaultEnvironment.script else moduleScript,
 			game = defaultEnvironment.game,
 			workspace = defaultEnvironment.workspace,
 			plugin = defaultEnvironment.plugin,

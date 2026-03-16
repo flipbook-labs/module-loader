@@ -1,4 +1,6 @@
-export type LoadingStrategy = "Automatic" | "LoadString" | "LoadModule"
+local LoadingStrategy = require("@root/enums/LoadingStrategy")
+
+export type LoadingStrategy = LoadingStrategy.LoadingStrategy
 
 export type LoadedModuleExports = unknown?
 

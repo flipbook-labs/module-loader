@@ -8,8 +8,10 @@ local beforeEach = JestGlobals.beforeEach
 local afterEach = JestGlobals.afterEach
 local describeEach = describe.each :: any
 
+local LoadingStrategy = require("@root/enums/LoadingStrategy")
 local createModuleLoader = require("./createModuleLoader")
-local types = require("./types")
+
+type LoadingStrategy = LoadingStrategy.LoadingStrategy
 
 local loadModuleEnabled = pcall(function()
 	return debug["loadmodule"](Instance.new("ModuleScript"))
@@ -20,25 +22,33 @@ type ModuleTestTree = {
 }
 local testNumber = 0
 local function createModuleTest(tree: ModuleTestTree, parent: Instance?): any
-	testNumber += 1
-
-	local root = Instance.new("Folder")
-	root.Name = "ModuleTest" .. testNumber
-
-	parent = if parent then parent else root
+	local root: Instance
+	if parent then
+		root = parent
+	else
+		testNumber += 1
+		root = Instance.new("Folder")
+		root.Name = "ModuleTest" .. testNumber
+	end
 
 	for name, sourceOrDescendants in tree do
 		if typeof(sourceOrDescendants) == "table" then
-			createModuleTest(sourceOrDescendants, parent)
+			local folder = Instance.new("Folder")
+			folder.Name = name
+			folder.Parent = root
+
+			createModuleTest(sourceOrDescendants :: ModuleTestTree, folder)
 		else
 			local module = Instance.new("ModuleScript")
 			module.Name = name
 			module.Source = sourceOrDescendants
-			module.Parent = parent
+			module.Parent = root
 		end
 	end
 
-	root.Parent = game
+	if not parent then
+		root.Parent = game
+	end
 
 	return root
 end
@@ -51,9 +61,12 @@ local tree
 describeEach({
 	"LoadString",
 	"LoadModule",
-} :: { types.LoadingStrategy })("%s", function(loadingStrategy)
+	"CloneRequire",
+} :: { LoadingStrategy })("%s", function(loadingStrategy)
 	if loadingStrategy == "LoadModule" and not loadModuleEnabled then
 		test = test.skip :: any
+	else
+		test = JestGlobals.test
 	end
 
 	beforeEach(function()
@@ -609,6 +622,7 @@ describeEach({
 			]]
 
 			local child = Instance.new("ModuleScript")
+			child.Name = "Child"
 			child.Source = [[
 				return true
 			]]
@@ -620,7 +634,7 @@ describeEach({
 		end)
 
 		test("supports a subset of string requires", function()
-			tree = createModuleTest({
+			local moduleTree: ModuleTestTree = {
 				Folder = {
 					Module3 = [[
 						return {}
@@ -640,7 +654,9 @@ describeEach({
 					require("./Module1")
 					return nil
 				]],
-			})
+			} :: any
+
+			tree = createModuleTest(moduleTree)
 
 			loader.require(tree.Consumer)
 		end)
