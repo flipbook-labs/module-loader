@@ -292,7 +292,6 @@ function createModuleLoader(): ModuleLoader
 			require = function(otherModule: ModuleScript | string)
 				local resolvedModule: ModuleScript
 				if typeof(otherModule) == "string" then
-					-- How do we get the caller in here?
 					resolvedModule = resolveInstancePath(moduleScript, otherModule) :: ModuleScript
 				else
 					resolvedModule = otherModule
