@@ -1,5 +1,5 @@
 --[[
-	This script is solely for taking our dev build of ModuleLoader and overlaying
+	This script is solely for taking our dev build of Storyteller and overlaying
 	it on Flipbook's install. This is only needed because Wally doesn't support
 	path/git dependencies, so we have to make our own shim.
 ]]
@@ -12,6 +12,7 @@ local run = FlipbookBatteries.run
 local copyInto = FlipbookBatteries.copyInto
 local find = FlipbookBatteries.find
 
+local WALLY_PACKAGE_NAME_PATTERN = "^module%-loader$"
 local BUNDLE_DIR_NAME = "dist"
 
 local function resolveScriptPath(scriptPath: string): path.path
@@ -40,18 +41,18 @@ if fs.exists(flipbookRoot) then
 	print(`using Flipbook at {flipbookRoot}`)
 else
 	error(
-		`could not find Flipbook at {flipbookRoot}. Make sure your checkout is parented to the same directory as ModuleLoader`
+		`could not find Flipbook at {flipbookRoot}. Make sure your checkout is parented to the same directory as this repo`
 	)
 end
 
 local flipbookPackageIndex = path.join(flipbookRoot, "Packages/_Index")
-local moduleLoaderInstallation = find(flipbookPackageIndex, "^module%-loader$")[1]
+local packageInstallation = find(flipbookPackageIndex, WALLY_PACKAGE_NAME_PATTERN)[1]
 
-if not moduleLoaderInstallation or not fs.exists(moduleLoaderInstallation) then
-	error("could not find an installation of ModuleLoader in Flipbook's package index")
+if not packageInstallation or not fs.exists(packageInstallation) then
+	error("could not find an installation of this package in Flipbook's package index")
 end
 
-local dest = path.join(moduleLoaderInstallation, BUNDLE_DIR_NAME)
+local dest = path.join(packageInstallation, BUNDLE_DIR_NAME)
 
 fs.removedirectory(dest, {
 	recursive = true,
