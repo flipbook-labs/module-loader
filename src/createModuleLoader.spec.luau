@@ -8,8 +8,10 @@ local beforeEach = JestGlobals.beforeEach
 local afterEach = JestGlobals.afterEach
 local describeEach = describe.each :: any
 
+local LoadingStrategy = require("@root/enums/LoadingStrategy")
 local createModuleLoader = require("./createModuleLoader")
-local types = require("./types")
+
+type LoadingStrategy = LoadingStrategy.LoadingStrategy
 
 local loadModuleEnabled = pcall(function()
 	return debug["loadmodule"](Instance.new("ModuleScript"))
@@ -51,9 +53,12 @@ local tree
 describeEach({
 	"LoadString",
 	"LoadModule",
-} :: { types.LoadingStrategy })("%s", function(loadingStrategy)
+	"CloneRequire",
+} :: { LoadingStrategy })("%s", function(loadingStrategy)
 	if loadingStrategy == "LoadModule" and not loadModuleEnabled then
 		test = test.skip :: any
+	else
+		test = JestGlobals.test
 	end
 
 	beforeEach(function()

@@ -1,6 +1,7 @@
 local Janitor = require("@pkg/Janitor")
 local LuauPolyfill = require("@pkg/LuauPolyfill")
 
+local LoadingStrategy = require("@root/enums/LoadingStrategy")
 local cleanLoadstringStack = require("./cleanLoadstringStack")
 local createModuleRegistry = require("./createModuleRegistry")
 local getCallerPath = require("./getCallerPath")
@@ -13,7 +14,7 @@ local Error = LuauPolyfill.Error
 
 type LoadedModule = types.LoadedModule
 type LoadedModuleExports = types.LoadedModuleExports
-type LoadingStrategy = types.LoadingStrategy
+type LoadingStrategy = LoadingStrategy.LoadingStrategy
 type LoadModuleFn = types.LoadModuleFn
 type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
@@ -36,7 +37,7 @@ function createModuleLoader(): ModuleLoader
 	local moduleRegistry = createModuleRegistry()
 	local loadedModuleFns: { [ModuleScript]: { any } } = {}
 	local cleanupFns: { () -> () } = {}
-	local loadingStrategy: LoadingStrategy = "Automatic"
+	local loadingStrategy: LoadingStrategy = LoadingStrategy.Automatic
 	local janitors: { [ModuleScript]: any } = {}
 
 	local function _getModuleRegistry()
@@ -45,6 +46,71 @@ function createModuleLoader(): ModuleLoader
 
 	local function setLoadingStrategy(strategy: LoadingStrategy)
 		loadingStrategy = strategy
+	end
+
+	local function resolveLoadingStrategy(): LoadingStrategy
+		if loadingStrategy ~= LoadingStrategy.Automatic then
+			return loadingStrategy
+		end
+
+		if loadModuleEnabled then
+			return LoadingStrategy.LoadModule
+		end
+
+		return LoadingStrategy.CloneRequire
+	end
+
+	local function requireWithLoadstring(moduleScript: ModuleScript)
+		local moduleFunction, errorMessage = loadstring(getModuleSource(moduleScript), moduleScript:GetFullName())
+		if errorMessage then
+			errorMessage = cleanLoadstringStack(errorMessage)
+		end
+
+		return moduleFunction, errorMessage
+	end
+
+	local function requireWithCloning(moduleScript: ModuleScript): ((() -> ())?, string?)
+		local moduleFunction: (() -> ())?
+		local errorMessage: string?
+
+		local clone = moduleScript:Clone()
+
+		-- We wrap the module source in an anonymous function so requiring the
+		-- clone returns a runnable function with a function environment we can
+		-- manipulate if needed.
+		--
+		-- We also include `local _;` so injected code preserves line numbers.
+		-- It may also have some other benefits but we're largely dealing with
+		-- incantations from the old tomes here so we'll take what we can get
+		clone.Source = "return function() local _;" .. moduleScript.Source .. "\nend"
+		clone.Parent, moduleScript.Parent = moduleScript.Parent, clone.Parent
+
+		local ok, err = pcall(function()
+			-- Casting to `any` so require will accept the clone as a valid module path
+			moduleFunction = (require :: any)(clone)
+			return nil
+		end)
+
+		clone.Parent, moduleScript.Parent = moduleScript.Parent, clone.Parent
+		clone:Destroy()
+
+		if not ok then
+			local _, syntaxErrorMessage = requireWithLoadstring(moduleScript)
+
+			if syntaxErrorMessage then
+				errorMessage = syntaxErrorMessage
+			else
+				errorMessage = err
+			end
+
+			return nil, errorMessage
+		end
+
+		if moduleFunction then
+			return moduleFunction, nil
+		end
+
+		return nil, nil
 	end
 
 	--[[
@@ -194,23 +260,21 @@ function createModuleLoader(): ModuleLoader
 
 		local moduleFunction, defaultEnvironment, errorMessage, cleanupFn
 		local moduleScript = loadedModule.instance
-
-		local shouldUseLoadmodule = loadingStrategy == "LoadModule"
-			or (loadingStrategy == "Automatic" and loadModuleEnabled)
+		local strategy = resolveLoadingStrategy()
 
 		local existingLoadedModuleFns = loadedModuleFns[moduleScript]
 		if existingLoadedModuleFns then
 			moduleFunction = existingLoadedModuleFns[1]
 			defaultEnvironment = existingLoadedModuleFns[2]
 		else
-			if shouldUseLoadmodule then
+			if strategy == LoadingStrategy.LoadModule then
 				moduleFunction, errorMessage, cleanupFn = loadmodule(moduleScript)
+			elseif strategy == LoadingStrategy.LoadString then
+				moduleFunction, errorMessage = requireWithLoadstring(moduleScript)
+			elseif strategy == LoadingStrategy.CloneRequire then
+				moduleFunction, errorMessage = requireWithCloning(moduleScript)
 			else
-				moduleFunction, errorMessage = loadstring(getModuleSource(moduleScript), moduleScript:GetFullName())
-
-				if errorMessage then
-					errorMessage = cleanLoadstringStack(errorMessage)
-				end
+				error(`Invalid loading strategy: {strategy}`)
 			end
 
 			if not moduleFunction then
@@ -243,7 +307,7 @@ function createModuleLoader(): ModuleLoader
 		-- separate so that, in the future, `globalEnv` could expose these
 		-- 'unmocked' functions instead of the ones in the global environment.
 		local sandboxEnvironment = setmetatable({
-			script = if shouldUseLoadmodule then defaultEnvironment.script else moduleScript,
+			script = if strategy == LoadingStrategy.LoadModule then defaultEnvironment.script else moduleScript,
 			game = defaultEnvironment.game,
 			workspace = defaultEnvironment.workspace,
 			plugin = defaultEnvironment.plugin,
