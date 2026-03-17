@@ -74,6 +74,14 @@ function createModuleLoader(): ModuleLoader
 		local errorMessage: string?
 
 		local clone = moduleScript:Clone()
+
+		-- We wrap the module source in an anonymous function so requiring the
+		-- clone returns a runnable function with a function environment we can
+		-- manipulate if needed.
+		--
+		-- We also include `local _;` so injected code preserves line numbers.
+		-- It may also have some other benefits but we're largely dealing with
+		-- incantations from the old tomes here so we'll take what we can get
 		clone.Source = "return function() local _;" .. moduleScript.Source .. "\nend"
 		clone.Parent, moduleScript.Parent = moduleScript.Parent, clone.Parent
 
