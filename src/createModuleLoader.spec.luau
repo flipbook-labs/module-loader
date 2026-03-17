@@ -20,25 +20,34 @@ type ModuleTestTree = {
 }
 local testNumber = 0
 local function createModuleTest(tree: ModuleTestTree, parent: Instance?): any
-	testNumber += 1
+	local root: Instance
 
-	local root = Instance.new("Folder")
-	root.Name = "ModuleTest" .. testNumber
-
-	parent = if parent then parent else root
+	if parent then
+		root = parent
+	else
+		testNumber += 1
+		root = Instance.new("Folder")
+		root.Name = "ModuleTest" .. testNumber
+	end
 
 	for name, sourceOrDescendants in tree do
 		if typeof(sourceOrDescendants) == "table" then
-			createModuleTest(sourceOrDescendants, parent)
+			local folder = Instance.new("Folder")
+			folder.Name = name
+			folder.Parent = root
+
+			createModuleTest(sourceOrDescendants :: ModuleTestTree, folder)
 		else
 			local module = Instance.new("ModuleScript")
 			module.Name = name
 			module.Source = sourceOrDescendants
-			module.Parent = parent
+			module.Parent = root
 		end
 	end
 
-	root.Parent = game
+	if not parent then
+		root.Parent = game
+	end
 
 	return root
 end
@@ -580,7 +589,7 @@ describeEach({
 		end)
 	end)
 
-	describe("sstring requires", function()
+	describe("string requires", function()
 		test("supports @game", function()
 			local moduleA = Instance.new("ModuleScript")
 			moduleA.Name = "ModuleA"
@@ -609,6 +618,7 @@ describeEach({
 			]]
 
 			local child = Instance.new("ModuleScript")
+			child.Name = "Child"
 			child.Source = [[
 				return true
 			]]
