@@ -60,13 +60,49 @@ function createModuleLoader(): ModuleLoader
 		return LoadingStrategy.CloneRequire
 	end
 
-	local function compileWithLoadstring(moduleScript: ModuleScript)
+	local function requireWithLoadstring(moduleScript: ModuleScript)
 		local moduleFunction, errorMessage = loadstring(getModuleSource(moduleScript), moduleScript:GetFullName())
 		if errorMessage then
 			errorMessage = cleanLoadstringStack(errorMessage)
 		end
 
 		return moduleFunction, errorMessage
+	end
+
+	local function requireWithCloning(moduleScript: ModuleScript): ((() -> ())?, string?)
+		local moduleFunction: (() -> ())?
+		local errorMessage: string?
+
+		local clone = moduleScript:Clone()
+		clone.Source = "return function() local _;" .. moduleScript.Source .. "\nend"
+		clone.Parent, moduleScript.Parent = moduleScript.Parent, clone.Parent
+
+		local ok, err = pcall(function()
+			-- Casting to `any` so require will accept the clone as a valid module path
+			moduleFunction = (require :: any)(clone)
+			return nil
+		end)
+
+		clone.Parent, moduleScript.Parent = moduleScript.Parent, clone.Parent
+		clone:Destroy()
+
+		if not ok then
+			local _, syntaxErrorMessage = requireWithLoadstring(moduleScript)
+
+			if syntaxErrorMessage then
+				errorMessage = syntaxErrorMessage
+			else
+				errorMessage = err
+			end
+
+			return nil, errorMessage
+		end
+
+		if moduleFunction then
+			return moduleFunction, nil
+		end
+
+		return nil, nil
 	end
 
 	--[[
@@ -226,26 +262,9 @@ function createModuleLoader(): ModuleLoader
 			if strategy == LoadingStrategy.LoadModule then
 				moduleFunction, errorMessage, cleanupFn = loadmodule(moduleScript)
 			elseif strategy == LoadingStrategy.LoadString then
-				moduleFunction, errorMessage = compileWithLoadstring(moduleScript)
+				moduleFunction, errorMessage = requireWithLoadstring(moduleScript)
 			elseif strategy == LoadingStrategy.CloneRequire then
-				local wrappedModule = moduleScript:Clone()
-				wrappedModule.Source = "return function() local _;" .. moduleScript.Source .. "\nend"
-
-				wrappedModule.Parent, moduleScript.Parent = moduleScript.Parent, wrappedModule.Parent
-				local didRequireSucceed, wrappedModuleRequireResult = (pcall :: any)(require, wrappedModule)
-				wrappedModule.Parent, moduleScript.Parent = moduleScript.Parent, wrappedModule.Parent
-				wrappedModule:Destroy()
-
-				if didRequireSucceed then
-					moduleFunction = wrappedModuleRequireResult
-				else
-					local _, syntaxErrorMessage = compileWithLoadstring(moduleScript)
-					if syntaxErrorMessage then
-						error(syntaxErrorMessage)
-					end
-
-					error(wrappedModuleRequireResult)
-				end
+				moduleFunction, errorMessage = requireWithCloning(moduleScript)
 			else
 				error(`Invalid loading strategy: {strategy}`)
 			end
