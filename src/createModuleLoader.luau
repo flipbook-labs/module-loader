@@ -185,7 +185,9 @@ function createModuleLoader(): ModuleLoader
 
 			if loadedModule then
 				local janitor = janitors[moduleScript]
-				janitor:Cleanup()
+				if janitor then
+					janitor:Cleanup()
+				end
 			end
 		end
 
