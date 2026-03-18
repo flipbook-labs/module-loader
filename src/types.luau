@@ -21,7 +21,7 @@ export type ModuleRegistry = {
 	getByFullName: (fullName: string) -> LoadedModule?,
 }
 
-export type LoadModuleFn = (moduleScript: ModuleScript) -> LoadedModuleExports
+export type LoadModuleFn = (moduleScript: ModuleScript, caller: ModuleScript?) -> LoadedModuleExports
 
 export type ModuleLoader = {
 	_getModuleRegistry: () -> ModuleRegistry,

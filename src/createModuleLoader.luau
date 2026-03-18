@@ -24,6 +24,26 @@ local loadModuleEnabled = pcall(function()
 	return loadmodule(Instance.new("ModuleScript"))
 end)
 
+local function resolveCaller(
+	callerModule: ModuleScript?,
+	moduleRegistry: ModuleRegistry,
+	currentExecutingModuleByThread: { [thread]: ModuleScript }
+): ModuleScript?
+	if callerModule then
+		return callerModule
+	end
+
+	local callerPath = getCallerPath()
+	if callerPath then
+		local loadedCallerModule = moduleRegistry.getByFullName(callerPath)
+		if loadedCallerModule and loadedCallerModule.instance then
+			return loadedCallerModule.instance
+		end
+	end
+
+	return currentExecutingModuleByThread[coroutine.running()]
+end
+
 --[[
 	ModuleScript loader that bypasses Roblox's require cache.
 
@@ -39,6 +59,10 @@ function createModuleLoader(): ModuleLoader
 	local cleanupFns: { () -> () } = {}
 	local loadingStrategy: LoadingStrategy = LoadingStrategy.Automatic
 	local janitors: { [ModuleScript]: any } = {}
+	-- When using CloneRequire, the clone is unparented so getCallerPath() cannot
+	-- resolve to the original module. We track the module currently being
+	-- executed so nested require() calls can use it as the caller.
+	local currentExecutingModuleByThread: { [thread]: ModuleScript } = {}
 
 	local function _getModuleRegistry()
 		return moduleRegistry
@@ -84,7 +108,6 @@ function createModuleLoader(): ModuleLoader
 		-- It may also have some other benefits but we're largely dealing with
 		-- incantations from the old tomes here so we'll take what we can get
 		clone.Source = "return function() local _;" .. moduleScript.Source .. "\nend"
-		clone.Parent, moduleScript.Parent = moduleScript.Parent, clone.Parent
 
 		local ok, err = pcall(function()
 			-- Casting to `any` so require will accept the clone as a valid module path
@@ -92,7 +115,6 @@ function createModuleLoader(): ModuleLoader
 			return nil
 		end)
 
-		clone.Parent, moduleScript.Parent = moduleScript.Parent, clone.Parent
 		clone:Destroy()
 
 		if not ok then
@@ -329,7 +351,7 @@ function createModuleLoader(): ModuleLoader
 
 				loadedModule.dependencies[resolvedModule] = true
 
-				return loadModule(resolvedModule)
+				return loadModule(resolvedModule, moduleScript)
 			end,
 		}, {
 			__index = defaultEnvironment,
@@ -342,7 +364,16 @@ function createModuleLoader(): ModuleLoader
 		})
 
 		setfenv(moduleFunction, mockedSandboxEnvironment :: any)
-		local moduleResult = table.pack(moduleFunction())
+		local thread = coroutine.running()
+		currentExecutingModuleByThread[thread] = moduleScript
+		local ok, packed = pcall(function()
+			return table.pack(moduleFunction())
+		end)
+		currentExecutingModuleByThread[thread] = nil
+		if not ok then
+			error(packed)
+		end
+		local moduleResult = packed :: { [number]: any, n: number }
 
 		if moduleResult.n ~= 1 then
 			error(
@@ -371,19 +402,12 @@ function createModuleLoader(): ModuleLoader
 		local module = loader.require(script.Parent.ModuleScript)
 		```
 	]]
-	function loadModule(moduleScript: ModuleScript)
+	function loadModule(moduleScript: ModuleScript, callerModule: ModuleScript?)
 		if moduleScript.Name:find(".global$") then
 			return (require :: any)(moduleScript)
 		end
 
-		local caller: ModuleScript?
-		local callerPath = getCallerPath()
-		if callerPath then
-			local loadedCallerModule = moduleRegistry.getByFullName(callerPath)
-			if loadedCallerModule and loadedCallerModule.instance then
-				caller = loadedCallerModule.instance
-			end
-		end
+		local caller = resolveCaller(callerModule, moduleRegistry, currentExecutingModuleByThread)
 
 		local existingModule = moduleRegistry.getByInstance(moduleScript)
 		if existingModule then
