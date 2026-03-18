@@ -74,6 +74,7 @@ function createModuleLoader(): ModuleLoader
 		local errorMessage: string?
 
 		local clone = moduleScript:Clone()
+		clone.Archivable = false
 
 		-- We wrap the module source in an anonymous function so requiring the
 		-- clone returns a runnable function with a function environment we can
