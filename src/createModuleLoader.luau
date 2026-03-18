@@ -3,6 +3,7 @@ local LuauPolyfill = require("@pkg/LuauPolyfill")
 
 local LoadingStrategy = require("@root/enums/LoadingStrategy")
 local cleanLoadstringStack = require("./cleanLoadstringStack")
+local constants = require("./constants")
 local createModuleRegistry = require("./createModuleRegistry")
 local getCallerPath = require("./getCallerPath")
 local getModuleSource = require("./getModuleSource")
@@ -74,7 +75,12 @@ function createModuleLoader(): ModuleLoader
 		local errorMessage: string?
 
 		local clone = moduleScript:Clone()
+		clone:AddTag(constants.MODULE_LOCK_TAG)
 		clone.Archivable = false
+
+		-- We could have also applied the tag to `moduleScript` first and then
+		-- cloned it, but let's keep it explicit.
+		moduleScript:AddTag(constants.MODULE_LOCK_TAG)
 
 		-- We wrap the module source in an anonymous function so requiring the
 		-- clone returns a runnable function with a function environment we can
@@ -94,6 +100,7 @@ function createModuleLoader(): ModuleLoader
 
 		clone.Parent, moduleScript.Parent = moduleScript.Parent, clone.Parent
 		clone:Destroy()
+		moduleScript:RemoveTag(constants.MODULE_LOCK_TAG)
 
 		if not ok then
 			local _, syntaxErrorMessage = requireWithLoadstring(moduleScript)
