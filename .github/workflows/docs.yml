@@ -32,7 +32,7 @@ jobs:
           path: build
 
   deploy-docs:
-    # if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request'
     needs: [build-docs]
     permissions:
       pages: write
