@@ -1,3 +1,4 @@
+local constants = require("./constants")
 local createModuleLoader = require("./createModuleLoader")
 local types = require("./types")
 
@@ -12,6 +13,7 @@ type ModuleLoaderImpl = {
 	__index: ModuleLoaderImpl,
 
 	new: () -> ModuleLoaderClass,
+	isLocked: (instance: Instance) -> boolean,
 
 	require: (self: ModuleLoaderClass, moduleScript: ModuleScript) -> any,
 	cache: (self: ModuleLoaderClass, moduleScript: ModuleScript, result: any) -> (),
@@ -67,6 +69,25 @@ function ModuleLoader.new()
 	self.loadedModuleChanged = self._loader.loadedModuleChanged
 
 	return setmetatable(self, ModuleLoader)
+end
+
+--[=[
+	Checks if ModuleLoader has a lock on the given Instance (typically a ModuleScript).
+
+	A lock is applied when using the default `CloneRequire` loading strategy as
+	there are DataModel side-effects that consumers like Storyteller need to
+	work around.
+
+	```lua
+	ModuleLoader.isLocked(script.Parent.ModuleScript)
+	```lua
+
+	@param instance Instance
+	@return boolean
+	@within ModuleLoader
+]=]
+function ModuleLoader.isLocked(instance: Instance): boolean
+	return instance:HasTag(constants.MODULE_LOCK_TAG)
 end
 
 --[=[
