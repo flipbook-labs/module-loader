@@ -58,7 +58,7 @@ function createModuleLoader(): ModuleLoader
 			return LoadingStrategy.LoadModule
 		end
 
-		return LoadingStrategy.CloneRequire
+		return LoadingStrategy.RequireByProxy
 	end
 
 	local function requireWithLoadstring(moduleScript: ModuleScript)
@@ -70,7 +70,7 @@ function createModuleLoader(): ModuleLoader
 		return moduleFunction, errorMessage
 	end
 
-	local function requireWithCloning(moduleScript: ModuleScript): ((() -> ())?, string?)
+	local function requireWithProxy(moduleScript: ModuleScript): ((() -> ())?, string?)
 		local moduleFunction: (() -> ())?
 		local errorMessage: string?
 
@@ -281,8 +281,8 @@ function createModuleLoader(): ModuleLoader
 				moduleFunction, errorMessage, cleanupFn = loadmodule(moduleScript)
 			elseif strategy == LoadingStrategy.LoadString then
 				moduleFunction, errorMessage = requireWithLoadstring(moduleScript)
-			elseif strategy == LoadingStrategy.CloneRequire then
-				moduleFunction, errorMessage = requireWithCloning(moduleScript)
+			elseif strategy == LoadingStrategy.RequireByProxy then
+				moduleFunction, errorMessage = requireWithProxy(moduleScript)
 			else
 				error(`Invalid loading strategy: {strategy}`)
 			end

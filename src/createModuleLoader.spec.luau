@@ -53,7 +53,7 @@ local tree
 describeEach({
 	"LoadString",
 	"LoadModule",
-	"CloneRequire",
+	"RequireByProxy",
 } :: { LoadingStrategy })("%s", function(loadingStrategy)
 	if loadingStrategy == "LoadModule" and not loadModuleEnabled then
 		test = test.skip :: any
