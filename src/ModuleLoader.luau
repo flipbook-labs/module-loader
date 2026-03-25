@@ -21,7 +21,7 @@ type ModuleLoaderImpl = {
 	clearModule: (self: ModuleLoaderClass, moduleScript: ModuleScript) -> (),
 	clear: (self: ModuleLoaderClass) -> (),
 
-	createProxyModuleLoader: typeof(createProxyModuleLoader),
+	createProxyModuleLoader: () -> types.ProxyModuleLoader,
 }
 
 export type ModuleLoaderClass = typeof(setmetatable({} :: ModuleLoaderProps, {} :: ModuleLoaderImpl))
