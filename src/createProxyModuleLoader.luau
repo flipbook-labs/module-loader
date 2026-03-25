@@ -5,6 +5,9 @@ end)
 
 local requireWithLoadstring = require("@root/loading-strategies/requireWithLoadstring")
 local resolveInstancePath = require("@root/resolveInstancePath")
+local types = require("@root/types")
+
+type ProxyModuleLoader = types.ProxyModuleLoader
 
 local function getModuleFunction(moduleScript: ModuleScript): (...any) -> ()
 	local tmpScript = Instance.new("ModuleScript")
@@ -13,23 +16,12 @@ local function getModuleFunction(moduleScript: ModuleScript): (...any) -> ()
 
 	local mergedParams = { "script", "require" }
 
-	local rawSource = if ScriptEditorService
+	local source = if ScriptEditorService
 		then ScriptEditorService:GetEditorSource(moduleScript)
 		else moduleScript.Source
 
-	local headers = {}
-	local lines = rawSource:split("\n")
-	for i = 1, #lines do
-		local line = lines[i]
-		if line:sub(1, 3) == "--!" then
-			table.insert(headers, line .. "\n")
-		end
-	end
-
-	local source = table.concat(lines, "\n", #headers + 1)
-
 	-- The formatting is crazy here, but we retain line numbers
-	local newSource = `{table.concat(headers)}return (function({table.concat(mergedParams, ", ")}) {source} end)`
+	local newSource = `return (function({table.concat(mergedParams, ", ")}) {source} end)`
 
 	if ScriptEditorService then
 		ScriptEditorService:UpdateSourceAsync(tmpScript, function()
@@ -41,7 +33,7 @@ local function getModuleFunction(moduleScript: ModuleScript): (...any) -> ()
 
 	local moduleFunction
 	local ok, err = pcall(function()
-		moduleFunction = require(tmpScript) :: (...any) -> ...any
+		moduleFunction = (require :: any)(tmpScript)
 	end)
 
 	tmpScript:Destroy()
@@ -56,7 +48,7 @@ local function getModuleFunction(moduleScript: ModuleScript): (...any) -> ()
 			errorMessage = err
 		end
 
-		error(errorMessage)
+		error(errorMessage, 1)
 	end
 
 	return moduleFunction
@@ -71,16 +63,13 @@ end
 	is ignored when requiring a module so you are able to load a module, make
 	changes, and load it again without reloading the whole place.
 ]]
-function createProxyModuleLoader(): {
-	require: (moduleScript: ModuleScript) -> unknown,
-	loadedModuleChanged: RBXScriptSignal,
-}
+function createProxyModuleLoader(): ProxyModuleLoader
 	--[[
 		Fired when any ModuleScript required through this class has its ancestry
 		or `Source` property changed. This applies to the ModuleScript passed to
 		`ModuleLoader:require()` and every module that it subsequently requirs.
 
-		This event is useful for reloading a module when it or any of it
+		This event is useful for reloading a module when it or any of its
 		dependencies change.
 
 		```lua
@@ -88,7 +77,6 @@ function createProxyModuleLoader(): {
 		local result = loader.require(module)
 
 		loader.loadedModuleChanged:Connect(function()
-			loader.clear()
 			result = loader.require(module)
 		end)
 		```
