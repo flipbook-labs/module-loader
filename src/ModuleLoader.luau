@@ -20,6 +20,8 @@ type ModuleLoaderImpl = {
 	cache: (self: ModuleLoaderClass, moduleScript: ModuleScript, result: any) -> (),
 	clearModule: (self: ModuleLoaderClass, moduleScript: ModuleScript) -> (),
 	clear: (self: ModuleLoaderClass) -> (),
+
+	createProxyModuleLoader: typeof(createProxyModuleLoader),
 }
 
 export type ModuleLoaderClass = typeof(setmetatable({} :: ModuleLoaderProps, {} :: ModuleLoaderImpl))
@@ -37,6 +39,8 @@ export type ModuleLoaderClass = typeof(setmetatable({} :: ModuleLoaderProps, {} 
 ]=]
 local ModuleLoader = {} :: ModuleLoaderImpl
 ModuleLoader.__index = ModuleLoader
+
+ModuleLoader.createProxyModuleLoader = createProxyModuleLoader
 
 --[=[
     Constructs a new ModuleLoader instance.
