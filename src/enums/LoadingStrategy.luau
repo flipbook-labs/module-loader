@@ -1,10 +1,10 @@
-export type LoadingStrategy = "Automatic" | "LoadString" | "LoadModule" | "RequireByProxy"
+export type LoadingStrategy = "Automatic" | "LoadString" | "LoadModule" | "CloneRequire"
 
 local LoadingStrategy = {
 	Automatic = "Automatic" :: "Automatic",
 	LoadString = "LoadString" :: "LoadString",
 	LoadModule = "LoadModule" :: "LoadModule",
-	RequireByProxy = "RequireByProxy" :: "RequireByProxy",
+	CloneRequire = "CloneRequire" :: "CloneRequire",
 }
 
 return LoadingStrategy

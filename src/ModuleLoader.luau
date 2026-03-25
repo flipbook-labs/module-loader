@@ -1,5 +1,6 @@
 local constants = require("./constants")
 local createModuleLoader = require("./createModuleLoader")
+local createProxyModuleLoader = require("./createProxyModuleLoader")
 local types = require("./types")
 
 type ModuleLoader = types.ModuleLoader
@@ -74,7 +75,7 @@ end
 --[=[
 	Checks if ModuleLoader has a lock on the given Instance (typically a ModuleScript).
 
-	A lock is applied when using the default `RequireByProxy` loading strategy as
+	A lock is applied when using the default `CloneRequire` loading strategy as
 	there are DataModel side-effects that consumers like Storyteller need to
 	work around.
 
