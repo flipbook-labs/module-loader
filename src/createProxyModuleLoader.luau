@@ -3,19 +3,21 @@ pcall(function()
 	ScriptEditorService = game:GetService("ScriptEditorService")
 end)
 
+local requireWithLoadstring = require("@root/loading-strategies/requireWithLoadstring")
 local resolveInstancePath = require("@root/resolveInstancePath")
 
-local function getModuleFunction(moduleScript: ModuleScript)
+local function getModuleFunction(moduleScript: ModuleScript): (...any) -> ()
 	local tmpScript = Instance.new("ModuleScript")
 	tmpScript.Name = moduleScript.Name
 	tmpScript.Archivable = false
 
 	local mergedParams = { "script", "require" }
 
-	local headers = {}
 	local rawSource = if ScriptEditorService
 		then ScriptEditorService:GetEditorSource(moduleScript)
 		else moduleScript.Source
+
+	local headers = {}
 	local lines = rawSource:split("\n")
 	for i = 1, #lines do
 		local line = lines[i]
@@ -37,18 +39,27 @@ local function getModuleFunction(moduleScript: ModuleScript)
 		tmpScript.Source = newSource
 	end
 
-	local callback
+	local moduleFunction
 	local ok, err = pcall(function()
-		callback = require(tmpScript) :: (...any) -> ...any
+		moduleFunction = require(tmpScript) :: (...any) -> ...any
 	end)
 
 	tmpScript:Destroy()
 
 	if not ok then
-		error(err)
+		local errorMessage: string?
+		local _, syntaxErrorMessage = requireWithLoadstring(moduleScript)
+
+		if syntaxErrorMessage then
+			errorMessage = syntaxErrorMessage
+		else
+			errorMessage = err
+		end
+
+		error(errorMessage)
 	end
 
-	return callback
+	return moduleFunction
 end
 
 --[[
@@ -61,7 +72,7 @@ end
 	changes, and load it again without reloading the whole place.
 ]]
 function createProxyModuleLoader(): {
-	require: (moduleScript: ModuleScript | string) -> unknown,
+	require: (moduleScript: ModuleScript) -> unknown,
 	loadedModuleChanged: RBXScriptSignal,
 }
 	--[[
@@ -96,21 +107,32 @@ function createProxyModuleLoader(): {
 		local module = loader.require(script.Parent.ModuleScript)
 		```
 	]]
-	local function require(moduleScript: ModuleScript | string): ((() -> ())?, string?)
-		local required = {}
+	local function require(moduleScript: ModuleScript): unknown
+		local required: { [ModuleScript]: { [number]: any, n: number } } = {}
 
-		local loadModule
-		function loadModule(module: ModuleScript | string)
+		local weHaveRequireAtHome
+		function weHaveRequireAtHome(module: ModuleScript | string, caller: ModuleScript?)
 			local resolvedModule: ModuleScript
 			if typeof(module) == "string" then
-				resolvedModule = resolveInstancePath((moduleScript :: any) :: Instance, module) :: ModuleScript
+				local relativeTo: Instance = if caller then caller else moduleScript
+				resolvedModule = resolveInstancePath(relativeTo, module) :: ModuleScript
 			else
 				resolvedModule = module
 			end
 
 			if not required[resolvedModule] then
-				local callback = getModuleFunction(resolvedModule)
-				required[resolvedModule] = table.pack(callback(resolvedModule, loadModule))
+				local moduleFunction = getModuleFunction(resolvedModule)
+
+				local function childRequire(childModule: ModuleScript | string)
+					return weHaveRequireAtHome(childModule, resolvedModule)
+				end
+
+				required[resolvedModule] = table.pack(
+					-- Notice how the arguments here map to `mergedParams` in
+					-- `getModuleFunction`, which in this case is `script` and
+					-- `require` in the context of the loaded module.
+					moduleFunction(resolvedModule, childRequire)
+				)
 			end
 			local packed = required[resolvedModule]
 			return table.unpack(packed, 1, packed.n)
@@ -120,7 +142,7 @@ function createProxyModuleLoader(): {
 		-- `loadedModuleChanged` This includes ancestry changes and Source
 		-- changes to any ModuleScript in `required`
 
-		return loadModule(moduleScript)
+		return weHaveRequireAtHome(moduleScript, nil)
 	end
 
 	return {

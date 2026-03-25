@@ -2,12 +2,11 @@ local Janitor = require("@pkg/Janitor")
 local LuauPolyfill = require("@pkg/LuauPolyfill")
 
 local LoadingStrategy = require("@root/enums/LoadingStrategy")
-local cleanLoadstringStack = require("./cleanLoadstringStack")
 local constants = require("./constants")
 local createModuleRegistry = require("./createModuleRegistry")
 local getCallerPath = require("./getCallerPath")
-local getModuleSource = require("./getModuleSource")
 local getRobloxTsRuntime = require("./getRobloxTsRuntime")
+local requireWithLoadstring = require("./loading-strategies/requireWithLoadstring")
 local resolveInstancePath = require("./resolveInstancePath")
 local types = require("./types")
 
@@ -59,15 +58,6 @@ function createModuleLoader(): ModuleLoader
 		end
 
 		return LoadingStrategy.RequireByProxy
-	end
-
-	local function requireWithLoadstring(moduleScript: ModuleScript)
-		local moduleFunction, errorMessage = loadstring(getModuleSource(moduleScript), moduleScript:GetFullName())
-		if errorMessage then
-			errorMessage = cleanLoadstringStack(errorMessage)
-		end
-
-		return moduleFunction, errorMessage
 	end
 
 	local function requireWithProxy(moduleScript: ModuleScript): ((() -> ())?, string?)
