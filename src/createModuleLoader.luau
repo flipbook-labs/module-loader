@@ -217,7 +217,7 @@ function createModuleLoader(): ModuleLoader
 			defaultEnvironment = existingLoadedModuleFns[2]
 		else
 			if strategy == LoadingStrategy.LoadModule then
-				moduleFunction, errorMessage = loadmodule(moduleScript)
+				moduleFunction, errorMessage, cleanupFn = loadmodule(moduleScript)
 			elseif strategy == LoadingStrategy.LoadString then
 				moduleFunction, errorMessage = requireWithLoadstring(moduleScript)
 			elseif strategy == LoadingStrategy.CloneRequire then
@@ -234,7 +234,11 @@ function createModuleLoader(): ModuleLoader
 			defaultEnvironment = getfenv(moduleFunction)
 
 			if loadedModuleFns then
-				loadedModuleFns[moduleScript] = { moduleFunction, defaultEnvironment }
+				loadedModuleFns[moduleScript] = { moduleFunction, defaultEnvironment, cleanupFn }
+			else
+				if cleanupFn ~= nil then
+					table.insert(cleanupFns, cleanupFn)
+				end
 			end
 		end
 
