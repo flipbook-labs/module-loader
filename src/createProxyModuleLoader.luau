@@ -1,3 +1,10 @@
+--[[
+	Huge thanks to EgoMoose for the original implementation. Here's the original
+	comment that sparked this approach:
+
+	https://github.com/flipbook-labs/module-loader/pull/34#issuecomment-4082559439
+]]
+
 local ScriptEditorService: ScriptEditorService?
 pcall(function()
 	ScriptEditorService = game:GetService("ScriptEditorService")
@@ -9,7 +16,9 @@ local types = require("@root/types")
 
 type ProxyModuleLoader = types.ProxyModuleLoader
 
-local function getModuleFunction(moduleScript: ModuleScript): (...any) -> ()
+type ModuleFunction = (...any) -> ()
+
+local function getModuleFunction(moduleScript: ModuleScript): ModuleFunction
 	local tmpScript = Instance.new("ModuleScript")
 	tmpScript.Name = moduleScript.Name
 	tmpScript.Archivable = false
@@ -54,6 +63,8 @@ local function getModuleFunction(moduleScript: ModuleScript): (...any) -> ()
 	return moduleFunction
 end
 
+type Packed<T> = { [number]: T, n: number }
+
 --[[
 	ModuleScript loader that bypasses Roblox's require cache.
 
@@ -64,6 +75,9 @@ end
 	changes, and load it again without reloading the whole place.
 ]]
 function createProxyModuleLoader(): ProxyModuleLoader
+	local patches: { [ModuleScript]: Packed<any> } = {}
+	local connections: { [ModuleScript]: RBXScriptConnection } = {}
+
 	--[[
 		Fired when any ModuleScript required through this class has its ancestry
 		or `Source` property changed. This applies to the ModuleScript passed to
@@ -83,6 +97,10 @@ function createProxyModuleLoader(): ProxyModuleLoader
 	]]
 	local loadedModuleChanged = Instance.new("BindableEvent")
 
+	local function onRequiredModuleChanged(moduleScript: ModuleScript)
+		loadedModuleChanged:Fire(moduleScript)
+	end
+
 	--[[
 		Require a module with a fresh ModuleScript require cache.
 
@@ -96,7 +114,7 @@ function createProxyModuleLoader(): ProxyModuleLoader
 		```
 	]]
 	local function require(moduleScript: ModuleScript): unknown
-		local required: { [ModuleScript]: { [number]: any, n: number } } = {}
+		local required: { [ModuleScript]: Packed<any> } = {}
 
 		local weHaveRequireAtHome
 		function weHaveRequireAtHome(module: ModuleScript | string, caller: ModuleScript?)
@@ -110,31 +128,47 @@ function createProxyModuleLoader(): ProxyModuleLoader
 
 			if not required[resolvedModule] then
 				local moduleFunction = getModuleFunction(resolvedModule)
+				local patch = patches[resolvedModule]
 
 				local function childRequire(childModule: ModuleScript | string)
 					return weHaveRequireAtHome(childModule, resolvedModule)
 				end
 
-				required[resolvedModule] = table.pack(
-					-- Notice how the arguments here map to `mergedParams` in
-					-- `getModuleFunction`, which in this case is `script` and
-					-- `require` in the context of the loaded module.
-					moduleFunction(resolvedModule, childRequire)
-				)
+				if patch then
+					required[resolvedModule] = patch
+				else
+					required[resolvedModule] = table.pack(
+						-- Notice how the arguments here map to `mergedParams` in
+						-- `getModuleFunction`, which in this case is `script` and
+						-- `require` in the context of the loaded module.
+						moduleFunction(resolvedModule, childRequire)
+					)
+				end
 			end
 			local packed = required[resolvedModule]
 			return table.unpack(packed, 1, packed.n)
 		end
 
-		-- TODO: When anything in `required` is Changed then fire
-		-- `loadedModuleChanged` This includes ancestry changes and Source
-		-- changes to any ModuleScript in `required`
+		local result = table.pack(weHaveRequireAtHome(moduleScript, nil))
 
-		return weHaveRequireAtHome(moduleScript, nil)
+		for requiredModule in required do
+			if not connections[requiredModule] then
+				connections[requiredModule] = requiredModule.Changed:Connect(function()
+					onRequiredModuleChanged(requiredModule)
+				end)
+			end
+		end
+
+		return table.unpack(result, 1, result.n)
+	end
+
+	local function patch(moduleScript: ModuleScript, ...: any)
+		patches[moduleScript] = table.pack(...)
 	end
 
 	return {
 		require = require,
+		patch = patch,
 		loadedModuleChanged = loadedModuleChanged.Event,
 	}
 end

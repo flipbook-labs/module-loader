@@ -100,7 +100,7 @@ describe("loadedModuleChanged", function()
 		expect(wasFired).toBe(true)
 	end)
 
-	test("fires for every consumer up the chain", function()
+	test("fires for only the module that changed", function()
 		tree = createModuleTest({
 			ModuleA = [[
 					return "ModuleA"
@@ -132,7 +132,7 @@ describe("loadedModuleChanged", function()
 		moduleA.Source = "Changed"
 		task.wait()
 
-		expect(count).toBe(3)
+		expect(count).toBe(1)
 	end)
 end)
 
@@ -302,5 +302,64 @@ describe("string requires", function()
 		local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
 
 		loader.require(consumer)
+	end)
+end)
+
+describe("patch", function()
+	test("allows patching return values of modules", function()
+		tree = createModuleTest({
+			ModuleA = [[
+				return "Original"
+			]],
+			ModuleB = [[
+				return require(script.Parent.ModuleA)
+			]],
+		})
+
+		local moduleA = tree:QueryDescendants("#ModuleA")[1] :: ModuleScript
+		local moduleB = tree:QueryDescendants("#ModuleB")[1] :: ModuleScript
+
+		local resultA = loader.require(moduleA)
+		local resultB = loader.require(moduleB)
+
+		expect(resultA).toBe("Original")
+		expect(resultB).toBe("Original")
+
+		loader.patch(moduleA, "Patched")
+
+		resultA = loader.require(moduleA)
+		resultB = loader.require(moduleB)
+
+		expect(resultA).toBe("Patched")
+		expect(resultB).toBe("Patched")
+	end)
+
+	test("table identities remain consistent", function()
+		local patchedIdentity = {}
+
+		tree = createModuleTest({
+			Identity = [[
+				return {}
+			]],
+			Consumer = [[
+				return {
+					Identity = require(script.Parent.Identity)
+				}
+			]],
+		})
+
+		local identityModule = tree:QueryDescendants("#Identity")[1] :: ModuleScript
+		local consumerModule = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
+
+		local identityResult = loader.require(identityModule)
+		expect(identityResult).never.toBe(patchedIdentity)
+
+		loader.patch(identityModule, patchedIdentity)
+
+		identityResult = loader.require(identityModule)
+		expect(identityResult).toBe(patchedIdentity)
+
+		local consumerResult = loader.require(consumerModule) :: { Identity: any }
+		expect(consumerResult.Identity).toBe(patchedIdentity)
 	end)
 end)

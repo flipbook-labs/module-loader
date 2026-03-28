@@ -39,6 +39,7 @@ export type ModuleLoader = {
 
 export type ProxyModuleLoader = {
 	require: (moduleScript: ModuleScript) -> unknown,
+	patch: (moduleScript: ModuleScript, ...any) -> (),
 	loadedModuleChanged: RBXScriptSignal,
 }
 
