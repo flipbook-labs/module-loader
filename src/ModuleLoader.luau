@@ -1,10 +1,7 @@
-local constants = require("./constants")
 local createModuleLoader = require("./createModuleLoader")
-local createProxyModuleLoader = require("./createProxyModuleLoader")
 local types = require("./types")
 
 type ModuleLoader = types.ModuleLoader
-export type ProxyModuleLoader = types.ProxyModuleLoader
 
 type ModuleLoaderProps = {
 	_loader: ModuleLoader,
@@ -22,7 +19,7 @@ type ModuleLoaderImpl = {
 	clearModule: (self: ModuleLoaderClass, moduleScript: ModuleScript) -> (),
 	clear: (self: ModuleLoaderClass) -> (),
 
-	createProxyModuleLoader: () -> types.ProxyModuleLoader,
+	createModuleLoader: () -> types.ModuleLoader,
 }
 
 export type ModuleLoaderClass = typeof(setmetatable({} :: ModuleLoaderProps, {} :: ModuleLoaderImpl))
@@ -41,7 +38,7 @@ export type ModuleLoaderClass = typeof(setmetatable({} :: ModuleLoaderProps, {} 
 local ModuleLoader = {} :: ModuleLoaderImpl
 ModuleLoader.__index = ModuleLoader
 
-ModuleLoader.createProxyModuleLoader = createProxyModuleLoader
+ModuleLoader.createModuleLoader = createModuleLoader
 
 --[=[
     Constructs a new ModuleLoader instance.
@@ -78,25 +75,6 @@ function ModuleLoader.new()
 end
 
 --[=[
-	Checks if ModuleLoader has a lock on the given Instance (typically a ModuleScript).
-
-	A lock is applied when using the default `CloneRequire` loading strategy as
-	there are DataModel side-effects that consumers like Storyteller need to
-	work around.
-
-	```lua
-	ModuleLoader.isLocked(script.Parent.ModuleScript)
-	```lua
-
-	@param instance Instance
-	@return boolean
-	@within ModuleLoader
-]=]
-function ModuleLoader.isLocked(instance: Instance): boolean
-	return instance:HasTag(constants.MODULE_LOCK_TAG)
-end
-
---[=[
 	Set the cached value for a module before it is loaded.
 
 	This is useful is very specific situations. For example, this method is
@@ -129,10 +107,6 @@ end
 ]=]
 function ModuleLoader:require(moduleScript: ModuleScript)
 	return self._loader.require(moduleScript)
-end
-
-function ModuleLoader:clearModule(moduleToClear: ModuleScript)
-	self._loader.clearModule(moduleToClear)
 end
 
 --[=[

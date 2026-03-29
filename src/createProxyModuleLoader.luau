@@ -10,7 +10,7 @@ pcall(function()
 	ScriptEditorService = game:GetService("ScriptEditorService")
 end)
 
-local requireWithLoadstring = require("@root/loading-strategies/requireWithLoadstring")
+local requireWithLoadstring = require("@root/requireWithLoadstring")
 local resolveInstancePath = require("@root/resolveInstancePath")
 local types = require("@root/types")
 
@@ -131,6 +131,10 @@ function createProxyModuleLoader(): ProxyModuleLoader
 				local function childRequire(childModule: ModuleScript | string)
 					return weHaveRequireAtHome(childModule, resolvedModule)
 				end
+
+				-- TODO: Do something about this so we pre-cache and _then_
+				-- invoke moduleFunction, since that will implicitly require
+				-- more modules and cause issues with circular deps
 
 				cache[resolvedModule] = table.pack(
 					-- Notice how the arguments here map to `mergedParams` in
