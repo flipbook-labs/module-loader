@@ -190,67 +190,148 @@ describe("require", function()
 		expect(loader.require(consumer1)).toBe(loader.require(consumer2))
 	end)
 
-	test("keeps track of _G between modules", function()
-		tree = createModuleTest({
-			WriteGlobal = [[
-				_G.foo = true
-				return nil
-			]],
-			ReadGlobal = [[
-				return _G.foo
-			]],
-		})
+	describe("globals", function()
+		test("keeps track of _G between modules", function()
+			tree = createModuleTest({
+				WriteGlobal = [[
+					_G.foo = true
+					return nil
+				]],
+				ReadGlobal = [[
+					return _G.foo
+				]],
+			})
 
-		local readGlobal = tree:QueryDescendants("#ReadGlobal")[1] :: ModuleScript
-		local writeGlobal = tree:QueryDescendants("#WriteGlobal")[1] :: ModuleScript
+			local readGlobal = tree:QueryDescendants("#ReadGlobal")[1] :: ModuleScript
+			local writeGlobal = tree:QueryDescendants("#WriteGlobal")[1] :: ModuleScript
 
-		loader.require(writeGlobal)
+			loader.require(writeGlobal)
 
-		local result = loader.require(readGlobal)
+			local result = loader.require(readGlobal)
 
-		expect(result).toBe(true)
-	end)
+			expect(result).toBe(true)
+		end)
 
-	test("keeps track of _G in nested requires", function()
-		tree = createModuleTest({
-			DefineGlobal = [[
-				_G.foo = true
-				return nil
-			]],
-			UseGlobal = [[
-				require(script.Parent.DefineGlobal)
-				return _G.foo
-			]],
-		})
+		test("keeps track of _G in nested requires", function()
+			tree = createModuleTest({
+				DefineGlobal = [[
+					_G.foo = true
+					return nil
+				]],
+				UseGlobal = [[
+					require(script.Parent.DefineGlobal)
+					return _G.foo
+				]],
+			})
 
-		local useGlobal = tree:QueryDescendants("#UseGlobal")[1] :: ModuleScript
+			local useGlobal = tree:QueryDescendants("#UseGlobal")[1] :: ModuleScript
 
-		local result = loader.require(useGlobal)
+			local result = loader.require(useGlobal)
 
-		expect(result).toBe(true)
-	end)
+			expect(result).toBe(true)
+		end)
 
-	test("clearing the cache also clears _G", function()
-		tree = createModuleTest({
-			DefineGlobal = [[
-				_G.foo = true
-				return nil
-			]],
-			ReadGlobal = [[
-				return _G.foo
-			]],
-		})
+		test("clearing the cache also clears _G", function()
+			tree = createModuleTest({
+				WriteGlobal = [[
+					_G.foo = true
+					return nil
+				]],
+				ReadGlobal = [[
+					return _G.foo
+				]],
+			})
 
-		local defineGlobal = tree:QueryDescendants("#DefineGlobal")[1] :: ModuleScript
-		local readGlobal = tree:QueryDescendants("#ReadGlobal")[1] :: ModuleScript
+			local writeGlobal = tree:QueryDescendants("#WriteGlobal")[1] :: ModuleScript
+			local readGlobal = tree:QueryDescendants("#ReadGlobal")[1] :: ModuleScript
 
-		loader.require(defineGlobal)
+			loader.require(writeGlobal)
 
-		expect(loader.require(readGlobal)).toBe(true)
+			expect(_G.foo).toBeUndefined()
+			expect(loader.require(readGlobal)).toBe(true)
 
-		loader.clear()
+			loader.clear()
 
-		expect(loader.require(readGlobal)).toBe(nil)
+			expect(_G.foo).toBeUndefined()
+			expect(loader.require(readGlobal)).toBe(nil)
+		end)
+
+		test("clearing _G only clears values set by sandboxed modules", function()
+			tree = createModuleTest({
+				SandboxedModule = [[
+					_G.foo = true
+					return nil
+				]],
+				ModuleRequiredNormally = [[
+					_G.bar = true
+					return nil
+				]],
+				ReadGlobal = [[
+					return _G.foo
+				]],
+			})
+
+			local sandboxedModule = tree:QueryDescendants("#SandboxedModule")[1] :: ModuleScript
+			local readGlobal = tree:QueryDescendants("#ReadGlobal")[1] :: ModuleScript
+			local moduleRequiredNormally = tree:QueryDescendants("#ModuleRequiredNormally")[1] :: ModuleScript
+
+			loader.require(sandboxedModule)
+
+			expect(loader.require(readGlobal)).toBe(true)
+			expect(_G.bar).toBeUndefined();
+
+			(require :: any)(moduleRequiredNormally)
+
+			expect(loader.require(readGlobal)).toBe(true)
+			expect(_G.bar).toBe(true)
+
+			loader.clear()
+
+			expect(loader.require(readGlobal)).toBeUndefined()
+			expect(_G.bar).toBe(true)
+
+			_G.bar = nil
+		end)
+
+		test("_G in the sandbox inherits from the real _G, but does not pollute it when written to", function()
+			tree = createModuleTest({
+				WriteGlobal = [[
+					_G.foo = false
+					_G.bar = true
+					return nil
+				]],
+				ReadGlobal = [[
+					return _G.foo, _G.bar
+				]],
+			})
+
+			local writeGlobal = tree:QueryDescendants("#WriteGlobal")[1] :: ModuleScript
+			local readGlobal = tree:QueryDescendants("#ReadGlobal")[1] :: ModuleScript
+
+			_G.foo = true
+
+			expect(_G.foo).toBe(true)
+			expect(_G.bar).toBeUndefined()
+
+			loader.require(writeGlobal)
+
+			expect(_G.foo).toBe(true)
+			expect(_G.bar).toBeUndefined()
+
+			local foo, bar = loader.require(readGlobal)
+			expect(foo).toBe(false)
+			expect(bar).toBe(true)
+
+			expect(_G.foo).toBe(true)
+			expect(_G.bar).toBeUndefined()
+
+			loader.clear()
+
+			expect(_G.foo).toBe(true)
+			expect(_G.bar).toBeUndefined()
+
+			_G.foo = nil
+		end)
 	end)
 
 	test("handles syntax errors for direct require", function()

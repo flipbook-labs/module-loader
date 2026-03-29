@@ -20,12 +20,17 @@ type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
 
-local function getModuleFunction(moduleScript: ModuleScript): ModuleFunction
+local function getModuleFunction(moduleScript: ModuleScript, params: { string }?): ModuleFunction
 	local tmpScript = Instance.new("ModuleScript")
 	tmpScript.Name = moduleScript.Name
 	tmpScript.Archivable = false
 
 	local mergedParams = { "script", "require" }
+	if params then
+		for _, param in params do
+			table.insert(mergedParams, param)
+		end
+	end
 
 	local source = if ScriptEditorService
 		then ScriptEditorService:GetEditorSource(moduleScript)
@@ -77,6 +82,7 @@ end
 function createModuleLoader(): ModuleLoader
 	local moduleRegistry = createModuleRegistry()
 	local changedConnections: { [ModuleScript]: RBXScriptConnection } = {}
+	local globals = setmetatable({} :: typeof(_G), { __index = _G })
 
 	local function _getModuleRegistry()
 		return moduleRegistry
@@ -142,10 +148,6 @@ function createModuleLoader(): ModuleLoader
 		```
 	]]
 	local function require(moduleScript: ModuleScript): unknown
-		-- We must register the pre-allocated module object first so that any
-		-- circular dependencies that may arise while evaluating the module can
-		-- be satisfied.
-
 		local weHaveRequireAtHome
 		function weHaveRequireAtHome(module: ModuleScript | string, caller: ModuleScript?)
 			local resolvedModule: ModuleScript
@@ -176,7 +178,7 @@ function createModuleLoader(): ModuleLoader
 
 				moduleRegistry.add(resolvedModule, loadedModule)
 
-				local moduleFunction = getModuleFunction(resolvedModule)
+				local moduleFunction = getModuleFunction(resolvedModule, { "_G" })
 
 				local function childRequire(childModule: ModuleScript | string)
 					return weHaveRequireAtHome(childModule, resolvedModule)
@@ -191,7 +193,7 @@ function createModuleLoader(): ModuleLoader
 				-- Notice how the arguments here map to `mergedParams` in
 				-- `getModuleFunction`, which in this case is `script` and
 				-- `require` in the context of the loaded module.
-				local exports = table.pack(moduleFunction(resolvedModule, childRequire))
+				local exports = table.pack(moduleFunction(resolvedModule, childRequire, globals))
 
 				loadedModule.exports = exports
 				loadedModule.isLoaded = true
@@ -226,6 +228,7 @@ function createModuleLoader(): ModuleLoader
 	]]
 	local function clear()
 		moduleRegistry.reset()
+		table.clear(globals)
 
 		for _, connection in changedConnections do
 			connection:Disconnect()
