@@ -4,6 +4,7 @@ local createProxyModuleLoader = require("./createProxyModuleLoader")
 local types = require("./types")
 
 type ModuleLoader = types.ModuleLoader
+export type ProxyModuleLoader = types.ProxyModuleLoader
 
 type ModuleLoaderProps = {
 	_loader: ModuleLoader,
