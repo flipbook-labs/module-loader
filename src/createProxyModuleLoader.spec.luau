@@ -136,20 +136,20 @@ describe("loadedModuleChanged", function()
 	end)
 end)
 
-describe("require", function()
+describe("loadModule", function()
 	test("identities are always new", function()
 		local moduleScript = Instance.new("ModuleScript")
 		moduleScript.Source = "return function() end"
 
-		local resultA = loader.require(moduleScript)
-		local resultB = loader.require(moduleScript)
+		local resultA = loader.loadModule(moduleScript)
+		local resultB = loader.loadModule(moduleScript)
 
 		expect(resultA).never.toBe(resultB)
 
 		moduleScript.Source = "return {}"
 
-		resultA = loader.require(moduleScript)
-		resultB = loader.require(moduleScript)
+		resultA = loader.loadModule(moduleScript)
+		resultB = loader.loadModule(moduleScript)
 
 		expect(resultA).never.toBe(resultB)
 	end)
@@ -168,9 +168,9 @@ describe("require", function()
 		local readGlobal = tree:QueryDescendants("#ReadGlobal")[1] :: ModuleScript
 		local writeGlobal = tree:QueryDescendants("#WriteGlobal")[1] :: ModuleScript
 
-		loader.require(writeGlobal)
+		loader.loadModule(writeGlobal)
 
-		local result = loader.require(readGlobal)
+		local result = loader.loadModule(readGlobal)
 
 		expect(result).toBe(true)
 	end)
@@ -189,7 +189,32 @@ describe("require", function()
 
 		local useGlobal = tree:QueryDescendants("#UseGlobal")[1] :: ModuleScript
 
-		local result = loader.require(useGlobal)
+		local result = loader.loadModule(useGlobal)
+
+		expect(result).toBe(true)
+	end)
+
+	test("supports instance requires from sub-modules", function()
+		local root = Instance.new("ModuleScript")
+		root.Source = [[
+				return require("@self/SubModule")
+			]]
+
+		local subModule = Instance.new("ModuleScript")
+		subModule.Name = "SubModule"
+		subModule.Source = [[
+				return require(script.Parent.Common)
+			]]
+		subModule.Parent = root
+
+		local common = Instance.new("ModuleScript")
+		common.Name = "Common"
+		common.Source = [[
+				return true
+			]]
+		common.Parent = root
+
+		local result = loader.loadModule(root)
 
 		expect(result).toBe(true)
 	end)
@@ -204,7 +229,7 @@ describe("require", function()
 		local module = tree:QueryDescendants("#Module")[1] :: ModuleScript
 
 		expect(function()
-			loader.require(module)
+			loader.loadModule(module)
 		end).toThrow(`SyntaxError.Module:1: Incomplete statement: expected assignment or a function call`)
 	end)
 
@@ -231,8 +256,91 @@ describe("require", function()
 		local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
 
 		expect(function()
-			loader.require(consumer)
+			loader.loadModule(consumer)
 		end).toThrow(`SyntaxError.Module3:1: Incomplete statement: expected assignment or a function call`)
+	end)
+end)
+
+describe("require", function()
+	test("caches identities between calls", function()
+		local moduleScript = Instance.new("ModuleScript")
+		moduleScript.Source = "return {}"
+
+		local resultA = loader.require(moduleScript)
+		local resultB = loader.require(moduleScript)
+
+		expect(resultA).toBe(resultB)
+	end)
+
+	test("reuses cached dependencies across calls", function()
+		tree = createModuleTest({
+			Identity = [[
+				return {}
+			]],
+			Consumer = [[
+				return {
+					Identity = require(script.Parent.Identity)
+				}
+			]],
+		})
+
+		local identityModule = tree:QueryDescendants("#Identity")[1] :: ModuleScript
+		local consumerModule = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
+
+		local identityResult = loader.require(identityModule)
+		local consumerResult = loader.require(consumerModule) :: { Identity: any }
+
+		expect(consumerResult.Identity).toBe(identityResult)
+	end)
+
+	test("supports requires from sub-modules while cached", function()
+		local root = Instance.new("ModuleScript")
+		root.Source = [[
+				return require("@self/SubModule")
+			]]
+
+		local subModule = Instance.new("ModuleScript")
+		subModule.Name = "SubModule"
+		subModule.Source = [[
+				return require(script.Parent.Common)
+			]]
+		subModule.Parent = root
+
+		local common = Instance.new("ModuleScript")
+		common.Name = "Common"
+		common.Source = [[
+				return {}
+			]]
+		common.Parent = root
+
+		local resultA = loader.require(root)
+		local resultB = loader.require(root)
+
+		expect(resultA).toBe(resultB)
+	end)
+
+	test("does not reuse loadModule sandboxes", function()
+		local moduleScript = Instance.new("ModuleScript")
+		moduleScript.Source = "return {}"
+
+		local cachedResult = loader.require(moduleScript)
+		local loadedResult = loader.loadModule(moduleScript)
+
+		expect(loadedResult).never.toBe(cachedResult)
+	end)
+
+	test("clear() resets the cache", function()
+		local moduleScript = Instance.new("ModuleScript")
+		moduleScript.Source = "return {}"
+
+		local resultA = loader.require(moduleScript)
+		local resultB = loader.require(moduleScript)
+		expect(resultA).toBe(resultB)
+
+		loader.clear()
+
+		local resultC = loader.require(moduleScript)
+		expect(resultC).never.toBe(resultA)
 	end)
 end)
 
@@ -251,7 +359,7 @@ describe("string requires", function()
 				return true
 			]]
 
-		local result = loader.require(moduleA)
+		local result = loader.loadModule(moduleA)
 
 		expect(result).toBe(true)
 
@@ -271,7 +379,32 @@ describe("string requires", function()
 			]]
 		child.Parent = root
 
-		local result = loader.require(root)
+		local result = loader.loadModule(root)
+
+		expect(result).toBe(true)
+	end)
+
+	test("supports relative paths from sub-modules", function()
+		local root = Instance.new("ModuleScript")
+		root.Source = [[
+				return require("@self/SubModule")
+			]]
+
+		local subModule = Instance.new("ModuleScript")
+		subModule.Name = "SubModule"
+		subModule.Source = [[
+				return require("./Common")
+			]]
+		subModule.Parent = root
+
+		local common = Instance.new("ModuleScript")
+		common.Name = "Common"
+		common.Source = [[
+				return true
+			]]
+		common.Parent = root
+
+		local result = loader.loadModule(root)
 
 		expect(result).toBe(true)
 	end)
@@ -301,7 +434,7 @@ describe("string requires", function()
 
 		local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
 
-		loader.require(consumer)
+		loader.loadModule(consumer)
 	end)
 end)
 

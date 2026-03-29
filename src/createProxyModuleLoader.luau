@@ -70,12 +70,12 @@ type Packed<T> = { [number]: T, n: number }
 
 	This class aims to solve a common problem where code needs to be run in
 	Studio, but once a change is made to an already required module the whole
-	place must be reloaded for the cache to be reset. With this class, the cache
-	is ignored when requiring a module so you are able to load a module, make
-	changes, and load it again without reloading the whole place.
+	place must be reloaded for the cache to be reset. With this class, modules
+	can either be loaded into a fresh sandbox with `loadModule()` or cached with
+	`require()` and later refreshed with `clear()`.
 ]]
 function createProxyModuleLoader(): ProxyModuleLoader
-	local patches: { [ModuleScript]: Packed<any> } = {}
+	local requireCache: { [ModuleScript]: Packed<any> } = {}
 	local connections: { [ModuleScript]: RBXScriptConnection } = {}
 
 	--[[
@@ -91,30 +91,27 @@ function createProxyModuleLoader(): ProxyModuleLoader
 		local result = loader.require(module)
 
 		loader.loadedModuleChanged:Connect(function()
+			loader.clear()
 			result = loader.require(module)
 		end)
 		```
 	]]
 	local loadedModuleChanged = Instance.new("BindableEvent")
 
-	local function onRequiredModuleChanged(moduleScript: ModuleScript)
-		loadedModuleChanged:Fire(moduleScript)
-	end
-
 	--[[
-		Require a module with a fresh ModuleScript require cache.
+		Load a module with a fresh ModuleScript require cache.
 
 		This method is functionally the same as running `require(script.Parent.ModuleScript)`,
-		however in this case the module is not cached. As such, if a change occurs
-		to the module you can call this method again to get the latest changes.
+		however in this case the result is not cached between calls. As such, each
+		invocation gets its own sandbox.
 
 		```lua
 		local loader = createProxyModuleLoader()
-		local module = loader.require(script.Parent.ModuleScript)
+		local module = loader.loadModule(script.Parent.ModuleScript)
 		```
 	]]
-	local function require(moduleScript: ModuleScript): unknown
-		local required: { [ModuleScript]: Packed<any> } = {}
+	local function load(moduleScript: ModuleScript, cache: { [ModuleScript]: Packed<any> }): unknown
+		local required: { [ModuleScript]: true } = {}
 
 		local weHaveRequireAtHome
 		function weHaveRequireAtHome(module: ModuleScript | string, caller: ModuleScript?)
@@ -126,26 +123,23 @@ function createProxyModuleLoader(): ProxyModuleLoader
 				resolvedModule = module
 			end
 
-			if not required[resolvedModule] then
+			required[resolvedModule] = true
+
+			if not cache[resolvedModule] then
 				local moduleFunction = getModuleFunction(resolvedModule)
-				local patch = patches[resolvedModule]
 
 				local function childRequire(childModule: ModuleScript | string)
 					return weHaveRequireAtHome(childModule, resolvedModule)
 				end
 
-				if patch then
-					required[resolvedModule] = patch
-				else
-					required[resolvedModule] = table.pack(
-						-- Notice how the arguments here map to `mergedParams` in
-						-- `getModuleFunction`, which in this case is `script` and
-						-- `require` in the context of the loaded module.
-						moduleFunction(resolvedModule, childRequire)
-					)
-				end
+				cache[resolvedModule] = table.pack(
+					-- Notice how the arguments here map to `mergedParams` in
+					-- `getModuleFunction`, which in this case is `script` and
+					-- `require` in the context of the loaded module.
+					moduleFunction(resolvedModule, childRequire)
+				)
 			end
-			local packed = required[resolvedModule]
+			local packed = cache[resolvedModule]
 			return table.unpack(packed, 1, packed.n)
 		end
 
@@ -154,7 +148,7 @@ function createProxyModuleLoader(): ProxyModuleLoader
 		for requiredModule in required do
 			if not connections[requiredModule] then
 				connections[requiredModule] = requiredModule.Changed:Connect(function()
-					onRequiredModuleChanged(requiredModule)
+					loadedModuleChanged:Fire(moduleScript)
 				end)
 			end
 		end
@@ -162,13 +156,33 @@ function createProxyModuleLoader(): ProxyModuleLoader
 		return table.unpack(result, 1, result.n)
 	end
 
-	local function patch(moduleScript: ModuleScript, ...: any)
-		patches[moduleScript] = table.pack(...)
+	local function loadModule(moduleScript: ModuleScript): ...unknown?
+		return load(moduleScript, {})
+	end
+
+	--[[
+		Require a module and cache the result of each loaded module.
+
+		Subsequent calls will reuse cached exports until `clear()` is called.
+	]]
+	local function require(moduleScript: ModuleScript): ...unknown?
+		return load(moduleScript, requireCache)
+	end
+
+	local function clear()
+		table.clear(requireCache)
+
+		for _, connection in connections do
+			connection:Disconnect()
+		end
+
+		table.clear(connections)
 	end
 
 	return {
 		require = require,
-		patch = patch,
+		loadModule = loadModule,
+		clear = clear,
 		loadedModuleChanged = loadedModuleChanged.Event,
 	}
 end
