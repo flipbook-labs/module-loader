@@ -5,26 +5,17 @@
 	https://github.com/flipbook-labs/module-loader/pull/34#issuecomment-4082559439
 ]]
 
-local cleanLoadstringStack = require("@root/cleanLoadstringStack")
-local createModuleRegistry = require("./createModuleRegistry")
+local compileWithLoadstring = require("@root/compileWithLoadstring")
+local createModuleRegistry = require("@root/createModuleRegistry")
 local getModuleSource = require("@root/getModuleSource")
-local resolveInstancePath = require("./resolveInstancePath")
-local setModuleSource = require("./setModuleSource")
-local types = require("./types")
+local resolveInstancePath = require("@root/resolveInstancePath")
+local setModuleSource = require("@root/setModuleSource")
+local types = require("@root/types")
 
 type LoadedModule = types.LoadedModule
 type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
-
-local function requireWithLoadstring(moduleScript: ModuleScript)
-	local moduleFunction, errorMessage = loadstring(getModuleSource(moduleScript), moduleScript:GetFullName())
-	if errorMessage then
-		errorMessage = cleanLoadstringStack(errorMessage)
-	end
-
-	return moduleFunction, errorMessage
-end
 
 local function getModuleFunction(moduleScript: ModuleScript, params: { string }?): ModuleFunction
 	local tmpScript = Instance.new("ModuleScript")
@@ -59,7 +50,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 
 	if not ok then
 		local errorMessage: string?
-		local _, syntaxErrorMessage = requireWithLoadstring(moduleScript)
+		local _, syntaxErrorMessage = compileWithLoadstring(newSource, moduleScript:GetFullName())
 
 		if syntaxErrorMessage then
 			errorMessage = syntaxErrorMessage
@@ -67,7 +58,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 			errorMessage = err
 		end
 
-		error(errorMessage, 3)
+		error(errorMessage, 0)
 	end
 
 	return moduleFunction
