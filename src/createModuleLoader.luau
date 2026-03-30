@@ -68,9 +68,15 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	return moduleFunction
 end
 
+local function weak<K, V>(tab: { [K]: V }): { [K]: V }
+	-- We lie about the return type because having a metatable attached to the table means generic for loops don't work
+	-- without wrapping the table with `pairs`
+	return setmetatable(tab, { __mode = "k" }) :: any
+end
+
 function createModuleLoader(): ModuleLoader
 	local moduleRegistry = createModuleRegistry()
-	local changedConnections: { [ModuleScript]: RBXScriptConnection } = {}
+	local changedConnections = weak({} :: { [ModuleScript]: RBXScriptConnection })
 	local globals = setmetatable({} :: typeof(_G), { __index = _G })
 
 	local function _getModuleRegistry()
