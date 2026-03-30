@@ -190,6 +190,92 @@ describe("require", function()
 		expect(loader.require(consumer1)).toBe(loader.require(consumer2))
 	end)
 
+	describe("circular dependencies", function()
+		test("handles a module requiring itself", function()
+			local moduleScript = Instance.new("ModuleScript")
+			moduleScript.Source = [[
+				return require(script)
+			]]
+
+			local result = loader.require(moduleScript)
+
+			expect(result).toBeUndefined()
+		end)
+
+		test("handles an indirect cycle without overflowing the stack", function()
+			type ModuleA = {
+				Name: string,
+				ModuleB: ModuleB,
+			}
+
+			type ModuleB = {
+				Name: string,
+				ModuleA: ModuleA,
+			}
+
+			tree = createModuleTest({
+				ModuleA = [[
+					local ModuleB = require(script.Parent.ModuleB)
+					return {
+						Name = "ModuleA",
+						ModuleB = ModuleB,
+					}
+				]],
+				ModuleB = [[
+					local ModuleA = require(script.Parent.ModuleA)
+					return {
+						Name = "ModuleB",
+						ModuleA = ModuleA,
+					}
+				]],
+			})
+
+			local moduleA = tree:QueryDescendants("#ModuleA")[1] :: ModuleScript
+			local result = loader.require(moduleA) :: ModuleA
+
+			expect(result.Name).toBe("ModuleA")
+			expect(result.ModuleB.Name).toBe("ModuleB")
+			expect(result.ModuleB.ModuleA.Name).toBe("ModuleA")
+		end)
+
+		test("handles circular string requires without overflowing the stack", function()
+			type ModuleA = {
+				Name: string,
+				ModuleB: ModuleB,
+			}
+
+			type ModuleB = {
+				Name: string,
+				ModuleA: ModuleA,
+			}
+
+			tree = createModuleTest({
+				ModuleA = [[
+					local ModuleB = require("./ModuleB")
+					return {
+						Name = "ModuleA",
+						ModuleB = ModuleB,
+					}
+				]],
+				ModuleB = [[
+					local ModuleA = require("./ModuleA")
+					return {
+						Name = "ModuleB",
+						ModuleA = ModuleA,
+					}
+				]],
+			})
+
+			local moduleA = tree:QueryDescendants("#ModuleA")[1] :: ModuleScript
+
+			local result = loader.require(moduleA) :: ModuleA
+
+			expect(result.Name).toBe("ModuleA")
+			expect(result.ModuleB.Name).toBe("ModuleB")
+			expect(result.ModuleB.ModuleA.Name).toBe("ModuleA")
+		end)
+	end)
+
 	describe("globals", function()
 		test("keeps track of _G between modules", function()
 			tree = createModuleTest({
@@ -389,6 +475,75 @@ describe("require", function()
 
 		expect(loader.require(moduleScript)).toBe(false)
 	end)
+
+	describe("string requires", function()
+		test("supports @game", function()
+			local moduleA = Instance.new("ModuleScript")
+			moduleA.Name = "ModuleA"
+			moduleA.Source = [[
+			return require("@game/ReplicatedStorage/ModuleB")
+		]]
+
+			local moduleB = Instance.new("ModuleScript")
+			moduleB.Name = "ModuleB"
+			moduleB.Parent = ReplicatedStorage
+			moduleB.Source = [[
+			return true
+		]]
+
+			local result = loader.require(moduleA)
+
+			expect(result).toBe(true)
+
+			moduleB:Destroy()
+		end)
+
+		test("supports @self", function()
+			local root = Instance.new("ModuleScript")
+			root.Source = [[
+			return require("@self/Child")
+		]]
+
+			local child = Instance.new("ModuleScript")
+			child.Name = "Child"
+			child.Source = [[
+			return true
+		]]
+			child.Parent = root
+
+			local result = loader.require(root)
+
+			expect(result).toBe(true)
+		end)
+
+		test("supports relative paths", function()
+			tree = createModuleTest(({
+				Folder = {
+					Module3 = [[
+					return {}
+				]],
+					Folder = {
+						Module2 = [[
+						require("../Module3")
+						return {}
+					]],
+					},
+				},
+				Module1 = [[
+				require("./Folder/Folder/Module2")
+				return {}
+			]],
+				Consumer = [[
+				require("./Module1")
+				return nil
+			]],
+			} :: any) :: ModuleTestTree)
+
+			local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
+
+			loader.require(consumer)
+		end)
+	end)
 end)
 
 describe("clear", function()
@@ -403,75 +558,6 @@ describe("clear", function()
 		loader.clear()
 
 		expect(#moduleRegistry.getAllModules()).toBe(0)
-	end)
-end)
-
-describe("string requires", function()
-	test("supports @game", function()
-		local moduleA = Instance.new("ModuleScript")
-		moduleA.Name = "ModuleA"
-		moduleA.Source = [[
-			return require("@game/ReplicatedStorage/ModuleB")
-		]]
-
-		local moduleB = Instance.new("ModuleScript")
-		moduleB.Name = "ModuleB"
-		moduleB.Parent = ReplicatedStorage
-		moduleB.Source = [[
-			return true
-		]]
-
-		local result = loader.require(moduleA)
-
-		expect(result).toBe(true)
-
-		moduleB:Destroy()
-	end)
-
-	test("supports @self", function()
-		local root = Instance.new("ModuleScript")
-		root.Source = [[
-			return require("@self/Child")
-		]]
-
-		local child = Instance.new("ModuleScript")
-		child.Name = "Child"
-		child.Source = [[
-			return true
-		]]
-		child.Parent = root
-
-		local result = loader.require(root)
-
-		expect(result).toBe(true)
-	end)
-
-	test("supports relative paths", function()
-		tree = createModuleTest(({
-			Folder = {
-				Module3 = [[
-					return {}
-				]],
-				Folder = {
-					Module2 = [[
-						require("../Module3")
-						return {}
-					]],
-				},
-			},
-			Module1 = [[
-				require("./Folder/Folder/Module2")
-				return {}
-			]],
-			Consumer = [[
-				require("./Module1")
-				return nil
-			]],
-		} :: any) :: ModuleTestTree)
-
-		local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
-
-		loader.require(consumer)
 	end)
 end)
 

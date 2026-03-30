@@ -79,30 +79,28 @@ function createModuleLoader(): ModuleLoader
 
 	local loadedModuleChanged = Instance.new("BindableEvent")
 
-	local function cache(moduleScript: ModuleScript, result: any)
+	local function cache(moduleScript: ModuleScript, ...: any)
 		local loadedModule: LoadedModule = {
 			instance = moduleScript,
-			exports = result,
+			exports = table.pack(...),
 			isLoaded = true,
-			dependencies = {},
-			consumers = {},
 		}
 
 		moduleRegistry.add(moduleScript, loadedModule)
 	end
 
-	local function require(moduleScript: ModuleScript): unknown
+	local function require(moduleScript: ModuleScript): ...unknown?
 		local weHaveRequireAtHome
 		function weHaveRequireAtHome(module: ModuleScript | string, caller: ModuleScript?)
 			local resolvedModule: ModuleScript
-			if typeof(module) == "string" then
+			if type(module) == "string" then
 				local relativeTo: Instance = if caller then caller else moduleScript
 				resolvedModule = resolveInstancePath(relativeTo, module) :: ModuleScript
 			else
 				resolvedModule = module
 			end
 
-			if resolvedModule.Name:find(".global$") then
+			if resolvedModule.Name:find("%.global$") then
 				return (require :: any)(resolvedModule)
 			end
 
