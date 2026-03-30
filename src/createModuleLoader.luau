@@ -2,14 +2,13 @@ local Janitor = require("@pkg/Janitor")
 local LuauPolyfill = require("@pkg/LuauPolyfill")
 
 local LoadingStrategy = require("@root/enums/LoadingStrategy")
-local cleanLoadstringStack = require("./cleanLoadstringStack")
-local constants = require("./constants")
-local createModuleRegistry = require("./createModuleRegistry")
-local getCallerPath = require("./getCallerPath")
-local getModuleSource = require("./getModuleSource")
-local getRobloxTsRuntime = require("./getRobloxTsRuntime")
-local resolveInstancePath = require("./resolveInstancePath")
-local types = require("./types")
+local cleanLoadstringStack = require("@root/cleanLoadstringStack")
+local createModuleRegistry = require("@root/createModuleRegistry")
+local getCallerPath = require("@root/getCallerPath")
+local getModuleSource = require("@root/getModuleSource")
+local getRobloxTsRuntime = require("@root/getRobloxTsRuntime")
+local resolveInstancePath = require("@root/resolveInstancePath")
+local types = require("@root/types")
 
 local Error = LuauPolyfill.Error
 
@@ -75,12 +74,7 @@ function createModuleLoader(): ModuleLoader
 		local errorMessage: string?
 
 		local clone = moduleScript:Clone()
-		clone:AddTag(constants.MODULE_LOCK_TAG)
 		clone.Archivable = false
-
-		-- We could have also applied the tag to `moduleScript` first and then
-		-- cloned it, but let's keep it explicit.
-		moduleScript:AddTag(constants.MODULE_LOCK_TAG)
 
 		-- We wrap the module source in an anonymous function so requiring the
 		-- clone returns a runnable function with a function environment we can
@@ -100,7 +94,6 @@ function createModuleLoader(): ModuleLoader
 
 		clone.Parent, moduleScript.Parent = moduleScript.Parent, clone.Parent
 		clone:Destroy()
-		moduleScript:RemoveTag(constants.MODULE_LOCK_TAG)
 
 		if not ok then
 			local _, syntaxErrorMessage = requireWithLoadstring(moduleScript)
