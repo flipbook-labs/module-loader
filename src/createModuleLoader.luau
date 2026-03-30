@@ -5,6 +5,7 @@
 	https://github.com/flipbook-labs/module-loader/pull/34#issuecomment-4082559439
 ]]
 
+local cleanLoadstringStack = require("@root/cleanLoadstringStack")
 local compileWithLoadstring = require("@root/compileWithLoadstring")
 local createModuleRegistry = require("@root/createModuleRegistry")
 local getModuleSource = require("@root/getModuleSource")
