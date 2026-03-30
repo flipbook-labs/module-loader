@@ -5,15 +5,11 @@
 	https://github.com/flipbook-labs/module-loader/pull/34#issuecomment-4082559439
 ]]
 
-local ScriptEditorService: ScriptEditorService?
-pcall(function()
-	ScriptEditorService = game:GetService("ScriptEditorService")
-end)
-
 local cleanLoadstringStack = require("@root/cleanLoadstringStack")
 local createModuleRegistry = require("./createModuleRegistry")
 local getModuleSource = require("@root/getModuleSource")
 local resolveInstancePath = require("./resolveInstancePath")
+local setModuleSource = require("./setModuleSource")
 local types = require("./types")
 
 type LoadedModule = types.LoadedModule
@@ -42,20 +38,12 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		end
 	end
 
-	local source = if ScriptEditorService
-		then ScriptEditorService:GetEditorSource(moduleScript)
-		else moduleScript.Source
+	local source = getModuleSource(moduleScript)
 
 	-- The formatting is crazy here, but we retain line numbers
 	local newSource = `return (function({table.concat(mergedParams, ", ")}) {source} end)`
 
-	if ScriptEditorService then
-		ScriptEditorService:UpdateSourceAsync(tmpScript, function()
-			return newSource
-		end)
-	else
-		tmpScript.Source = newSource
-	end
+	setModuleSource(tmpScript, newSource)
 
 	local moduleFunction
 	local ok, err = pcall(function()
