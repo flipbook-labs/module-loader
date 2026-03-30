@@ -46,9 +46,9 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	setModuleSource(tmpScript, newSource)
 
 	local moduleFunction
-	local ok, err = pcall(function()
+	local ok, err = xpcall(function()
 		moduleFunction = (require :: any)(tmpScript)
-	end)
+	end, debug.traceback)
 
 	tmpScript:Destroy()
 
@@ -62,7 +62,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 			errorMessage = err
 		end
 
-		error(errorMessage, 1)
+		error(errorMessage, 3)
 	end
 
 	return moduleFunction
