@@ -481,15 +481,15 @@ describe("require", function()
 			local moduleA = Instance.new("ModuleScript")
 			moduleA.Name = "ModuleA"
 			moduleA.Source = [[
-			return require("@game/ReplicatedStorage/ModuleB")
-		]]
+				return require("@game/ReplicatedStorage/ModuleB")
+			]]
 
 			local moduleB = Instance.new("ModuleScript")
 			moduleB.Name = "ModuleB"
 			moduleB.Parent = ReplicatedStorage
 			moduleB.Source = [[
-			return true
-		]]
+				return true
+			]]
 
 			local result = loader.require(moduleA)
 
@@ -501,14 +501,14 @@ describe("require", function()
 		test("supports @self", function()
 			local root = Instance.new("ModuleScript")
 			root.Source = [[
-			return require("@self/Child")
-		]]
+				return require("@self/Child")
+			]]
 
 			local child = Instance.new("ModuleScript")
 			child.Name = "Child"
 			child.Source = [[
-			return true
-		]]
+				return true
+			]]
 			child.Parent = root
 
 			local result = loader.require(root)
@@ -520,23 +520,23 @@ describe("require", function()
 			tree = createModuleTest(({
 				Folder = {
 					Module3 = [[
-					return {}
-				]],
-					Folder = {
-						Module2 = [[
-						require("../Module3")
 						return {}
 					]],
+					Folder = {
+						Module2 = [[
+							require("../Module3")
+							return {}
+						]],
 					},
 				},
 				Module1 = [[
-				require("./Folder/Folder/Module2")
-				return {}
-			]],
+					require("./Folder/Folder/Module2")
+					return {}
+				]],
 				Consumer = [[
-				require("./Module1")
-				return nil
-			]],
+					require("./Module1")
+					return nil
+				]],
 			} :: any) :: ModuleTestTree)
 
 			local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
