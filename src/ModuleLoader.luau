@@ -105,10 +105,6 @@ function ModuleLoader:require(moduleScript: ModuleScript)
 	return self._loader.require(moduleScript)
 end
 
-function ModuleLoader:clearModule(moduleToClear: ModuleScript)
-	self._loader.clearModule(moduleToClear)
-end
-
 --[=[
 	Clears out the internal cache.
 

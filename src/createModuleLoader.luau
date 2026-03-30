@@ -1,473 +1,186 @@
-local Janitor = require("@pkg/Janitor")
-local LuauPolyfill = require("@pkg/LuauPolyfill")
+--[[
+	Huge thanks to EgoMoose for the original implementation. Here's the original
+	comment that sparked this approach:
 
-local LoadingStrategy = require("@root/enums/LoadingStrategy")
-local cleanLoadstringStack = require("@root/cleanLoadstringStack")
+	https://github.com/flipbook-labs/module-loader/pull/34#issuecomment-4082559439
+]]
+
+local compileWithLoadstring = require("@root/compileWithLoadstring")
 local createModuleRegistry = require("@root/createModuleRegistry")
-local getCallerPath = require("@root/getCallerPath")
 local getModuleSource = require("@root/getModuleSource")
-local getRobloxTsRuntime = require("@root/getRobloxTsRuntime")
 local resolveInstancePath = require("@root/resolveInstancePath")
+local setModuleSource = require("@root/setModuleSource")
 local types = require("@root/types")
 
-local Error = LuauPolyfill.Error
-
 type LoadedModule = types.LoadedModule
-type LoadedModuleExports = types.LoadedModuleExports
-type LoadingStrategy = LoadingStrategy.LoadingStrategy
-type LoadModuleFn = types.LoadModuleFn
 type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
+type ModuleFunction = types.ModuleFunction
 
-local loadmodule: (ModuleScript) -> (() -> LoadedModuleExports, string?, () -> ()) = debug["loadmodule"]
-local loadModuleEnabled = pcall(function()
-	return loadmodule(Instance.new("ModuleScript"))
-end)
+local function getModuleFunction(moduleScript: ModuleScript, params: { string }?): ModuleFunction
+	local tmpScript = Instance.new("ModuleScript")
+	tmpScript.Name = moduleScript.Name
+	tmpScript.Archivable = false
 
---[[
-	ModuleScript loader that bypasses Roblox's require cache.
+	local mergedParams = { "script", "require" }
+	if params then
+		for _, param in params do
+			table.insert(mergedParams, param)
+		end
+	end
 
-	This class aims to solve a common problem where code needs to be run in
-	Studio, but once a change is made to an already required module the whole
-	place must be reloaded for the cache to be reset. With this class, the cache
-	is ignored when requiring a module so you are able to load a module, make
-	changes, and load it again without reloading the whole place.
-]]
+	local source = getModuleSource(moduleScript)
+
+	-- This all gets collapsed onto a single line so we retain line numbers of
+	-- the source.
+	local newSource = table.concat({
+		`return function({table.concat(mergedParams, ", ")})`,
+
+		-- The extra anonymous function is to avoid allocations in the module
+		-- scope. Certain modules like `ReactFiberWorkLoop.new` are specifically
+		-- written to respect the 200 allocation limit in Luau, and us coming in
+		-- with new allocations blows it up.
+		"return function()",
+		source,
+		"end",
+
+		"end",
+	}, " ")
+
+	setModuleSource(tmpScript, newSource)
+
+	local moduleFactory
+	local ok, err = xpcall(function()
+		moduleFactory = (require :: any)(tmpScript)
+	end, debug.traceback)
+
+	tmpScript:Destroy()
+
+	if not ok then
+		local errorMessage: string?
+		local _, syntaxErrorMessage = compileWithLoadstring(newSource, moduleScript:GetFullName())
+
+		if syntaxErrorMessage then
+			errorMessage = syntaxErrorMessage
+		else
+			errorMessage = err
+		end
+
+		error(errorMessage, 0)
+	end
+
+	return function(...)
+		return moduleFactory(...)()
+	end
+end
+
+local function weak<K, V>(tab: { [K]: V }): { [K]: V }
+	-- We lie about the return type because having a metatable attached to the table means generic for loops don't work
+	-- without wrapping the table with `pairs`
+	return setmetatable(tab, { __mode = "k" }) :: any
+end
+
 function createModuleLoader(): ModuleLoader
 	local moduleRegistry = createModuleRegistry()
-	local loadedModuleFns: { [ModuleScript]: { any } } = {}
-	local cleanupFns: { () -> () } = {}
-	local loadingStrategy: LoadingStrategy = LoadingStrategy.Automatic
-	local janitors: { [ModuleScript]: any } = {}
+	local changedConnections = weak({} :: { [ModuleScript]: RBXScriptConnection })
+	local globals = setmetatable({} :: typeof(_G), { __index = _G })
 
 	local function _getModuleRegistry()
 		return moduleRegistry
 	end
 
-	local function setLoadingStrategy(strategy: LoadingStrategy)
-		loadingStrategy = strategy
-	end
-
-	local function resolveLoadingStrategy(): LoadingStrategy
-		if loadingStrategy ~= LoadingStrategy.Automatic then
-			return loadingStrategy
-		end
-
-		if loadModuleEnabled then
-			return LoadingStrategy.LoadModule
-		end
-
-		return LoadingStrategy.CloneRequire
-	end
-
-	local function requireWithLoadstring(moduleScript: ModuleScript)
-		local moduleFunction, errorMessage = loadstring(getModuleSource(moduleScript), moduleScript:GetFullName())
-		if errorMessage then
-			errorMessage = cleanLoadstringStack(errorMessage)
-		end
-
-		return moduleFunction, errorMessage
-	end
-
-	local function requireWithCloning(moduleScript: ModuleScript): ((() -> ())?, string?)
-		local moduleFunction: (() -> ())?
-		local errorMessage: string?
-
-		local clone = moduleScript:Clone()
-		clone.Archivable = false
-
-		-- We wrap the module source in an anonymous function so requiring the
-		-- clone returns a runnable function with a function environment we can
-		-- manipulate if needed.
-		--
-		-- We also include `local _;` so injected code preserves line numbers.
-		-- It may also have some other benefits but we're largely dealing with
-		-- incantations from the old tomes here so we'll take what we can get
-		clone.Source = "return function() local _;" .. moduleScript.Source .. "\nend"
-		clone.Parent, moduleScript.Parent = moduleScript.Parent, clone.Parent
-
-		local ok, err = pcall(function()
-			-- Casting to `any` so require will accept the clone as a valid module path
-			moduleFunction = (require :: any)(clone)
-			return nil
-		end)
-
-		clone.Parent, moduleScript.Parent = moduleScript.Parent, clone.Parent
-		clone:Destroy()
-
-		if not ok then
-			local _, syntaxErrorMessage = requireWithLoadstring(moduleScript)
-
-			if syntaxErrorMessage then
-				errorMessage = syntaxErrorMessage
-			else
-				errorMessage = err
-			end
-
-			return nil, errorMessage
-		end
-
-		if moduleFunction then
-			return moduleFunction, nil
-		end
-
-		return nil, nil
-	end
-
-	--[[
-		Fired when any ModuleScript required through this class has its ancestry
-		or `Source` property changed. This applies to the ModuleScript passed to
-		`ModuleLoader:require()` and every module that it subsequently requirs.
-
-		This event is useful for reloading a module when it or any of it
-		dependencies change.
-
-		```lua
-		local loader = createModuleLoader()
-		local result = loader.require(module)
-
-		loader.loadedModuleChanged:Connect(function()
-			loader.clear()
-			result = loader.require(module)
-		end)
-		```
-	]]
 	local loadedModuleChanged = Instance.new("BindableEvent")
 
-	local loadModule: LoadModuleFn
-
-	local function getConsumers(moduleScript: ModuleScript): { ModuleScript }
-		local function getConsumersRecursively(loadedModule: LoadedModule, found: { [ModuleScript]: true })
-			for consumer in loadedModule.consumers do
-				local loadedChildModule = moduleRegistry.getByInstance(consumer)
-
-				if loadedChildModule then
-					if not found[loadedChildModule.instance] then
-						found[loadedChildModule.instance] = true
-						getConsumersRecursively(loadedChildModule, found)
-					end
-				end
-			end
-		end
-
-		local loadedModule: LoadedModule? = moduleRegistry.getByInstance(moduleScript)
-
-		if loadedModule then
-			local found = {}
-
-			getConsumersRecursively(loadedModule, found)
-
-			local consumers = {}
-			for consumer in found do
-				table.insert(consumers, consumer)
-			end
-
-			return consumers
-		else
-			return {}
-		end
-	end
-
-	local function clearModule(moduleToClear: ModuleScript)
-		if not moduleRegistry.getByInstance(moduleToClear) then
-			return
-		end
-
-		local consumers = getConsumers(moduleToClear)
-		local modulesToClear = { moduleToClear, table.unpack(consumers) }
-
-		local index = table.find(modulesToClear, getRobloxTsRuntime())
-		if index then
-			table.remove(modulesToClear, index)
-		end
-
-		for _, moduleScript in modulesToClear do
-			local loadedModule = moduleRegistry.getByInstance(moduleScript)
-
-			if loadedModule then
-				local janitor = janitors[moduleScript]
-				if janitor then
-					janitor:Cleanup()
-				end
-			end
-		end
-
-		for _, moduleScript in modulesToClear do
-			loadedModuleChanged:Fire(moduleScript)
-		end
-	end
-
-	--[[
-		Tracks the changes to a required module's ancestry and `Source`.
-
-		When ancestry or `Source` changes, the `loadedModuleChanged` event is fired.
-		When this happens, the user should clear the cache and require the root
-		module again to reload.
-
-		@private
-	]]
-	local function trackChanges(moduleScript: ModuleScript)
-		local existingJanitor = janitors[moduleScript]
-		local janitor = if existingJanitor then existingJanitor else Janitor.new()
-
-		janitor:Cleanup()
-
-		janitor:Add(moduleScript.AncestryChanged:Connect(function()
-			clearModule(moduleScript)
-		end))
-
-		janitor:Add(moduleScript.Changed:Connect(function(prop: string)
-			if prop == "Source" then
-				clearModule(moduleScript)
-			end
-		end))
-
-		janitor:Add(function()
-			moduleRegistry.remove(moduleScript)
-			loadedModuleFns[moduleScript] = nil
-		end)
-
-		janitors[moduleScript] = janitor
-	end
-
-	--[[
-		Set the cached value for a module before it is loaded.
-
-		This is useful is very specific situations. For example, this method is
-		used to cache a copy of Roact so that when a module is loaded with this
-		class it uses the same table instance.
-
-		```lua
-		local moduleInstance = script.Parent.ModuleScript
-		local moduleScript = require(moduleInstance)
-
-		local loader = createModuleLoader()
-		loader.cache(moduleInstance, moduleScript)
-		```
-	]]
-	local function cache(moduleScript: ModuleScript, result: any)
+	local function cache(moduleScript: ModuleScript, ...: any)
 		local loadedModule: LoadedModule = {
 			instance = moduleScript,
-			exports = result,
+			exports = table.pack(...),
 			isLoaded = true,
-			dependencies = {},
-			consumers = {},
 		}
 
 		moduleRegistry.add(moduleScript, loadedModule)
 	end
 
-	local function execModule(loadedModule: LoadedModule)
-		-- This method is adapted from:
-		-- https://github.com/Roblox/jest-roblox/blob/408eac/src/jest-runtime/src/init.lua#L1847-L2102
-
-		local moduleFunction, defaultEnvironment, errorMessage, cleanupFn
-		local moduleScript = loadedModule.instance
-		local strategy = resolveLoadingStrategy()
-
-		local existingLoadedModuleFns = loadedModuleFns[moduleScript]
-		if existingLoadedModuleFns then
-			moduleFunction = existingLoadedModuleFns[1]
-			defaultEnvironment = existingLoadedModuleFns[2]
-		else
-			if strategy == LoadingStrategy.LoadModule then
-				moduleFunction, errorMessage, cleanupFn = loadmodule(moduleScript)
-			elseif strategy == LoadingStrategy.LoadString then
-				moduleFunction, errorMessage = requireWithLoadstring(moduleScript)
-			elseif strategy == LoadingStrategy.CloneRequire then
-				moduleFunction, errorMessage = requireWithCloning(moduleScript)
+	local function require(moduleScript: ModuleScript): ...unknown?
+		local weHaveRequireAtHome
+		function weHaveRequireAtHome(module: ModuleScript | string, caller: ModuleScript?)
+			local resolvedModule: ModuleScript
+			if type(module) == "string" then
+				local relativeTo: Instance = if caller then caller else moduleScript
+				resolvedModule = resolveInstancePath(relativeTo, module) :: ModuleScript
 			else
-				error(`Invalid loading strategy: {strategy}`)
+				resolvedModule = module
 			end
 
-			if not moduleFunction then
-				error(Error.new(errorMessage))
-			end
-
-			-- Cache initial environment table to inherit from later
-			defaultEnvironment = getfenv(moduleFunction)
-
-			if loadedModuleFns then
-				loadedModuleFns[moduleScript] = { moduleFunction, defaultEnvironment, cleanupFn }
-			else
-				if cleanupFn ~= nil then
-					table.insert(cleanupFns, cleanupFn)
-				end
-			end
-		end
-
-		-- The default behavior for function environments is to inherit the table
-		-- instance from the parent environment. This means that each invocation of
-		-- `moduleFunction()` will return a new module instance but with the same
-		-- environment table as `moduleFunction` loadModule the time of invocation.
-		-- In order to properly sanbox module instances, we need to ensure that each
-		-- instance has its own distinct environment table containing the specific
-		-- overrides for it, but still inherits from the default parent environment
-		-- for non-overriden environment goodies.
-
-		-- This is the 'least mocked' environment that scripts will be able to see.
-		-- The final function environment inherits from this sandbox. This is
-		-- separate so that, in the future, `globalEnv` could expose these
-		-- 'unmocked' functions instead of the ones in the global environment.
-		local sandboxEnvironment = setmetatable({
-			script = if strategy == LoadingStrategy.LoadModule then defaultEnvironment.script else moduleScript,
-			game = defaultEnvironment.game,
-			workspace = defaultEnvironment.workspace,
-			plugin = defaultEnvironment.plugin,
-
-			-- legacy aliases for data model
-			Game = defaultEnvironment.game,
-			Workspace = defaultEnvironment.workspace,
-
-			require = function(otherModule: ModuleScript | string)
-				local resolvedModule: ModuleScript
-				if typeof(otherModule) == "string" then
-					resolvedModule = resolveInstancePath(moduleScript, otherModule) :: ModuleScript
+			local existingModule = moduleRegistry.getByInstance(resolvedModule)
+			if existingModule then
+				if existingModule.isLoaded then
+					assert(existingModule.exports, `exports of existing module {resolvedModule} were not set`)
+					return table.unpack(existingModule.exports, 1, existingModule.exports.n)
 				else
-					resolvedModule = otherModule
+					error("Requested module was required recursively")
 				end
-
-				loadedModule.dependencies[resolvedModule] = true
-
-				return loadModule(resolvedModule)
-			end,
-		}, {
-			__index = defaultEnvironment,
-		})
-
-		-- This is the environment actually passed to scripts, including all global
-		-- mocks and other customisations the user might choose to apply.
-		local mockedSandboxEnvironment = setmetatable({}, {
-			__index = sandboxEnvironment,
-		})
-
-		setfenv(moduleFunction, mockedSandboxEnvironment :: any)
-		local moduleResult = table.pack(moduleFunction())
-
-		if moduleResult.n ~= 1 then
-			error(
-				string.format(
-					"[Module Error]: %s did not return a valid result\n"
-						.. "\tModuleScripts must return exactly one value",
-					tostring(moduleScript)
-				)
-			)
-		end
-
-		trackChanges(moduleScript)
-
-		loadedModule.exports = moduleResult[1]
-	end
-
-	--[[
-		Require a module with a fresh ModuleScript require cache.
-
-		This method is functionally the same as running `require(script.Parent.ModuleScript)`,
-		however in this case the module is not cached. As such, if a change occurs
-		to the module you can call this method again to get the latest changes.
-
-		```lua
-		local loader = createModuleLoader()
-		local module = loader.require(script.Parent.ModuleScript)
-		```
-	]]
-	function loadModule(moduleScript: ModuleScript)
-		if moduleScript.Name:find(".global$") then
-			return (require :: any)(moduleScript)
-		end
-
-		local caller: ModuleScript?
-		local callerPath = getCallerPath()
-		if callerPath then
-			local loadedCallerModule = moduleRegistry.getByFullName(callerPath)
-			if loadedCallerModule and loadedCallerModule.instance then
-				caller = loadedCallerModule.instance
-			end
-		end
-
-		local existingModule = moduleRegistry.getByInstance(moduleScript)
-		if existingModule then
-			if caller then
-				existingModule.consumers[caller] = true
 			end
 
-			return existingModule.exports
-		end
+			local loadedModule: LoadedModule = {
+				instance = resolvedModule,
+				exports = nil,
+				isLoaded = false,
+			}
 
-		-- We must register the pre-allocated module object first so that any
-		-- circular dependencies that may arise while evaluating the module can
-		-- be satisfied.
-		local loadedModule: LoadedModule = {
-			instance = moduleScript,
-			exports = nil,
-			isLoaded = false,
-			dependencies = {},
-			consumers = if caller
-				then {
-					[caller] = true,
-				}
-				else {},
-		}
+			moduleRegistry.add(resolvedModule, loadedModule)
 
-		moduleRegistry.add(moduleScript, loadedModule)
+			local moduleFunction = getModuleFunction(resolvedModule, { "_G" })
 
-		local success, result = pcall(function()
-			execModule(loadedModule)
+			local function childRequire(childModule: ModuleScript | string)
+				return weHaveRequireAtHome(childModule, resolvedModule)
+			end
+
+			local exports: types.Packed<unknown>
+			local ok, err = xpcall(function()
+				-- Notice how the arguments here map to the params in
+				-- `getModuleFunction`, which in this case is `script`,
+				-- `require`, and `_G` in the context of the loaded module.
+				exports = table.pack(moduleFunction(resolvedModule, childRequire, globals))
+			end, debug.traceback)
+
+			if not ok then
+				moduleRegistry.remove(resolvedModule)
+				error(err, 0)
+			end
+
+			if not changedConnections[resolvedModule] then
+				changedConnections[resolvedModule] = resolvedModule.Changed:Connect(function()
+					loadedModuleChanged:Fire(resolvedModule)
+				end)
+			end
+
+			loadedModule.exports = exports
 			loadedModule.isLoaded = true
-		end)
-		if not success then
-			moduleRegistry.remove(moduleScript)
-			error(result)
+
+			return table.unpack(exports, 1, exports.n)
 		end
 
-		return loadedModule.exports
+		return weHaveRequireAtHome(moduleScript, nil)
 	end
 
-	--[[
-		Clears out the internal cache.
-
-		While this module bypasses Roblox's ModuleScript cache, one is still
-		maintained internally so that repeated requires to the same module return a
-		cached value.
-
-		This method should be called when you need to require a module again. i.e.
-		if the module's Source has been changed.
-
-		```lua
-		local loader = createModuleLoader()
-		loader.require(script.Parent.ModuleScript)
-
-		-- Later...
-
-		-- Clear the cache and require the module again
-		loader.clear()
-		loader.require(script.Parent.ModuleScript)
-		```
-	]]
 	local function clear()
-		for _, janitor in janitors do
-			janitor:Cleanup()
-		end
-
-		for _, cleanupFn in cleanupFns do
-			cleanupFn()
-		end
-
 		moduleRegistry.reset()
-		loadedModuleFns = {}
-		cleanupFns = {}
-		janitors = {}
+		table.clear(globals)
+
+		for _, connection in changedConnections do
+			connection:Disconnect()
+		end
+		table.clear(changedConnections)
 	end
 
 	return {
 		_getModuleRegistry = _getModuleRegistry,
 
 		cache = cache,
-		loadModule = loadModule,
-		require = loadModule,
-		clearModule = clearModule,
+		loadModule = require,
+		require = require,
 		clear = clear,
-		setLoadingStrategy = setLoadingStrategy,
 
 		loadedModuleChanged = loadedModuleChanged.Event,
 	}
