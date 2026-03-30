@@ -104,42 +104,50 @@ function createModuleLoader(): ModuleLoader
 
 			local existingModule = moduleRegistry.getByInstance(resolvedModule)
 			if existingModule then
-				if existingModule.exports then
+				if existingModule.isLoaded then
 					return table.unpack(existingModule.exports, 1, existingModule.exports.n)
 				else
-					return
+					error("Requested module was required recursively")
 				end
-			else
-				local loadedModule: LoadedModule = {
-					instance = resolvedModule,
-					exports = nil,
-					isLoaded = false,
-				}
-
-				moduleRegistry.add(resolvedModule, loadedModule)
-
-				local moduleFunction = getModuleFunction(resolvedModule, { "_G" })
-
-				local function childRequire(childModule: ModuleScript | string)
-					return weHaveRequireAtHome(childModule, resolvedModule)
-				end
-
-				if not changedConnections[resolvedModule] then
-					changedConnections[resolvedModule] = resolvedModule.Changed:Connect(function()
-						loadedModuleChanged:Fire(resolvedModule)
-					end)
-				end
-
-				-- Notice how the arguments here map to `mergedParams` in
-				-- `getModuleFunction`, which in this case is `script` and
-				-- `require` in the context of the loaded module.
-				local exports = table.pack(moduleFunction(resolvedModule, childRequire, globals))
-
-				loadedModule.exports = exports
-				loadedModule.isLoaded = true
-
-				return table.unpack(exports, 1, exports.n)
 			end
+
+			local loadedModule: LoadedModule = {
+				instance = resolvedModule,
+				exports = nil,
+				isLoaded = false,
+			}
+
+			moduleRegistry.add(resolvedModule, loadedModule)
+
+			local moduleFunction = getModuleFunction(resolvedModule, { "_G" })
+
+			local function childRequire(childModule: ModuleScript | string)
+				return weHaveRequireAtHome(childModule, resolvedModule)
+			end
+
+			local exports: types.Packed<unknown>
+			local ok, err = xpcall(function()
+				-- Notice how the arguments here map to the params in
+				-- `getModuleFunction`, which in this case is `script`,
+				-- `require`, and `_G` in the context of the loaded module.
+				exports = table.pack(moduleFunction(resolvedModule, childRequire, globals))
+			end, debug.traceback)
+
+			if not ok then
+				moduleRegistry.remove(resolvedModule)
+				error(err, 0)
+			end
+
+			if not changedConnections[resolvedModule] then
+				changedConnections[resolvedModule] = resolvedModule.Changed:Connect(function()
+					loadedModuleChanged:Fire(resolvedModule)
+				end)
+			end
+
+			loadedModule.exports = exports
+			loadedModule.isLoaded = true
+
+			return table.unpack(exports, 1, exports.n)
 		end
 
 		return weHaveRequireAtHome(moduleScript, nil)

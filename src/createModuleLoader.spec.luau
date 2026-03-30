@@ -145,14 +145,24 @@ end)
 describe("cache", function()
 	test("adds a module and its result to the cache", function()
 		local mockModuleInstance = Instance.new("ModuleScript")
-		mockModuleInstance.Source = "return nil"
+		local mockReturnValues = { foo = true }
 
-		loader.cache(mockModuleInstance, mockModuleSource)
+		loader.cache(mockModuleInstance, mockReturnValues)
 
-		local loadedModule = moduleRegistry.getByInstance(mockModuleInstance)
+		local result = loader.require(mockModuleInstance)
 
-		assert(loadedModule, "loaded module undefined")
-		expect(loadedModule.exports).toBe(mockModuleSource)
+		expect(result).toBe(mockReturnValues)
+	end)
+
+	test("works with multiple return values", function()
+		local mockModuleInstance = Instance.new("ModuleScript")
+
+		loader.cache(mockModuleInstance, true, false)
+
+		local first, second = loader.require(mockModuleInstance)
+
+		expect(first).toBe(true)
+		expect(second).toBe(false)
 	end)
 end)
 
@@ -191,18 +201,18 @@ describe("require", function()
 	end)
 
 	describe("circular dependencies", function()
-		test("handles a module requiring itself", function()
+		test("throws when a module requires itself", function()
 			local moduleScript = Instance.new("ModuleScript")
 			moduleScript.Source = [[
 				return require(script)
 			]]
 
-			local result = loader.require(moduleScript)
-
-			expect(result).toBeUndefined()
+			expect(function()
+				loader.require(moduleScript)
+			end).toThrow("Requested module was required recursively")
 		end)
 
-		test("handles an indirect cycle without overflowing the stack", function()
+		test("throws when an indirect cycle is detected", function()
 			type ModuleA = {
 				Name: string,
 				ModuleB: ModuleB,
@@ -231,14 +241,13 @@ describe("require", function()
 			})
 
 			local moduleA = tree:QueryDescendants("#ModuleA")[1] :: ModuleScript
-			local result = loader.require(moduleA) :: ModuleA
 
-			expect(result.Name).toBe("ModuleA")
-			expect(result.ModuleB.Name).toBe("ModuleB")
-			expect(result.ModuleB.ModuleA.Name).toBe("ModuleA")
+			expect(function()
+				loader.require(moduleA)
+			end).toThrow("Requested module was required recursively")
 		end)
 
-		test("handles circular string requires without overflowing the stack", function()
+		test("throws when a circular string require is detected", function()
 			type ModuleA = {
 				Name: string,
 				ModuleB: ModuleB,
@@ -268,11 +277,9 @@ describe("require", function()
 
 			local moduleA = tree:QueryDescendants("#ModuleA")[1] :: ModuleScript
 
-			local result = loader.require(moduleA) :: ModuleA
-
-			expect(result.Name).toBe("ModuleA")
-			expect(result.ModuleB.Name).toBe("ModuleB")
-			expect(result.ModuleB.ModuleA.Name).toBe("ModuleA")
+			expect(function()
+				loader.require(moduleA)
+			end).toThrow("Requested module was required recursively")
 		end)
 	end)
 
@@ -466,7 +473,7 @@ describe("require", function()
 
 		expect(function()
 			loader.require(module)
-		end).toThrow(`SyntaxError.Module:1: Incomplete statement: expected assignment or a function call`)
+		end).toThrow("Incomplete statement: expected assignment or a function call")
 	end)
 
 	test("handles syntax errors for nested requires", function()
@@ -493,7 +500,7 @@ describe("require", function()
 
 		expect(function()
 			loader.require(consumer)
-		end).toThrow(`SyntaxError.Module3:1: Incomplete statement: expected assignment or a function call`)
+		end).toThrow("Incomplete statement: expected assignment or a function call")
 	end)
 
 	test("changes to a module's source requires clearing the cache to use the new result", function()
