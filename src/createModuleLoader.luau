@@ -40,6 +40,11 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 
 	local source = getModuleSource(moduleScript)
 
+	-- FIXME: This implicitly introduces allocations to the module scope, which
+	-- blows up React because ReactFiberWorkLoop.new.lua is specifically written
+	-- to respect the 200 allocation limit, and us coming in with new
+	-- allocations blows it up.
+
 	-- The formatting is crazy here, but we retain line numbers
 	local newSource = `return (function({table.concat(mergedParams, ", ")}) {source} end)`
 
