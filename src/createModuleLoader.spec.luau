@@ -6,16 +6,8 @@ local expect = JestGlobals.expect
 local describe = JestGlobals.describe
 local beforeEach = JestGlobals.beforeEach
 local afterEach = JestGlobals.afterEach
-local describeEach = describe.each :: any
 
-local LoadingStrategy = require("@root/enums/LoadingStrategy")
 local createModuleLoader = require("./createModuleLoader")
-
-type LoadingStrategy = LoadingStrategy.LoadingStrategy
-
-local loadModuleEnabled = pcall(function()
-	return debug["loadmodule"](Instance.new("ModuleScript"))
-end)
 
 type ModuleTestTree = {
 	[string]: string | ModuleTestTree,
@@ -50,269 +42,248 @@ local loader
 local moduleRegistry
 local tree
 
-describeEach({
-	"LoadString",
-	"LoadModule",
-	"CloneRequire",
-} :: { LoadingStrategy })("%s", function(loadingStrategy)
-	if loadingStrategy == "LoadModule" and not loadModuleEnabled then
-		test = test.skip :: any
-	else
-		test = JestGlobals.test
+beforeEach(function()
+	loader = createModuleLoader()
+
+	moduleRegistry = loader._getModuleRegistry()
+end)
+
+afterEach(function()
+	loader.clear()
+
+	if tree then
+		tree:Destroy()
 	end
+end)
 
-	beforeEach(function()
-		loader = createModuleLoader()
-		loader.setLoadingStrategy(loadingStrategy)
+describe("loadedModuleChanged", function()
+	test("fires when a required module has its ancestry changed", function()
+		local mockModuleInstance = Instance.new("ModuleScript")
+		mockModuleInstance.Source = "return nil"
 
-		moduleRegistry = loader._getModuleRegistry()
-	end)
+		local wasFired = false
 
-	afterEach(function()
-		loader.clear()
+		-- Parent the ModuleScript somewhere in the DataModel so we can
+		-- listen for AncestryChanged.
+		mockModuleInstance.Parent = game
 
-		if tree then
-			tree:Destroy()
-		end
-	end)
-
-	describe("loadedModuleChanged", function()
-		test("fires when a required module has its ancestry changed", function()
-			local mockModuleInstance = Instance.new("ModuleScript")
-			mockModuleInstance.Source = "return nil"
-
-			local wasFired = false
-
-			-- Parent the ModuleScript somewhere in the DataModel so we can
-			-- listen for AncestryChanged.
-			mockModuleInstance.Parent = game
-
-			loader.loadedModuleChanged:Connect(function(other: ModuleScript)
-				if other == mockModuleInstance then
-					wasFired = true
-				end
-			end)
-
-			-- Require the module so that events get setup
-			loader.require(mockModuleInstance)
-
-			expect(wasFired).toBe(false)
-
-			-- Trigger AncestryChanged to fire
-			mockModuleInstance.Parent = nil
-
-			expect(wasFired).toBe(true)
+		loader.loadedModuleChanged:Connect(function(other: ModuleScript)
+			if other == mockModuleInstance then
+				wasFired = true
+			end
 		end)
 
-		test("fires when a required module has its Source property change", function()
-			local mockModuleInstance = Instance.new("ModuleScript")
-			mockModuleInstance.Source = "return nil"
+		-- Require the module so that events get setup
+		loader.require(mockModuleInstance)
 
-			local wasFired = false
-			loader.loadedModuleChanged:Connect(function(other: ModuleScript)
-				if other == mockModuleInstance then
-					wasFired = true
-				end
-			end)
+		expect(wasFired).toBe(false)
 
-			-- Require the module so that events get setup
-			loader.require(mockModuleInstance)
+		-- Trigger AncestryChanged to fire
+		mockModuleInstance.Parent = nil
 
-			expect(wasFired).toBe(false)
+		expect(wasFired).toBe(true)
+	end)
 
-			mockModuleInstance.Source = "Something different"
-			task.wait()
+	test("fires when a required module has its Source property change", function()
+		local mockModuleInstance = Instance.new("ModuleScript")
+		mockModuleInstance.Source = "return nil"
 
-			expect(wasFired).toBe(true)
+		local wasFired = false
+		loader.loadedModuleChanged:Connect(function(other: ModuleScript)
+			if other == mockModuleInstance then
+				wasFired = true
+			end
 		end)
 
-		test("fires for every consumer up the chain", function()
+		-- Require the module so that events get setup
+		loader.require(mockModuleInstance)
+
+		expect(wasFired).toBe(false)
+
+		mockModuleInstance.Source = "Something different"
+		task.wait()
+
+		expect(wasFired).toBe(true)
+	end)
+
+	test("fires only for the module that changed", function()
+		tree = createModuleTest({
+			ModuleA = [[
+				return "ModuleA"
+			]],
+			ModuleB = [[
+				require(script.Parent.ModuleA)
+				return "ModuleB"
+			]],
+			ModuleC = [[
+				require(script.Parent.ModuleB)
+				return "ModuleC"
+			]],
+		})
+
+		local count = 0
+		loader.loadedModuleChanged:Connect(function(module)
+			for _, child in tree:GetChildren() do
+				if module == child then
+					count += 1
+				end
+			end
+		end)
+
+		local moduleA = tree:QueryDescendants("#ModuleA")[1] :: ModuleScript
+		local moduleC = tree:QueryDescendants("#ModuleC")[1] :: ModuleScript
+
+		loader.require(moduleC)
+
+		moduleA.Source = "Changed"
+		task.wait()
+
+		expect(count).toBe(1)
+	end)
+end)
+
+describe("cache", function()
+	test("adds a module and its result to the cache", function()
+		local mockModuleInstance = Instance.new("ModuleScript")
+		local mockReturnValues = { foo = true }
+
+		loader.cache(mockModuleInstance, mockReturnValues)
+
+		local result = loader.require(mockModuleInstance)
+
+		expect(result).toBe(mockReturnValues)
+	end)
+
+	test("works with multiple return values", function()
+		local mockModuleInstance = Instance.new("ModuleScript")
+
+		loader.cache(mockModuleInstance, true, false)
+
+		local first, second = loader.require(mockModuleInstance)
+
+		expect(first).toBe(true)
+		expect(second).toBe(false)
+	end)
+end)
+
+describe("require", function()
+	test("adds the module to the cache", function()
+		local mockModuleInstance = Instance.new("ModuleScript")
+		mockModuleInstance.Source = "return nil"
+
+		loader.require(mockModuleInstance)
+		expect(moduleRegistry.getByInstance(mockModuleInstance)).toBeDefined()
+	end)
+
+	test("returns cached results", function()
+		tree = createModuleTest({
+			-- We return a table since it can act as a unique symbol. So if
+			-- both consumers are getting the same table we can perform an
+			-- equality check
+			SharedModule = [[
+				local module = {}
+				return module
+			]],
+			Consumer1 = [[
+				local sharedModule = require(script.Parent.SharedModule)
+				return sharedModule
+			]],
+			Consumer2 = [[
+				local sharedModule = require(script.Parent.SharedModule)
+				return sharedModule
+			]],
+		})
+
+		local consumer1 = tree:QueryDescendants("#Consumer1")[1] :: ModuleScript
+		local consumer2 = tree:QueryDescendants("#Consumer2")[1] :: ModuleScript
+
+		expect(loader.require(consumer1)).toBe(loader.require(consumer2))
+	end)
+
+	describe("circular dependencies", function()
+		test("throws when a module requires itself", function()
+			local moduleScript = Instance.new("ModuleScript")
+			moduleScript.Source = [[
+				return require(script)
+			]]
+
+			expect(function()
+				loader.require(moduleScript)
+			end).toThrow("Requested module was required recursively")
+		end)
+
+		test("throws when an indirect cycle is detected", function()
+			type ModuleA = {
+				Name: string,
+				ModuleB: ModuleB,
+			}
+
+			type ModuleB = {
+				Name: string,
+				ModuleA: ModuleA,
+			}
+
 			tree = createModuleTest({
 				ModuleA = [[
-					return "ModuleA"
+					local ModuleB = require(script.Parent.ModuleB)
+					return {
+						Name = "ModuleA",
+						ModuleB = ModuleB,
+					}
 				]],
 				ModuleB = [[
-					require(script.Parent.ModuleA)
-					return "ModuleB"
-				]],
-				ModuleC = [[
-					require(script.Parent.ModuleB)
-					return "ModuleC"
+					local ModuleA = require(script.Parent.ModuleA)
+					return {
+						Name = "ModuleB",
+						ModuleA = ModuleA,
+					}
 				]],
 			})
-
-			local count = 0
-			loader.loadedModuleChanged:Connect(function(module)
-				for _, child in tree:GetChildren() do
-					if module == child then
-						count += 1
-					end
-				end
-			end)
 
 			local moduleA = tree:QueryDescendants("#ModuleA")[1] :: ModuleScript
-			local moduleC = tree:QueryDescendants("#ModuleC")[1] :: ModuleScript
 
-			loader.require(moduleC)
+			expect(function()
+				loader.require(moduleA)
+			end).toThrow("Requested module was required recursively")
+		end)
 
-			moduleA.Source = "Changed"
-			task.wait()
+		test("throws when a circular string require is detected", function()
+			type ModuleA = {
+				Name: string,
+				ModuleB: ModuleB,
+			}
 
-			expect(count).toBe(3)
+			type ModuleB = {
+				Name: string,
+				ModuleA: ModuleA,
+			}
+
+			tree = createModuleTest({
+				ModuleA = [[
+					local ModuleB = require("./ModuleB")
+					return {
+						Name = "ModuleA",
+						ModuleB = ModuleB,
+					}
+				]],
+				ModuleB = [[
+					local ModuleA = require("./ModuleA")
+					return {
+						Name = "ModuleB",
+						ModuleA = ModuleA,
+					}
+				]],
+			})
+
+			local moduleA = tree:QueryDescendants("#ModuleA")[1] :: ModuleScript
+
+			expect(function()
+				loader.require(moduleA)
+			end).toThrow("Requested module was required recursively")
 		end)
 	end)
 
-	describe("cache", function()
-		test("adds a module and its result to the cache", function()
-			local mockModuleInstance = Instance.new("ModuleScript")
-			mockModuleInstance.Source = "return nil"
-
-			loader.cache(mockModuleInstance, mockModuleSource)
-
-			local loadedModule = moduleRegistry.getByInstance(mockModuleInstance)
-
-			assert(loadedModule, "loaded module undefined")
-			expect(loadedModule.exports).toBe(mockModuleSource)
-		end)
-	end)
-
-	describe("require", function()
-		test("adds the module to the cache", function()
-			local mockModuleInstance = Instance.new("ModuleScript")
-			mockModuleInstance.Source = "return nil"
-
-			loader.require(mockModuleInstance)
-			expect(moduleRegistry.getByInstance(mockModuleInstance)).toBeDefined()
-		end)
-
-		test("keeps track of module dependencies", function()
-			tree = createModuleTest({
-				Module3 = [[
-					return nil
-				]],
-				Module2 = [[
-					require(script.Parent.Module3)
-					return nil
-				]],
-				Module1 = [[
-					require(script.Parent.Module2)
-					return nil
-				]],
-				Root = [[
-					require(script.Parent.Module1)
-					return nil
-				]],
-			})
-
-			local module1 = tree:QueryDescendants("#Module1")[1] :: ModuleScript
-			local module2 = tree:QueryDescendants("#Module2")[1] :: ModuleScript
-			local module3 = tree:QueryDescendants("#Module3")[1] :: ModuleScript
-			local root = tree:QueryDescendants("#Root")[1] :: ModuleScript
-
-			loader.require(root)
-
-			expect(moduleRegistry.getByInstance(root)).toMatchObject({
-				dependencies = {
-					[module1] = true,
-				},
-			})
-			expect(moduleRegistry.getByInstance(module1)).toMatchObject({
-				dependencies = {
-					[module2] = true,
-				},
-			})
-			expect(moduleRegistry.getByInstance(module2)).toMatchObject({
-				dependencies = {
-					[module3] = true,
-				},
-			})
-			expect(moduleRegistry.getByInstance(module3)).toMatchObject({
-				dependencies = {},
-			})
-		end)
-
-		test("returns cached results", function()
-			tree = createModuleTest({
-				-- We return a table since it can act as a unique symbol. So if
-				-- both consumers are getting the same table we can perform an
-				-- equality check
-				SharedModule = [[
-					local module = {}
-					return module
-				]],
-				Consumer1 = [[
-					local sharedModule = require(script.Parent.SharedModule)
-					return sharedModule
-				]],
-				Consumer2 = [[
-					local sharedModule = require(script.Parent.SharedModule)
-					return sharedModule
-				]],
-			})
-
-			local consumer1 = tree:QueryDescendants("#Consumer1")[1] :: ModuleScript
-			local consumer2 = tree:QueryDescendants("#Consumer2")[1] :: ModuleScript
-
-			expect(loader.require(consumer1)).toBe(loader.require(consumer2))
-		end)
-
-		test("adds the calling script as a consumer", function()
-			tree = createModuleTest({
-				SharedModule = [[
-					local module = {}
-					return module
-				]],
-				Consumer = [[
-					local sharedModule = require(script.Parent.SharedModule)
-					return sharedModule
-				]],
-			})
-
-			local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
-			local sharedModule = tree:QueryDescendants("#SharedModule")[1] :: ModuleScript
-
-			loader.require(consumer)
-
-			local loadedModule = moduleRegistry.getByInstance(sharedModule)
-			assert(loadedModule, "loaded module undefined")
-			expect(loadedModule.consumers[consumer]).toBeDefined()
-		end)
-
-		test("updates consumers when requiring a cached module from a different script", function()
-			tree = createModuleTest({
-				SharedModule = [[
-					local module = {}
-					return module
-				]],
-				Consumer1 = [[
-					local sharedModule = require(script.Parent.SharedModule)
-					return sharedModule
-				]],
-				Consumer2 = [[
-					local sharedModule = require(script.Parent.SharedModule)
-					return sharedModule
-				]],
-			})
-
-			local consumer1 = tree:QueryDescendants("#Consumer1")[1] :: ModuleScript
-			local consumer2 = tree:QueryDescendants("#Consumer2")[1] :: ModuleScript
-			local sharedModule = tree:QueryDescendants("#SharedModule")[1] :: ModuleScript
-
-			loader.require(consumer1)
-
-			local loadedModule = moduleRegistry.getByInstance(sharedModule)
-
-			assert(loadedModule, "loaded module undefined")
-
-			expect(loadedModule.consumers[consumer1]).toBeDefined()
-			expect(loadedModule.consumers[consumer2]).toBeUndefined()
-
-			loader.require(consumer2)
-
-			expect(loadedModule.consumers[consumer1]).toBeDefined()
-			expect(loadedModule.consumers[consumer2]).toBeDefined()
-		end)
-
+	describe("globals", function()
 		test("keeps track of _G between modules", function()
 			tree = createModuleTest({
 				WriteGlobal = [[
@@ -353,281 +324,198 @@ describeEach({
 			expect(result).toBe(true)
 		end)
 
-		test("handles syntax errors for direct require", function()
+		test("clearing the cache also clears _G", function()
 			tree = createModuleTest({
-				Module = [[
-					syntax error
-				]],
-			})
-			tree.Name = "SyntaxError"
-			local module = tree:QueryDescendants("#Module")[1] :: ModuleScript
-
-			expect(function()
-				loader.require(module)
-			end).toThrow(`SyntaxError.Module:1: Incomplete statement: expected assignment or a function call`)
-		end)
-
-		test("handles syntax errors for nested requires", function()
-			tree = createModuleTest({
-				Module3 = [[
-					syntax error
-				]],
-				Module2 = [[
-					require(script.Parent.Module3)
-					return {}
-				]],
-				Module1 = [[
-					require(script.Parent.Module2)
-					return {}
-				]],
-				Consumer = [[
-					require(script.Parent.Module1)
+				WriteGlobal = [[
+					_G.foo = true
 					return nil
 				]],
-			})
-			tree.Name = "SyntaxError"
-
-			local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
-
-			expect(function()
-				loader.require(consumer)
-			end).toThrow(`SyntaxError.Module3:1: Incomplete statement: expected assignment or a function call`)
-		end)
-
-		test("when a module's source changes requiring it again uses the new source", function()
-			local moduleScript = Instance.new("ModuleScript")
-			moduleScript.Source = "return true"
-
-			expect(loader.require(moduleScript)).toBeTruthy()
-
-			moduleScript.Source = "return false"
-
-			expect(loader.require(moduleScript)).toBeFalsy()
-		end)
-	end)
-
-	describe("clearModule", function()
-		test("clears a module from the cache", function()
-			tree = createModuleTest({
-				Module = [[
-					return "Module"
+				ReadGlobal = [[
+					return _G.foo
 				]],
 			})
 
-			local module = tree:QueryDescendants("#Module")[1] :: ModuleScript
+			local writeGlobal = tree:QueryDescendants("#WriteGlobal")[1] :: ModuleScript
+			local readGlobal = tree:QueryDescendants("#ReadGlobal")[1] :: ModuleScript
 
-			loader.require(module)
+			loader.require(writeGlobal)
 
-			expect(moduleRegistry.getByInstance(module)).toBeDefined()
-
-			loader.clearModule(module)
-
-			expect(moduleRegistry.getByInstance(module)).toBeUndefined()
-		end)
-
-		test("clears all consumers of a module from the cache", function()
-			tree = createModuleTest({
-				SharedModule = [[
-					local module = {}
-					return module
-				]],
-				Consumer1 = [[
-					local sharedModule = require(script.Parent.SharedModule)
-					return sharedModule
-				]],
-				Consumer2 = [[
-					local sharedModule = require(script.Parent.SharedModule)
-					return sharedModule
-				]],
-			})
-
-			local consumer1 = tree:QueryDescendants("#Consumer1")[1] :: ModuleScript
-			local consumer2 = tree:QueryDescendants("#Consumer2")[1] :: ModuleScript
-			local sharedModule = tree:QueryDescendants("#SharedModule")[1] :: ModuleScript
-
-			loader.require(consumer1)
-			loader.require(consumer2)
-
-			expect(moduleRegistry.getByInstance(consumer1)).toBeDefined()
-			expect(moduleRegistry.getByInstance(consumer2)).toBeDefined()
-			expect(moduleRegistry.getByInstance(sharedModule)).toBeDefined()
-
-			loader.clearModule(sharedModule)
-
-			expect(moduleRegistry.getByInstance(consumer1)).toBeUndefined()
-			expect(moduleRegistry.getByInstance(consumer2)).toBeUndefined()
-			expect(moduleRegistry.getByInstance(sharedModule)).toBeUndefined()
-		end)
-
-		test("only clears modules in the consumer chain", function()
-			tree = createModuleTest({
-				Module = [[
-					return nil
-				]],
-				Consumer = [[
-					require(script.Parent.Module)
-					return nil
-				]],
-				Independent = [[
-					return nil
-				]],
-			})
-
-			local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
-			local independent = tree:QueryDescendants("#Independent")[1] :: ModuleScript
-			local module = tree:QueryDescendants("#Module")[1] :: ModuleScript
-
-			loader.require(consumer)
-			loader.require(independent)
-
-			expect(#moduleRegistry.getAllModules()).toBe(3)
-
-			loader.clearModule(module)
-
-			expect(#moduleRegistry.getAllModules()).toBe(1)
-			expect(moduleRegistry.getByInstance(independent)).toBeDefined()
-		end)
-
-		test("fires loadedModuleChanged when clearing a module", function()
-			tree = createModuleTest({
-				Module = [[
-					return nil
-				]],
-				Consumer = [[
-					require(script.Parent.Module)
-					return nil
-				]],
-			})
-
-			local wasFired = false
-
-			loader.loadedModuleChanged:Connect(function()
-				wasFired = true
-			end)
-
-			local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
-
-			loader.require(consumer)
-			loader.clearModule(consumer)
-
-			expect(wasFired).toBe(true)
-		end)
-
-		test("fires loadedModuleChanged for every module up the chain", function()
-			tree = createModuleTest({
-				Module3 = [[
-					return {}
-				]],
-				Module2 = [[
-					require(script.Parent.Module3)
-					return {}
-				]],
-				Module1 = [[
-					require(script.Parent.Module2)
-					return {}
-				]],
-				Consumer = [[
-					require(script.Parent.Module1)
-					return nil
-				]],
-			})
-
-			local count = 0
-
-			loader.loadedModuleChanged:Connect(function()
-				count += 1
-			end)
-
-			local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
-			local module3 = tree:QueryDescendants("#Module3")[1] :: ModuleScript
-
-			loader.require(consumer)
-			loader.clearModule(module3)
-
-			expect(count).toBe(4)
-		end)
-
-		test("never fires loadedModuleChanged for a module that hasn't been required", function()
-			local wasFired = false
-
-			loader.loadedModuleChanged:Connect(function()
-				wasFired = true
-			end)
-
-			-- Do nothing if the module hasn't been cached
-			local module = Instance.new("ModuleScript")
-			loader.clearModule(module)
-			expect(wasFired).toBe(false)
-		end)
-	end)
-
-	describe("clear", function()
-		test("removes all modules from the cache", function()
-			local mockModuleInstance = Instance.new("ModuleScript")
-			mockModuleInstance.Source = "return nil"
-
-			loader.cache(mockModuleInstance, mockModuleSource)
-
-			expect(#moduleRegistry.getAllModules()).toBe(1)
+			expect(_G.foo).toBeUndefined()
+			expect(loader.require(readGlobal)).toBe(true)
 
 			loader.clear()
 
-			expect(#moduleRegistry.getAllModules()).toBe(0)
+			expect(_G.foo).toBeUndefined()
+			expect(loader.require(readGlobal)).toBe(nil)
+		end)
+
+		test("clearing _G only clears values set by sandboxed modules", function()
+			tree = createModuleTest({
+				SandboxedModule = [[
+					_G.foo = true
+					return nil
+				]],
+				ModuleRequiredNormally = [[
+					_G.bar = true
+					return nil
+				]],
+				ReadGlobal = [[
+					return _G.foo
+				]],
+			})
+
+			local sandboxedModule = tree:QueryDescendants("#SandboxedModule")[1] :: ModuleScript
+			local readGlobal = tree:QueryDescendants("#ReadGlobal")[1] :: ModuleScript
+			local moduleRequiredNormally = tree:QueryDescendants("#ModuleRequiredNormally")[1] :: ModuleScript
+
+			loader.require(sandboxedModule)
+
+			expect(loader.require(readGlobal)).toBe(true)
+			expect(_G.bar).toBeUndefined();
+
+			(require :: any)(moduleRequiredNormally)
+
+			expect(loader.require(readGlobal)).toBe(true)
+			expect(_G.bar).toBe(true)
+
+			loader.clear()
+
+			expect(loader.require(readGlobal)).toBeUndefined()
+			expect(_G.bar).toBe(true)
+
+			_G.bar = nil
+		end)
+
+		test("_G in the sandbox inherits from the real _G, but does not pollute it when written to", function()
+			tree = createModuleTest({
+				WriteGlobal = [[
+					_G.foo = false
+					_G.bar = true
+					return nil
+				]],
+				ReadGlobal = [[
+					return _G.foo, _G.bar
+				]],
+			})
+
+			local writeGlobal = tree:QueryDescendants("#WriteGlobal")[1] :: ModuleScript
+			local readGlobal = tree:QueryDescendants("#ReadGlobal")[1] :: ModuleScript
+
+			_G.foo = true
+
+			expect(_G.foo).toBe(true)
+			expect(_G.bar).toBeUndefined()
+
+			loader.require(writeGlobal)
+
+			expect(_G.foo).toBe(true)
+			expect(_G.bar).toBeUndefined()
+
+			local foo, bar = loader.require(readGlobal)
+			expect(foo).toBe(false)
+			expect(bar).toBe(true)
+
+			expect(_G.foo).toBe(true)
+			expect(_G.bar).toBeUndefined()
+
+			loader.clear()
+
+			expect(_G.foo).toBe(true)
+			expect(_G.bar).toBeUndefined()
+
+			_G.foo = nil
+		end)
+
+		describe("variable persistence in global module scope", function()
+			test("keeps track of bare globals between modules", function()
+				local moduleScript = Instance.new("ModuleScript")
+				moduleScript.Source = [[
+					local value = true
+
+					local function getValue()
+						return value
+					end
+
+					local function setValue(newValue: boolean)
+						value = newValue
+					end
+
+					return {
+						getValue = getValue,
+						setValue = setValue,
+					}
+				]]
+
+				local result = loader.require(moduleScript) :: { getValue: () -> boolean, setValue: (boolean) -> () }
+
+				expect(result.getValue()).toBe(true)
+
+				result.setValue(false)
+
+				expect(result.getValue()).toBe(false)
+
+				loader.clear()
+
+				result = loader.require(moduleScript) :: { getValue: () -> boolean, setValue: (boolean) -> () }
+				expect(result.getValue()).toBe(true)
+			end)
 		end)
 	end)
 
-	describe("consumers", function()
-		beforeEach(function()
-			tree = createModuleTest({
-				ModuleA = [[
-					require(script.Parent.ModuleB)
+	test("handles syntax errors for direct require", function()
+		tree = createModuleTest({
+			Module = [[
+				syntax error
+			]],
+		})
+		tree.Name = "SyntaxError"
+		local module = tree:QueryDescendants("#Module")[1] :: ModuleScript
 
-					return "ModuleA"
-				]],
-				ModuleB = [[
-					return "ModuleB"
-				]],
+		expect(function()
+			loader.require(module)
+		end).toThrow("Incomplete statement: expected assignment or a function call")
+	end)
 
-				ModuleC = [[
-					return "ModuleC"
-				]],
-			})
-		end)
+	test("handles syntax errors for nested requires", function()
+		tree = createModuleTest({
+			Module3 = [[
+				syntax error
+			]],
+			Module2 = [[
+				require(script.Parent.Module3)
+				return {}
+			]],
+			Module1 = [[
+				require(script.Parent.Module2)
+				return {}
+			]],
+			Consumer = [[
+				require(script.Parent.Module1)
+				return nil
+			]],
+		})
+		tree.Name = "SyntaxError"
 
-		test("removes all consumers of a changed module from the cache", function()
-			local moduleA = tree:QueryDescendants("#ModuleA")[1] :: ModuleScript
-			local moduleB = tree:QueryDescendants("#ModuleB")[1] :: ModuleScript
+		local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
 
-			loader.require(moduleA)
+		expect(function()
+			loader.require(consumer)
+		end).toThrow("Incomplete statement: expected assignment or a function call")
+	end)
 
-			local hasItems = next(moduleRegistry.getAllModules()) ~= nil
-			expect(hasItems).toBe(true)
+	test("changes to a module's source requires clearing the cache to use the new result", function()
+		local moduleScript = Instance.new("ModuleScript")
+		moduleScript.Source = "return true"
 
-			moduleB.Source = 'return "ModuleB Reloaded"'
-			task.wait()
+		expect(loader.require(moduleScript)).toBe(true)
 
-			hasItems = next(moduleRegistry.getAllModules()) ~= nil
-			expect(hasItems).toBe(false)
-		end)
+		moduleScript.Source = "return false"
 
-		test("does not interfere with other cached modules", function()
-			local moduleA = tree:QueryDescendants("#ModuleA")[1] :: ModuleScript
-			local moduleB = tree:QueryDescendants("#ModuleB")[1] :: ModuleScript
-			local moduleC = tree:QueryDescendants("#ModuleC")[1] :: ModuleScript
+		expect(loader.require(moduleScript)).toBe(true)
 
-			loader.require(moduleA)
-			loader.require(moduleC)
+		loader.clear()
 
-			local hasItems = next(moduleRegistry.getAllModules()) ~= nil
-			expect(hasItems).toBe(true)
-
-			moduleB.Source = 'return "ModuleB Reloaded"'
-			task.wait()
-
-			expect(moduleRegistry.getByInstance(moduleA)).toBeUndefined()
-			expect(moduleRegistry.getByInstance(moduleB)).toBeUndefined()
-			expect(moduleRegistry.getByInstance(moduleC)).toBeDefined()
-		end)
+		expect(loader.require(moduleScript)).toBe(false)
 	end)
 
 	describe("string requires", function()
@@ -698,93 +586,65 @@ describeEach({
 			loader.require(consumer)
 		end)
 	end)
+end)
 
-	describe("roblox-ts", function()
-		local rbxtsInclude
-		local mockRuntime
+describe("clear", function()
+	test("removes all modules from the cache", function()
+		local mockModuleInstance = Instance.new("ModuleScript")
+		mockModuleInstance.Source = "return nil"
 
-		beforeEach(function()
-			rbxtsInclude = Instance.new("Folder")
-			rbxtsInclude.Name = "rbxts_include"
+		loader.cache(mockModuleInstance, mockModuleSource)
 
-			mockRuntime = Instance.new("ModuleScript")
-			mockRuntime.Name = "RuntimeLib"
-			mockRuntime.Source = [[
-				local function import(...)
-					return require(...)
-				end
-				return {
-					import = import
-				}
-			]]
-			mockRuntime.Parent = rbxtsInclude
+		expect(#moduleRegistry.getAllModules()).toBe(1)
 
-			rbxtsInclude.Parent = ReplicatedStorage
-		end)
+		loader.clear()
 
-		afterEach(function()
-			loader.clear()
-			rbxtsInclude:Destroy()
-		end)
+		expect(#moduleRegistry.getAllModules()).toBe(0)
+	end)
+end)
 
-		test("clearModule() never clears the roblox-ts runtime from the cache", function()
-			-- This example isn't quite how a roblox-ts project would be setup since
-			-- the requires for `Shared` would be using `TS.import`, but it should
-			-- be close enough for our test case
-			tree = createModuleTest({
-				Shared = [[
-					local TS = require(game:GetService("ReplicatedStorage").rbxts_include.RuntimeLib)
-					return {}
-				]],
-				Module1 = [[
-					local TS = require(game:GetService("ReplicatedStorage").rbxts_include.RuntimeLib)
-					local Shared = TS.import(script.Parent.Shared)
-					return nil
-				]],
-				Module2 = [[
-					local TS = require(game:GetService("ReplicatedStorage").rbxts_include.RuntimeLib)
-					local Shared = TS.import(script.Parent.Shared)
-					return nil
-				]],
-				Root = [[
-					local TS = require(game:GetService("ReplicatedStorage").rbxts_include.RuntimeLib)
-					local Module1 = TS.import(script.Parent.Module1)
-					local Module2 = TS.import(script.Parent.Module2)
+describe("roblox-ts", function()
+	local rbxtsInclude
+	local mockRuntime
 
-					return nil
-				]],
-			})
+	beforeEach(function()
+		rbxtsInclude = Instance.new("Folder")
+		rbxtsInclude.Name = "rbxts_include"
 
-			local module1 = tree:QueryDescendants("#Module1")[1] :: ModuleScript
-			local module2 = tree:QueryDescendants("#Module2")[1] :: ModuleScript
-			local root = tree:QueryDescendants("#Root")[1] :: ModuleScript
-			local shared = tree:QueryDescendants("#Shared")[1] :: ModuleScript
+		mockRuntime = Instance.new("ModuleScript")
+		mockRuntime.Name = "RuntimeLib"
+		mockRuntime.Source = [[
+			local function import(...)
+				return require(...)
+			end
+			return {
+				import = import
+			}
+		]]
+		mockRuntime.Parent = rbxtsInclude
 
-			loader.require(root)
-			loader.clearModule(shared)
+		rbxtsInclude.Parent = ReplicatedStorage
+	end)
 
-			expect(moduleRegistry.getByInstance(mockRuntime)).toBeDefined()
-			expect(moduleRegistry.getByInstance(shared)).toBeUndefined()
-			expect(moduleRegistry.getByInstance(module1)).toBeUndefined()
-			expect(moduleRegistry.getByInstance(module2)).toBeUndefined()
-			expect(moduleRegistry.getByInstance(root)).toBeUndefined()
-		end)
+	afterEach(function()
+		loader.clear()
+		rbxtsInclude:Destroy()
+	end)
 
-		test("clear() clears the roblox-ts runtime when calling", function()
-			tree = createModuleTest({
-				Module = [[
-					local TS = require(game:GetService("ReplicatedStorage").rbxts_include.RuntimeLib)
-					return nil
-				]],
-			})
+	test("clear() clears the roblox-ts runtime when calling", function()
+		tree = createModuleTest({
+			Module = [[
+				local TS = require(game:GetService("ReplicatedStorage").rbxts_include.RuntimeLib)
+				return nil
+			]],
+		})
 
-			local module = tree:QueryDescendants("#Module")[1] :: ModuleScript
+		local module = tree:QueryDescendants("#Module")[1] :: ModuleScript
 
-			loader.require(module)
-			loader.clear()
+		loader.require(module)
+		loader.clear()
 
-			expect(moduleRegistry.getByInstance(mockRuntime)).toBeUndefined()
-			expect(moduleRegistry.getByInstance(module)).toBeUndefined()
-		end)
+		expect(moduleRegistry.getByInstance(mockRuntime)).toBeUndefined()
+		expect(moduleRegistry.getByInstance(module)).toBeUndefined()
 	end)
 end)

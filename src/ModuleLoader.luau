@@ -1,4 +1,3 @@
-local constants = require("./constants")
 local createModuleLoader = require("./createModuleLoader")
 local types = require("./types")
 
@@ -72,25 +71,6 @@ function ModuleLoader.new()
 end
 
 --[=[
-	Checks if ModuleLoader has a lock on the given Instance (typically a ModuleScript).
-
-	A lock is applied when using the default `CloneRequire` loading strategy as
-	there are DataModel side-effects that consumers like Storyteller need to
-	work around.
-
-	```lua
-	ModuleLoader.isLocked(script.Parent.ModuleScript)
-	```lua
-
-	@param instance Instance
-	@return boolean
-	@within ModuleLoader
-]=]
-function ModuleLoader.isLocked(instance: Instance): boolean
-	return instance:HasTag(constants.MODULE_LOCK_TAG)
-end
-
---[=[
 	Set the cached value for a module before it is loaded.
 
 	This is useful is very specific situations. For example, this method is
@@ -123,10 +103,6 @@ end
 ]=]
 function ModuleLoader:require(moduleScript: ModuleScript)
 	return self._loader.require(moduleScript)
-end
-
-function ModuleLoader:clearModule(moduleToClear: ModuleScript)
-	self._loader.clearModule(moduleToClear)
 end
 
 --[=[
