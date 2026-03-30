@@ -31,19 +31,27 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 
 	local source = getModuleSource(moduleScript)
 
-	-- FIXME: This implicitly introduces allocations to the module scope, which
-	-- blows up React because ReactFiberWorkLoop.new.lua is specifically written
-	-- to respect the 200 allocation limit, and us coming in with new
-	-- allocations blows it up.
+	-- This all gets collapsed onto a single line so we retain line numbers of
+	-- the source.
+	local newSource = table.concat({
+		`return function({table.concat(mergedParams, ", ")})`,
 
-	-- The formatting is crazy here, but we retain line numbers
-	local newSource = `return (function({table.concat(mergedParams, ", ")}) {source} end)`
+		-- The extra anonymous function is to avoid allocations in the module
+		-- scope. Certain modules like `ReactFiberWorkLoop.new` are specifically
+		-- written to respect the 200 allocation limit in Luau, and us coming in
+		-- with new allocations blows it up.
+		"return function()",
+		source,
+		"end",
+
+		"end",
+	}, ";")
 
 	setModuleSource(tmpScript, newSource)
 
-	local moduleFunction
+	local moduleFactory
 	local ok, err = xpcall(function()
-		moduleFunction = (require :: any)(tmpScript)
+		moduleFactory = (require :: any)(tmpScript)
 	end, debug.traceback)
 
 	tmpScript:Destroy()
@@ -61,7 +69,9 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		error(errorMessage, 0)
 	end
 
-	return moduleFunction
+	return function(...)
+		return moduleFactory(...)()
+	end
 end
 
 local function weak<K, V>(tab: { [K]: V }): { [K]: V }
