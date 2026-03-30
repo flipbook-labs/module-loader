@@ -10,8 +10,9 @@ pcall(function()
 	ScriptEditorService = game:GetService("ScriptEditorService")
 end)
 
+local cleanLoadstringStack = require("@root/cleanLoadstringStack")
 local createModuleRegistry = require("./createModuleRegistry")
-local requireWithLoadstring = require("./requireWithLoadstring")
+local getModuleSource = require("@root/getModuleSource")
 local resolveInstancePath = require("./resolveInstancePath")
 local types = require("./types")
 
@@ -19,6 +20,15 @@ type LoadedModule = types.LoadedModule
 type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
+
+local function requireWithLoadstring(moduleScript: ModuleScript)
+	local moduleFunction, errorMessage = loadstring(getModuleSource(moduleScript), moduleScript:GetFullName())
+	if errorMessage then
+		errorMessage = cleanLoadstringStack(errorMessage)
+	end
+
+	return moduleFunction, errorMessage
+end
 
 local function getModuleFunction(moduleScript: ModuleScript, params: { string }?): ModuleFunction
 	local tmpScript = Instance.new("ModuleScript")
