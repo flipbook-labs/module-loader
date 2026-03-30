@@ -5,7 +5,6 @@
 	https://github.com/flipbook-labs/module-loader/pull/34#issuecomment-4082559439
 ]]
 
-local cleanLoadstringStack = require("@root/cleanLoadstringStack")
 local compileWithLoadstring = require("@root/compileWithLoadstring")
 local createModuleRegistry = require("@root/createModuleRegistry")
 local getModuleSource = require("@root/getModuleSource")
@@ -116,6 +115,7 @@ function createModuleLoader(): ModuleLoader
 			local existingModule = moduleRegistry.getByInstance(resolvedModule)
 			if existingModule then
 				if existingModule.isLoaded then
+					assert(existingModule.exports, `exports of existing module {resolvedModule} were not set`)
 					return table.unpack(existingModule.exports, 1, existingModule.exports.n)
 				else
 					error("Requested module was required recursively")
