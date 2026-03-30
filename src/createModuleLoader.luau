@@ -46,7 +46,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		"end",
 
 		"end",
-	}, ";")
+	}, " ")
 
 	setModuleSource(tmpScript, newSource)
 
