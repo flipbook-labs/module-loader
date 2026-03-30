@@ -418,6 +418,41 @@ describe("require", function()
 
 			_G.foo = nil
 		end)
+
+		describe("variable persistence in global module scope", function()
+			test("keeps track of bare globals between modules", function()
+				local moduleScript = Instance.new("ModuleScript")
+				moduleScript.Source = [[
+					local value = true
+
+					local function getValue()
+						return value
+					end
+
+					local function setValue(newValue: boolean)
+						value = newValue
+					end
+
+					return {
+						getValue = getValue,
+						setValue = setValue,
+					}
+				]]
+
+				local result = loader.require(moduleScript) :: { getValue: () -> boolean, setValue: (boolean) -> () }
+
+				expect(result.getValue()).toBe(true)
+
+				result.setValue(false)
+
+				expect(result.getValue()).toBe(false)
+
+				loader.clear()
+
+				result = loader.require(moduleScript) :: { getValue: () -> boolean, setValue: (boolean) -> () }
+				expect(result.getValue()).toBe(true)
+			end)
+		end)
 	end)
 
 	test("handles syntax errors for direct require", function()
