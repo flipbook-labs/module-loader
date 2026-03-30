@@ -100,10 +100,6 @@ function createModuleLoader(): ModuleLoader
 				resolvedModule = module
 			end
 
-			if resolvedModule.Name:find("%.global$") then
-				return (require :: any)(resolvedModule)
-			end
-
 			local existingModule = moduleRegistry.getByInstance(resolvedModule)
 			if existingModule then
 				if existingModule.exports then
