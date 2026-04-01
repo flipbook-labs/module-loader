@@ -518,6 +518,23 @@ describe("require", function()
 		expect(loader.require(moduleScript)).toBe(false)
 	end)
 
+	test("modules with a type that includes '...' can be required", function()
+		local moduleScript = Instance.new("ModuleScript")
+		moduleScript.Source = [[
+			local Class = {}
+
+			function Class.new(param: string)
+				return {}
+			end
+
+			export type Class = typeof(Class.new(...))
+		]]
+
+		expect(function()
+			loader.require(moduleScript)
+		end).never.toThrow()
+	end)
+
 	test("modules bumping up against the 200 locals limit can still be required", function()
 		local moduleScript = Instance.new("ModuleScript")
 		moduleScript.Source = ""
