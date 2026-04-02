@@ -29,12 +29,6 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		end
 	end
 
-	-- If the original source uses varargs we need to make sure we include it in
-	-- the function parameters, otherwise the source will error when it tries to
-	-- access the varargs. And for some reason, it errors when varargs are used
-	-- in a TYPE DEFINITION!! Fun.
-	table.insert(mergedParams, "...")
-
 	local source = getModuleSource(moduleScript)
 
 	-- This all gets collapsed onto a single line so we retain line numbers of
@@ -42,13 +36,21 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	local newSource = table.concat({
 		`return function({table.concat(mergedParams, ", ")})`,
 
-		-- The source is wrapped in a do..end block to ensure the function
-		-- arguments do not contribute to the source's 200 locals limit.
-		--
-		-- Certain modules like React's `ReactFiberWorkLoop.new` bump up against
-		-- that limit, and us coming in with new allocations causes an error
-		-- when requiring.
-		"do",
+		--[[
+		    1. The source is wrapped in another anonymous function to ensure the
+			   top-level function arguments do not contribute to the source's
+			   200 locals limit.
+
+			   Certain modules like React's `ReactFiberWorkLoop.new` bump up
+		       against that limit, and us coming in with new allocations causes
+		       an error when requiring.
+
+			2. If the original source uses varargs we need to make sure we
+		       include it in the function parameters, otherwise the source will
+		       error when it tries to access the varargs. And for some reason,
+		       it errors when varargs are used in a TYPE DEFINITION!! Fun.
+		]]
+		"return function(...)",
 		source,
 		"end",
 
@@ -57,9 +59,9 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 
 	setModuleSource(tmpScript, newSource)
 
-	local moduleFunction
+	local createModuleFunction
 	local ok, err = xpcall(function()
-		moduleFunction = (require :: any)(tmpScript)
+		createModuleFunction = (require :: any)(tmpScript)
 	end, debug.traceback)
 
 	tmpScript:Destroy()
@@ -77,7 +79,10 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		error(errorMessage, 0)
 	end
 
-	return moduleFunction
+	return function(...)
+		local moduleFunction = createModuleFunction(...)
+		return moduleFunction()
+	end
 end
 
 local function weak<K, V>(tab: { [K]: V }): { [K]: V }
