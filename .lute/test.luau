@@ -37,20 +37,23 @@ local filter = args:get("filter")
 -- This gets picked up by the build step which uses Darklua to inject globals
 process.env.JEST_TEST_PATH_PATTERN = if filter then filter else ""
 
-local testPlacePath = path.join(system.tmpdir(), "tests.rbxl")
-
 run("lute", { "run", "build", "--channel", "dev" })
-run("rojo", { "build", project.ROJO_TESTS_PROJECT, "-o", testPlacePath })
 
 local success, err = pcall(function()
-	run("python3", {
-		".lute/open-cloud/upload_and_run_task.py",
-		testPlacePath,
+	run("rocale", {
+		"run",
+		"--script",
 		".lute/tasks/run-tests.luau",
+		"--load.project",
+		project.ROJO_TESTS_PROJECT,
+		"--output",
+		`{system.tmpdir()}/tests.rbxl`,
+		"--universeId",
+		project.ROBLOX_UNIT_TESTING_UNIVERSE_ID,
+		"--placeId",
+		project.ROBLOX_UNIT_TESTING_PLACE_ID,
 	}, {
 		env = {
-			ROBLOX_UNIVERSE_ID = project.ROBLOX_UNIT_TESTING_UNIVERSE_ID,
-			ROBLOX_PLACE_ID = project.ROBLOX_UNIT_TESTING_PLACE_ID,
 			ROBLOX_API_KEY = tostring(apiKey),
 		},
 	})
