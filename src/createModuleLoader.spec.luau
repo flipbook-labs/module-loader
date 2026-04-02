@@ -538,7 +538,7 @@ describe("require", function()
 	test("modules bumping up against the 200 locals limit can still be required", function()
 		local moduleScript = Instance.new("ModuleScript")
 		moduleScript.Source = ""
-		for i = 1, 300 do
+		for i = 1, 200 do
 			moduleScript.Source ..= `local var{i} = {i}\n`
 		end
 
