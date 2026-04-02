@@ -29,6 +29,12 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		end
 	end
 
+	-- If the original source uses varargs we need to make sure we include it in
+	-- the function parameters, otherwise the source will error when it tries to
+	-- access the varargs. And for some reason, it errors when varargs are used
+	-- in a TYPE DEFINITION!! Fun.
+	table.insert(mergedParams, "...")
+
 	local source = getModuleSource(moduleScript)
 
 	-- This all gets collapsed onto a single line so we retain line numbers of
@@ -36,7 +42,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	local newSource = table.concat({
 		`return function({table.concat(mergedParams, ", ")})`,
 
-		-- The source is wrapped in a do...end block to ensure the function
+		-- The source is wrapped in a do..end block to ensure the function
 		-- arguments do not contribute to the source's 200 locals limit.
 		--
 		-- Certain modules like React's `ReactFiberWorkLoop.new` bump up against
@@ -67,9 +73,6 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		else
 			errorMessage = err
 		end
-
-		print(err)
-		print(syntaxErrorMessage)
 
 		error(errorMessage, 0)
 	end
