@@ -29,6 +29,12 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		end
 	end
 
+	-- If the original source uses varargs we need to make sure we include it in
+	-- the function parameters, otherwise the source will error when it tries to
+	-- access the varargs. And for some reason, it errors when varargs are used
+	-- in a TYPE DEFINITION!! Fun.
+	table.insert(mergedParams, "...")
+
 	local source = getModuleSource(moduleScript)
 
 	-- This all gets collapsed onto a single line so we retain line numbers of
@@ -36,11 +42,13 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	local newSource = table.concat({
 		`return function({table.concat(mergedParams, ", ")})`,
 
-		-- The extra anonymous function is to avoid allocations in the module
-		-- scope. Certain modules like `ReactFiberWorkLoop.new` are specifically
-		-- written to respect the 200 allocation limit in Luau, and us coming in
-		-- with new allocations blows it up.
-		"return function()",
+		-- The source is wrapped in a do..end block to ensure the function
+		-- arguments do not contribute to the source's 200 locals limit.
+		--
+		-- Certain modules like React's `ReactFiberWorkLoop.new` bump up against
+		-- that limit, and us coming in with new allocations causes an error
+		-- when requiring.
+		"do",
 		source,
 		"end",
 
@@ -49,9 +57,9 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 
 	setModuleSource(tmpScript, newSource)
 
-	local moduleFactory
+	local moduleFunction
 	local ok, err = xpcall(function()
-		moduleFactory = (require :: any)(tmpScript)
+		moduleFunction = (require :: any)(tmpScript)
 	end, debug.traceback)
 
 	tmpScript:Destroy()
@@ -69,9 +77,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		error(errorMessage, 0)
 	end
 
-	return function(...)
-		return moduleFactory(...)()
-	end
+	return moduleFunction
 end
 
 local function weak<K, V>(tab: { [K]: V }): { [K]: V }
