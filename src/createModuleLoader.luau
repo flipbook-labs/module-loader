@@ -17,7 +17,96 @@ type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
 
-local function getModuleFunction(moduleScript: ModuleScript, params: { string }?): ModuleFunction
+-- Module-level flag: nil = unknown, true = in a non-RobloxScript context (require(tmpScript) will fail)
+local isNonRobloxScriptContext: boolean? = nil
+
+local NON_ROBLOXSCRIPT_ERROR = "Cannot require a non-RobloxScript module from a RobloxScript"
+
+-- `debug.loadmodule` must be called on the **original** ModuleScript — not the
+-- temporary wrapper ModuleScript used for `require`. Loading the wrapper yields a
+-- compiled chunk shaped like a normal ModuleScript (`return …`), not the
+-- double-factory shape produced by `require(tmpScript)`, which led to errors such
+-- as indexing a returned table like a callable factory.
+--
+-- Roblox signature: (moduleScript) -> (moduleChunk?, errorMessage?, cleanupFn?)
+-- `moduleChunk` runs the module body once (after `setfenv`) and returns its exports.
+local function tryGetModuleFunctionWithLoadmodule(
+	originalModuleScript: ModuleScript,
+	cleanupAccumulator: { () -> () }?
+): ModuleFunction?
+	local loadmoduleFn = (debug :: any).loadmodule
+	if typeof(loadmoduleFn) ~= "function" then
+		return nil
+	end
+
+	local loadOk, moduleChunk, _errorMessage, cleanupFn = pcall(loadmoduleFn :: any, originalModuleScript)
+	if not loadOk or typeof(moduleChunk) ~= "function" then
+		return nil
+	end
+
+	if cleanupFn ~= nil and cleanupAccumulator then
+		table.insert(cleanupAccumulator, cleanupFn :: () -> ())
+	end
+
+	local defaultEnvironment = getfenv(moduleChunk :: any)
+
+	-- Match the tmpScript/`require` path: a factory `(script, require, _G) -> () -> exports`.
+	return function(resolvedScript: ModuleScript, childRequire: any, globalsTable: any)
+		return function()
+			local sandboxEnvironment = setmetatable({
+				script = resolvedScript,
+				game = defaultEnvironment.game,
+				workspace = defaultEnvironment.workspace,
+				plugin = defaultEnvironment.plugin,
+				Game = defaultEnvironment.game,
+				Workspace = defaultEnvironment.workspace,
+				require = function(otherModule: ModuleScript | string)
+					return childRequire(otherModule)
+				end,
+				_G = globalsTable,
+			}, {
+				__index = defaultEnvironment,
+			})
+
+			local mockedSandboxEnvironment = setmetatable({}, {
+				__index = sandboxEnvironment,
+			})
+
+			setfenv(moduleChunk :: any, mockedSandboxEnvironment :: any)
+
+			local runOk, runResult = pcall(moduleChunk :: any)
+			if not runOk then
+				error(runResult, 0)
+			end
+
+			return runResult
+		end
+	end
+end
+
+local function wrapModuleFactory(factoryFn: ModuleFunction): ModuleFunction
+	return function(...)
+		local moduleFunction = factoryFn(...)
+		assert(typeof(moduleFunction) == "function", "inner module runner missing")
+		return (moduleFunction :: any)()
+	end
+end
+
+local function getModuleFunction(
+	moduleScript: ModuleScript,
+	params: { string }?,
+	loadmoduleCleanupAccumulator: { () -> () }?
+): ModuleFunction
+	-- Fast path: once we know `require(tmpScript)` fails in this context, skip
+	-- creating a tmp script and yielding in `setModuleSource` entirely.
+	if isNonRobloxScriptContext == true then
+		local factoryFn = tryGetModuleFunctionWithLoadmodule(moduleScript, loadmoduleCleanupAccumulator)
+		if not factoryFn then
+			error("debug.loadmodule failed or is unavailable", 0)
+		end
+		return wrapModuleFactory(factoryFn)
+	end
+
 	local tmpScript = Instance.new("ModuleScript")
 	tmpScript.Name = moduleScript.Name
 	tmpScript.Archivable = false
@@ -59,10 +148,45 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 
 	setModuleSource(tmpScript, newSource)
 
-	local createModuleFunction
-	local ok, err = xpcall(function()
+	-- After yielding (UpdateSourceAsync on parentless tmp scripts), skip the
+	-- `require(tmp)` attempt if we already know it will fail in this context.
+	if isNonRobloxScriptContext == true then
+		tmpScript:Destroy()
+		local factoryFn = tryGetModuleFunctionWithLoadmodule(moduleScript, loadmoduleCleanupAccumulator)
+		if not factoryFn then
+			error("debug.loadmodule failed or is unavailable", 0)
+		end
+		return wrapModuleFactory(factoryFn)
+	end
+
+	-- Prefer ordinary `require(tmpScript)` so Flipbook's own modules load normally.
+	-- Built-in plugins hit RobloxScript restrictions only when tmp scripts wrap
+	-- LocalScript-context sources (e.g. lua-apps storybooks); then fall back to
+	-- `debug.loadmodule`, which bypasses that check but has caused freezes when
+	-- used for every module at startup. After the first such failure we remember
+	-- the context so we omit the failing require attempt on every subsequent load.
+	local createModuleFunction: ModuleFunction?
+	local ok: boolean
+	local err: string?
+
+	ok, err = xpcall(function()
 		createModuleFunction = (require :: any)(tmpScript)
 	end, debug.traceback)
+
+	if not ok or typeof(createModuleFunction) ~= "function" then
+		if err and string.find(err, NON_ROBLOXSCRIPT_ERROR, 1, true) then
+			isNonRobloxScriptContext = true
+			createModuleFunction = tryGetModuleFunctionWithLoadmodule(moduleScript, loadmoduleCleanupAccumulator)
+			ok = typeof(createModuleFunction) == "function"
+			if ok then
+				err = nil
+			else
+				err = "debug.loadmodule failed or is unavailable"
+			end
+		else
+			ok = false
+		end
+	end
 
 	tmpScript:Destroy()
 
@@ -79,10 +203,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		error(errorMessage, 0)
 	end
 
-	return function(...)
-		local moduleFunction = createModuleFunction(...)
-		return moduleFunction()
-	end
+	return wrapModuleFactory(assert(createModuleFunction, "module factory missing") :: ModuleFunction)
 end
 
 local function weak<K, V>(tab: { [K]: V }): { [K]: V }
@@ -95,6 +216,7 @@ function createModuleLoader(): ModuleLoader
 	local moduleRegistry = createModuleRegistry()
 	local changedConnections = weak({} :: { [ModuleScript]: RBXScriptConnection })
 	local globals = setmetatable({} :: typeof(_G), { __index = _G })
+	local loadmoduleCleanupFns: { () -> () } = {}
 
 	local function _getModuleRegistry()
 		return moduleRegistry
@@ -141,7 +263,7 @@ function createModuleLoader(): ModuleLoader
 
 			moduleRegistry.add(resolvedModule, loadedModule)
 
-			local moduleFunction = getModuleFunction(resolvedModule, { "_G" })
+			local moduleFunction = getModuleFunction(resolvedModule, { "_G" }, loadmoduleCleanupFns)
 
 			local function childRequire(childModule: ModuleScript | string)
 				return weHaveRequireAtHome(childModule, resolvedModule)
@@ -176,6 +298,11 @@ function createModuleLoader(): ModuleLoader
 	end
 
 	local function clear()
+		for _, cleanupFn in loadmoduleCleanupFns do
+			cleanupFn()
+		end
+		table.clear(loadmoduleCleanupFns)
+
 		moduleRegistry.reset()
 		table.clear(globals)
 
