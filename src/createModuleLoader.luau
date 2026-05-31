@@ -12,15 +12,26 @@ local resolveInstancePath = require("@root/resolveInstancePath")
 local setModuleSource = require("@root/setModuleSource")
 local types = require("@root/types")
 
+local requireAny = require :: any
+
 type LoadedModule = types.LoadedModule
 type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
 
 local function getModuleFunction(moduleScript: ModuleScript, params: { string }?): ModuleFunction
-	local tmpScript = Instance.new("ModuleScript")
-	tmpScript.Name = moduleScript.Name
-	tmpScript.Archivable = false
+	local nativeRequire: ModuleFunction = function()
+		return requireAny(moduleScript)
+	end
+
+	-- If we can't read the source there's nothing we can really do with this
+	-- module, so skip straight to native require. We mainly hit this case with
+	-- Flipbook's embedded flow that runs off the client in userspace, so our
+	-- options are slim.
+	local source = getModuleSource(moduleScript)
+	if not source then
+		return nativeRequire
+	end
 
 	local mergedParams = { "script", "require" }
 	if params then
@@ -28,8 +39,6 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 			table.insert(mergedParams, param)
 		end
 	end
-
-	local source = getModuleSource(moduleScript)
 
 	-- This all gets collapsed onto a single line so we retain line numbers of
 	-- the source.
@@ -57,32 +66,46 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		"end",
 	}, " ")
 
-	setModuleSource(tmpScript, newSource)
+	local chunkName = moduleScript:GetFullName()
 
-	local createModuleFunction
-	local ok, err = xpcall(function()
-		createModuleFunction = (require :: any)(tmpScript)
-	end, debug.traceback)
+	-- A nil chunkFn with a message means a real syntax error (surface it); a
+	-- nil chunkFn with no message means loadstring is disabled (fall through).
+	local chunkFn, syntaxErrorMessage = compileWithLoadstring(newSource, chunkName)
+
+	if chunkFn then
+		local ok, result = xpcall(chunkFn, debug.traceback)
+		if ok and typeof(result) == "function" then
+			return result :: ModuleFunction
+		end
+		error(result, 0)
+	end
+
+	if syntaxErrorMessage then
+		error(syntaxErrorMessage, 0)
+	end
+
+	local tmpScript = Instance.new("ModuleScript")
+	tmpScript.Name = moduleScript.Name
+	tmpScript.Archivable = false
+
+	if setModuleSource(tmpScript, newSource) then
+		local moduleFunction
+		local ok, err = xpcall(function()
+			moduleFunction = requireAny(tmpScript)
+		end, debug.traceback)
+
+		tmpScript:Destroy()
+
+		if ok then
+			return moduleFunction
+		end
+
+		error(err, 0)
+	end
 
 	tmpScript:Destroy()
 
-	if not ok then
-		local errorMessage: string?
-		local _, syntaxErrorMessage = compileWithLoadstring(newSource, moduleScript:GetFullName())
-
-		if syntaxErrorMessage then
-			errorMessage = syntaxErrorMessage
-		else
-			errorMessage = err
-		end
-
-		error(errorMessage, 0)
-	end
-
-	return function(...)
-		local moduleFunction = createModuleFunction(...)
-		return moduleFunction()
-	end
+	return nativeRequire
 end
 
 local function weak<K, V>(tab: { [K]: V }): { [K]: V }
@@ -152,6 +175,8 @@ function createModuleLoader(): ModuleLoader
 				-- Notice how the arguments here map to the params in
 				-- `getModuleFunction`, which in this case is `script`,
 				-- `require`, and `_G` in the context of the loaded module.
+				-- In the embedded/client flow where we fall back to native
+				-- require, moduleFunction is a wrapper that ignores these args.
 				exports = table.pack(moduleFunction(resolvedModule, childRequire, globals))
 			end, debug.traceback)
 
