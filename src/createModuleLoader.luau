@@ -68,6 +68,17 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 
 	local chunkName = moduleScript:GetFullName()
 
+	-- `newSource` compiles to an outer function that, when called with
+	-- (script, require, ...), returns the inner function wrapping the original
+	-- source. We call both layers so the returned ModuleFunction yields the
+	-- module's actual exports rather than the inner closure.
+	local function wrapCompiled(outerFunction: any): ModuleFunction
+		return function(...)
+			local innerFunction = outerFunction(...)
+			return innerFunction()
+		end
+	end
+
 	-- A nil chunkFn with a message means a real syntax error (surface it); a
 	-- nil chunkFn with no message means loadstring is disabled (fall through).
 	local chunkFn, syntaxErrorMessage = compileWithLoadstring(newSource, chunkName)
@@ -75,7 +86,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	if chunkFn then
 		local ok, result = xpcall(chunkFn, debug.traceback)
 		if ok and typeof(result) == "function" then
-			return result :: ModuleFunction
+			return wrapCompiled(result)
 		end
 		error(result, 0)
 	end
@@ -97,7 +108,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		tmpScript:Destroy()
 
 		if ok then
-			return moduleFunction
+			return wrapCompiled(moduleFunction)
 		end
 
 		error(err, 0)
