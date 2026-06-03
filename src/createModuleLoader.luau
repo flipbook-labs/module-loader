@@ -19,24 +19,36 @@ type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
 
-local function getModuleFunction(moduleScript: ModuleScript, params: { string }?): ModuleFunction
-	local nativeRequire: ModuleFunction = function()
-		return requireAny(moduleScript)
+-- newSource wraps the original in two nested functions. We call both layers so
+-- the returned ModuleFunction yields the module's actual exports rather than
+-- the inner closure.
+local function wrapCompiled(outerFunction: any): ModuleFunction
+	return function(...)
+		local innerFunction = outerFunction(...)
+		return innerFunction()
 	end
+end
 
-	-- If we can't read the source there's nothing we can really do with this
-	-- module, so skip straight to native require. We mainly hit this case with
-	-- Flipbook's embedded flow that runs off the client in userspace, so our
-	-- options are slim.
-	local source = getModuleSource(moduleScript)
-	if not source then
-		return nativeRequire
-	end
+local function getModuleFunction(moduleScript: ModuleScript, params: { string }?): ModuleFunction
+	local tmpScript = Instance.new("ModuleScript")
+	tmpScript.Name = moduleScript.Name
+	tmpScript.Archivable = false
 
 	local mergedParams = { "script", "require" }
 	if params then
 		for _, param in params do
 			table.insert(mergedParams, param)
+		end
+	end
+
+	local source = getModuleSource(moduleScript)
+
+	-- If we can't read the source (e.g. client userspace), fall back to native
+	-- require and skip the rest.
+	if not source then
+		tmpScript:Destroy()
+		return function()
+			return requireAny(moduleScript)
 		end
 	end
 
@@ -66,24 +78,13 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		"end",
 	}, " ")
 
-	local chunkName = moduleScript:GetFullName()
-
-	-- `newSource` compiles to an outer function that, when called with
-	-- (script, require, ...), returns the inner function wrapping the original
-	-- source. We call both layers so the returned ModuleFunction yields the
-	-- module's actual exports rather than the inner closure.
-	local function wrapCompiled(outerFunction: any): ModuleFunction
-		return function(...)
-			local innerFunction = outerFunction(...)
-			return innerFunction()
-		end
-	end
-
 	-- A nil chunkFn with a message means a real syntax error (surface it); a
-	-- nil chunkFn with no message means loadstring is disabled (fall through).
-	local chunkFn, syntaxErrorMessage = compileWithLoadstring(newSource, chunkName)
+	-- nil chunkFn with no message means loadstring is disabled (fall through to
+	-- tmpScript).
+	local chunkFn, syntaxErrorMessage = compileWithLoadstring(newSource, moduleScript:GetFullName())
 
 	if chunkFn then
+		tmpScript:Destroy()
 		local ok, result = xpcall(chunkFn, debug.traceback)
 		if ok and typeof(result) == "function" then
 			return wrapCompiled(result)
@@ -92,31 +93,29 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	end
 
 	if syntaxErrorMessage then
+		tmpScript:Destroy()
 		error(syntaxErrorMessage, 0)
 	end
 
-	local tmpScript = Instance.new("ModuleScript")
-	tmpScript.Name = moduleScript.Name
-	tmpScript.Archivable = false
-
-	if setModuleSource(tmpScript, newSource) then
-		local moduleFunction
-		local ok, err = xpcall(function()
-			moduleFunction = requireAny(tmpScript)
-		end, debug.traceback)
-
+	if not setModuleSource(tmpScript, newSource) then
 		tmpScript:Destroy()
-
-		if ok then
-			return wrapCompiled(moduleFunction)
+		return function()
+			return requireAny(moduleScript)
 		end
-
-		error(err, 0)
 	end
+
+	local createModuleFunction
+	local ok, err = xpcall(function()
+		createModuleFunction = requireAny(tmpScript)
+	end, debug.traceback)
 
 	tmpScript:Destroy()
 
-	return nativeRequire
+	if not ok then
+		error(err, 0)
+	end
+
+	return wrapCompiled(createModuleFunction)
 end
 
 local function weak<K, V>(tab: { [K]: V }): { [K]: V }
