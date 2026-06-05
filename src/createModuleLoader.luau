@@ -50,7 +50,6 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	-- If we can't read the source (e.g. client userspace), fall back to native
 	-- require and skip the rest.
 	if not source then
-		tmpScript:Destroy()
 		return nativeRequire
 	end
 
@@ -86,7 +85,6 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	local chunkFn, syntaxErrorMessage = compileWithLoadstring(newSource, moduleScript:GetFullName())
 
 	if chunkFn then
-		tmpScript:Destroy()
 		local ok, result = xpcall(chunkFn, debug.traceback)
 		if ok and typeof(result) == "function" then
 			return wrapCompiled(result)
@@ -95,12 +93,10 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	end
 
 	if syntaxErrorMessage then
-		tmpScript:Destroy()
 		error(syntaxErrorMessage, 0)
 	end
 
 	if not setModuleSource(tmpScript, newSource) then
-		tmpScript:Destroy()
 		return nativeRequire
 	end
 
