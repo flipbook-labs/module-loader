@@ -30,6 +30,10 @@ local function wrapCompiled(outerFunction: any): ModuleFunction
 end
 
 local function getModuleFunction(moduleScript: ModuleScript, params: { string }?): ModuleFunction
+	local nativeRequire: ModuleFunction = function()
+		return requireAny(moduleScript)
+	end
+
 	local tmpScript = Instance.new("ModuleScript")
 	tmpScript.Name = moduleScript.Name
 	tmpScript.Archivable = false
@@ -47,9 +51,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	-- require and skip the rest.
 	if not source then
 		tmpScript:Destroy()
-		return function()
-			return requireAny(moduleScript)
-		end
+		return nativeRequire
 	end
 
 	-- This all gets collapsed onto a single line so we retain line numbers of
@@ -99,9 +101,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 
 	if not setModuleSource(tmpScript, newSource) then
 		tmpScript:Destroy()
-		return function()
-			return requireAny(moduleScript)
-		end
+		return nativeRequire
 	end
 
 	local createModuleFunction
