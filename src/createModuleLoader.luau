@@ -180,8 +180,6 @@ function createModuleLoader(): ModuleLoader
 				-- Notice how the arguments here map to the params in
 				-- `getModuleFunction`, which in this case is `script`,
 				-- `require`, and `_G` in the context of the loaded module.
-				-- In the embedded/client flow where we fall back to native
-				-- require, moduleFunction is a wrapper that ignores these args.
 				exports = table.pack(moduleFunction(resolvedModule, childRequire, globals))
 			end, debug.traceback)
 
