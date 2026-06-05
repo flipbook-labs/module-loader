@@ -30,10 +30,6 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		return requireAny(moduleScript)
 	end
 
-	local tmpScript = Instance.new("ModuleScript")
-	tmpScript.Name = moduleScript.Name
-	tmpScript.Archivable = false
-
 	local mergedParams = { "script", "require" }
 	if params then
 		for _, param in params do
@@ -94,6 +90,10 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	if syntaxErrorMessage then
 		error(syntaxErrorMessage, 0)
 	end
+
+	local tmpScript = Instance.new("ModuleScript")
+	tmpScript.Name = moduleScript.Name
+	tmpScript.Archivable = false
 
 	if not setModuleSource(tmpScript, newSource) then
 		return nativeRequire
