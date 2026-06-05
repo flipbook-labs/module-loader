@@ -19,13 +19,9 @@ type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
 
--- newSource wraps the original in two nested functions. We call both layers so
--- the returned ModuleFunction yields the module's actual exports rather than
--- the inner closure.
-local function wrapCompiled(outerFunction: any): ModuleFunction
+local function makeModuleFunction(compiledOuter): ModuleFunction
 	return function(...)
-		local innerFunction = outerFunction(...)
-		return innerFunction()
+		return compiledOuter(...)()
 	end
 end
 
@@ -87,7 +83,10 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	if chunkFn then
 		local ok, result = xpcall(chunkFn, debug.traceback)
 		if ok and typeof(result) == "function" then
-			return wrapCompiled(result)
+			-- I don't think there's a way to narrow this further but we know by
+			-- this point we we're getting back the newSource result so I think
+			-- this is fine
+			return makeModuleFunction(result :: any)
 		end
 		error(result, 0)
 	end
@@ -111,7 +110,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		error(err, 0)
 	end
 
-	return wrapCompiled(createModuleFunction)
+	return makeModuleFunction(createModuleFunction)
 end
 
 local function weak<K, V>(tab: { [K]: V }): { [K]: V }
