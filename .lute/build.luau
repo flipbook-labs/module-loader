@@ -1,4 +1,4 @@
-local FlipbookBatteries = require("@luaupkg/flipbook-batteries")
+local FlipbookBatteries = require("@luaupkg/flipbook-batteries@v0.9.0")
 local cli = require("@scripts/batteries/cli")
 local fs = require("@std/fs")
 
@@ -35,11 +35,11 @@ if output then
 end
 
 local function build()
-	fs.removedirectory(project.BUILD_PATH, {
+	fs.removeDirectory(project.BUILD_PATH, {
 		recursive = true,
 	})
-	fs.createdirectory(project.BUILD_PATH, {
-		makeparents = true,
+	fs.createDirectory(project.BUILD_PATH, {
+		makeParents = true,
 	})
 
 	run("rojo", {
