@@ -12,15 +12,23 @@ local resolveInstancePath = require("@root/resolveInstancePath")
 local setModuleSource = require("@root/setModuleSource")
 local types = require("@root/types")
 
+local requireAny = require :: any
+
 type LoadedModule = types.LoadedModule
 type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
 
+local function makeModuleFunction(compiledOuter): ModuleFunction
+	return function(...)
+		return compiledOuter(...)()
+	end
+end
+
 local function getModuleFunction(moduleScript: ModuleScript, params: { string }?): ModuleFunction
-	local tmpScript = Instance.new("ModuleScript")
-	tmpScript.Name = moduleScript.Name
-	tmpScript.Archivable = false
+	local nativeRequire: ModuleFunction = function()
+		return requireAny(moduleScript)
+	end
 
 	local mergedParams = { "script", "require" }
 	if params then
@@ -30,6 +38,12 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	end
 
 	local source = getModuleSource(moduleScript)
+
+	-- If we can't read the source (e.g. client userspace), fall back to native
+	-- require and skip the rest.
+	if not source then
+		return nativeRequire
+	end
 
 	-- This all gets collapsed onto a single line so we retain line numbers of
 	-- the source.
@@ -57,32 +71,46 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		"end",
 	}, " ")
 
-	setModuleSource(tmpScript, newSource)
+	-- A nil chunkFn with a message means a real syntax error (surface it); a
+	-- nil chunkFn with no message means loadstring is disabled (fall through to
+	-- tmpScript).
+	local chunkFn, syntaxErrorMessage = compileWithLoadstring(newSource, moduleScript:GetFullName())
+
+	if chunkFn then
+		local ok, result = xpcall(chunkFn, debug.traceback)
+		if ok and typeof(result) == "function" then
+			-- I don't think there's a way to narrow this further but we know by
+			-- this point we we're getting back the newSource result so I think
+			-- this is fine
+			return makeModuleFunction(result :: any)
+		end
+		error(result, 0)
+	end
+
+	if syntaxErrorMessage then
+		error(syntaxErrorMessage, 0)
+	end
+
+	local tmpScript = Instance.new("ModuleScript")
+	tmpScript.Name = moduleScript.Name
+	tmpScript.Archivable = false
+
+	if not setModuleSource(tmpScript, newSource) then
+		return nativeRequire
+	end
 
 	local createModuleFunction
 	local ok, err = xpcall(function()
-		createModuleFunction = (require :: any)(tmpScript)
+		createModuleFunction = requireAny(tmpScript)
 	end, debug.traceback)
 
 	tmpScript:Destroy()
 
 	if not ok then
-		local errorMessage: string?
-		local _, syntaxErrorMessage = compileWithLoadstring(newSource, moduleScript:GetFullName())
-
-		if syntaxErrorMessage then
-			errorMessage = syntaxErrorMessage
-		else
-			errorMessage = err
-		end
-
-		error(errorMessage, 0)
+		error(err, 0)
 	end
 
-	return function(...)
-		local moduleFunction = createModuleFunction(...)
-		return moduleFunction()
-	end
+	return makeModuleFunction(createModuleFunction)
 end
 
 local function weak<K, V>(tab: { [K]: V }): { [K]: V }

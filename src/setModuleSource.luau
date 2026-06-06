@@ -3,16 +3,23 @@ pcall(function()
 	ScriptEditorService = game:GetService("ScriptEditorService")
 end)
 
-local function setModuleSource(moduleScript: ModuleScript, newSource: string)
+local function setModuleSource(moduleScript: ModuleScript, newSource: string): boolean
 	if ScriptEditorService then
-		ScriptEditorService:UpdateSourceAsync(moduleScript, function()
-			return newSource
+		local ok = pcall(function()
+			ScriptEditorService:UpdateSourceAsync(moduleScript, function()
+				return newSource
+			end)
 		end)
-	else
-		pcall(function()
-			moduleScript.Source = newSource
-		end)
+		if ok then
+			return true
+		end
 	end
+
+	local success = pcall(function()
+		moduleScript.Source = newSource
+	end)
+
+	return success
 end
 
 return setModuleSource
