@@ -3,8 +3,8 @@ local process = require("@std/process")
 local project = require("@repo/project")
 
 -- Install Loom dependencies first since the rest of the script depends on them.
--- Loom installs into a global store (~/.loom/store), which the @luaupkg alias in
--- .luaurc resolves against, so there's nothing to copy into the project.
+-- They land in the global store (~/.loom/store), where the @luaupkg alias in
+-- .luaurc resolves them in place.
 do
 	local res = process.run({ "lute", "pkg", "install" }, {
 		stdio = "inherit",
