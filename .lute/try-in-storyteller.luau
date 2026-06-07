@@ -4,7 +4,7 @@
 	path/git dependencies, so we have to make our own shim.
 ]]
 
-local FlipbookBatteries = require("@luaupkg/flipbook-batteries")
+local FlipbookBatteries = require("@luaupkg/flipbook-batteries@v0.10.1")
 local fs = require("@std/fs")
 local path = require("@std/path")
 
@@ -15,7 +15,7 @@ local find = FlipbookBatteries.find
 local WALLY_PACKAGE_NAME_PATTERN = "^module%-loader$"
 local BUNDLE_DIR_NAME = "dist"
 
-local function resolveScriptPath(scriptPath: string): path.path
+local function resolveScriptPath(scriptPath: string): path.Path
 	--[[
         Lute's script paths are inconsistent depending on how you invoke them.
         With `lute run <scriptName>`, scriptPath is exactly `scriptName`. As
@@ -54,7 +54,7 @@ end
 
 local dest = path.join(packageInstallation, BUNDLE_DIR_NAME)
 
-fs.removedirectory(dest, {
+fs.removeDirectory(dest, {
 	recursive = true,
 })
 
