@@ -92,6 +92,10 @@ jobs:
         if: github.event_name != 'pull_request'
         run: wally login --token ${{ secrets.WALLY_REGISTRY_TOKEN }}
 
+      # TODO: remove once flipbook-labs/changewrite#21 ships in a release
+      - name: Clear rokit auth
+        run: rokit authenticate github --remove
+
       - name: Download release assets
         if: github.event_name != 'pull_request'
         uses: actions/download-artifact@v8
