@@ -81,6 +81,22 @@ jobs:
           # generated the expected way (by building it off `main`).
           ref: main
 
+      - uses: CompeyDev/setup-rokit@v0.2.1
+        with:
+          version: v1.2.0
+
+      - name: Install packages
+        run: lute run install
+
+      - name: Login to Wally registry
+        if: github.event_name != 'pull_request'
+        run: wally login --token ${{ secrets.WALLY_REGISTRY_TOKEN }}
+
+      # Changewrite v0.2.0 sets up rokit internally and will fail if a GitHub
+      # auth token already exists, so remove ours before it runs.
+      - name: Clear rokit auth
+        run: rokit authenticate github --remove
+
       - name: Download release assets
         if: github.event_name != 'pull_request'
         uses: actions/download-artifact@v8
@@ -90,8 +106,6 @@ jobs:
 
       - uses: flipbook-labs/changewrite@v0.2.0
         id: changewrite
-        env:
-          WALLY_REGISTRY_TOKEN: ${{ secrets.WALLY_REGISTRY_TOKEN }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           pr-token: ${{ steps.app-token.outputs.token }}
@@ -100,8 +114,6 @@ jobs:
           branch: ${{ github.event_name == 'pull_request' && 'debug-publish-next-version' || 'publish-next-version' }}
           prepare-only: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'debug:release-pr') }}
           post-draft-hook: |
-            rokit install
-            wally login --token "$WALLY_REGISTRY_TOKEN"
             wally publish
             "$CHANGEWRITE_BIN" attach --tag "$CHANGEWRITE_TAG" --files assets/*.rbxm
           pr-title: ${{ github.event_name == 'pull_request' && '[DEBUG] Publish v{{version}}' || 'Publish v{{version}}' }}
