@@ -1,41 +1,140 @@
 name: Release
 
 on:
+  push:
+    branches: [main]
   pull_request:
-  release:
-    types: [published]
+    types: [
+        opened,
+        synchronize,
+        reopened,
+        # We include `labeled` so that tagging the PR with `debug:release-pr`
+        # will trigger a debug version of the release workflow.
+        labeled,
+      ]
+  workflow_dispatch:
+    inputs:
+      force_publish:
+        description: Tag and create draft release from version on `main`
+        type: boolean
+        default: false
 
 jobs:
-  publish:
+  build:
+    name: Build
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'debug:release-pr')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: CompeyDev/setup-rokit@v0.1.2
+      - uses: CompeyDev/setup-rokit@v0.2.1
         with:
-          version: v1.1.1
+          version: v1.2.0
+
+      - name: Install packages
+        run: lute run install
 
       - name: Get model file name
         run: |
           name=$(jq -r .name default.project.json)
           echo "MODEL_FILE=$name.rbxm" >> $GITHUB_ENV
 
-      - name: Install packages
-        run: lute run install
-
       - name: Build
         run: lute run build --channel prod --output ${{ env.MODEL_FILE }}
 
+      - name: Upload release asset
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-asset
+          path: ${{ env.MODEL_FILE }}
+
+  release:
+    needs: build
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'debug:release-pr')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      has_changes: ${{ steps.changewrite.outputs.has_changes }}
+      should_publish: ${{ steps.changewrite.outputs.should_publish }}
+      version: ${{ steps.changewrite.outputs.version }}
+      tag: ${{ steps.changewrite.outputs.tag }}
+    concurrency:
+      group: release-pr-${{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.FLIPBOOK_BACKEND_APP_ID }}
+          private-key: ${{ secrets.FLIPBOOK_BACKEND_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+          # This makes sure even on PR-triggered runs that the changelog gets
+          # generated the expected way (by building it off `main`).
+          ref: main
+
+      - uses: CompeyDev/setup-rokit@v0.2.1
+        with:
+          version: v1.2.0
+
+      - name: Install packages
+        run: lute run install
+
+      - name: Download release assets
+        if: github.event_name != 'pull_request'
+        uses: actions/download-artifact@v8
+        with:
+          name: release-asset
+          path: assets
+
       - name: Login to Wally registry
+        if: github.event_name != 'pull_request'
         run: wally login --token ${{ secrets.WALLY_REGISTRY_TOKEN }}
 
-      - name: Publish to Wally
-        if: ${{ github.event.release }}
-        run: wally publish
-
-      - uses: softprops/action-gh-release@v1
-        if: ${{ github.event.release }}
+      - uses: flipbook-labs/changewrite@v0.1.0
+        id: changewrite
         with:
-          files: ${{ env.MODEL_FILE }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-token: ${{ steps.app-token.outputs.token }}
+          force-publish: ${{ inputs.force_publish || false }}
+          base: main
+          branch: ${{ github.event_name == 'pull_request' && 'debug-publish-next-version' || 'publish-next-version' }}
+          prepare-only: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'debug:release-pr') }}
+          post-draft-hook: |
+            wally publish
+            "$CHANGEWRITE_BIN" attach --tag "$CHANGEWRITE_TAG" --files assets/*.rbxm
+          pr-title: ${{ github.event_name == 'pull_request' && '[DEBUG] Publish v{{version}}' || 'Publish v{{version}}' }}
+          pr-body: |
+            >[!IMPORTANT]
+            > This PR prepares the next release by bumping the version and updating the changelog.
+            >
+            > **Merging this PR will:**
+            >
+            > 1. Create and push tag `{{tag}}`
+            > 2. Create a draft GitHub release for that tag
+            > 3. Build and attach the model file to the release
+            > 4. Publish the package to Wally
+            > 5. Publish the release
+
+            <details>
+            <summary><b>GitHub Release preview</b></summary>
+
+            # {{tag}}
+
+            **github-actions** released this 0 seconds ago 🔒 Immutable 🏷️ {{tag}} 🔗 SHA
+
+            {{notes}}
+            </details>
+
+            Next release will be available here:
+            {{repo_url}}/releases/tag/{{tag}}
+
+            🤖 This PR was generated by [this run]({{run_url}}).
