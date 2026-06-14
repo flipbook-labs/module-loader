@@ -92,11 +92,6 @@ jobs:
         if: github.event_name != 'pull_request'
         run: wally login --token ${{ secrets.WALLY_REGISTRY_TOKEN }}
 
-      # Changewrite v0.2.0 sets up rokit internally and will fail if a GitHub
-      # auth token already exists, so remove ours before it runs.
-      - name: Clear rokit auth
-        run: rokit authenticate github --remove
-
       - name: Download release assets
         if: github.event_name != 'pull_request'
         uses: actions/download-artifact@v8
