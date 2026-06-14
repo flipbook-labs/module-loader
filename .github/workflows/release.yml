@@ -99,7 +99,7 @@ jobs:
         if: github.event_name != 'pull_request'
         run: wally login --token ${{ secrets.WALLY_REGISTRY_TOKEN }}
 
-      - uses: flipbook-labs/changewrite@v0.1.0
+      - uses: flipbook-labs/changewrite@v0.2.0
         id: changewrite
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
