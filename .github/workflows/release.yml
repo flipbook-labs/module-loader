@@ -53,7 +53,7 @@ jobs:
     needs: build
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'debug:release-pr')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       contents: write
       pull-requests: write
@@ -94,7 +94,7 @@ jobs:
 
       # TODO: remove once flipbook-labs/changewrite#21 ships in a release
       - name: Clear rokit auth
-        run: rokit authenticate github --remove
+        run: rokit authenticate github --remove 2>/dev/null || true
 
       - name: Download release assets
         if: github.event_name != 'pull_request'
