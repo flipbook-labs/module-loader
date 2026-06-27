@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 
 
+## v0.12.0
+
+### Changes
+
+- Mirror version to loom.config.luau in release workflow (#53) ([53c142e](https://github.com/flipbook-labs/module-loader/commit/53c142e6e7ac205f991b071077c12bbcdcae9dc2))
+
+
+
 ## v0.11.0
 
 ### Changes
