@@ -44,7 +44,7 @@ jobs:
         run: lute run build --channel prod --output ${{ env.MODEL_FILE }}
 
       - name: Upload release asset
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v8
         with:
           name: release-asset
           path: ${{ env.MODEL_FILE }}
@@ -68,7 +68,7 @@ jobs:
     steps:
       - name: Generate app token
         id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@v3
         with:
           client-id: ${{ secrets.FLIPBOOK_BACKEND_APP_ID }}
           private-key: ${{ secrets.FLIPBOOK_BACKEND_APP_PRIVATE_KEY }}
