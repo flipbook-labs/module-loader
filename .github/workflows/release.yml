@@ -44,7 +44,7 @@ jobs:
         run: lute run build --channel prod --output ${{ env.MODEL_FILE }}
 
       - name: Upload release asset
-        uses: actions/upload-artifact@v8
+        uses: actions/upload-artifact@v7
         with:
           name: release-asset
           path: ${{ env.MODEL_FILE }}
@@ -92,7 +92,7 @@ jobs:
 
       - name: Download release assets
         if: github.event_name != 'pull_request'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v7
         with:
           name: release-asset
           path: assets
