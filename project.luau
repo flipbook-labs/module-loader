@@ -4,7 +4,6 @@ return {
 	SOURCE_PATH = "src",
 	BUILD_PATH = "dist",
 	PACKAGES_PATH = "Packages",
-	LUAU_PACKAGES_PATH = "LuauPackages",
 	LUTE_SCRIPTS_PATH = ".lute",
 
 	SOURCEMAP_PATH = "sourcemap.json",

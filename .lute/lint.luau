@@ -1,4 +1,4 @@
-local FlipbookBatteries = require("@luaupkg/flipbook-batteries")
+local FlipbookBatteries = require("@luaupkg/flipbook-batteries@v0.10.1")
 local path = require("@std/path")
 local process = require("@std/process")
 
@@ -6,10 +6,10 @@ local project = require("@repo/project")
 
 local run = FlipbookBatteries.run
 
-local function findLuaFiles(): { path.path }
-	local matches: { path.path } = {}
+local function findLuaFiles(): { path.Path }
+	local matches: { path.Path } = {}
 
-	local function search(filePath: path.pathlike)
+	local function search(filePath: path.Pathlike)
 		local found = FlipbookBatteries.findWhere(filePath, function(descendantPath)
 			return path.extname(descendantPath) == ".lua"
 		end)
