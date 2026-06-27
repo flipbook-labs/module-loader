@@ -119,8 +119,9 @@ jobs:
           branch: ${{ github.event_name == 'pull_request' && 'debug-publish-next-version' || 'publish-next-version' }}
           prepare-only: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'debug:release-pr') }}
           post-draft-hook: |
-            wally publish
             "$CHANGEWRITE_BIN" attach --tag "$CHANGEWRITE_TAG" --files assets/*.rbxm
+          post-publish-hook: |
+            wally publish
           pr-title: ${{ github.event_name == 'pull_request' && '[DEBUG] Publish v{{version}}' || 'Publish v{{version}}' }}
           pr-body: |
             >[!IMPORTANT]
