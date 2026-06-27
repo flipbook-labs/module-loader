@@ -5,6 +5,7 @@
 
 [tools]
 darklua = "seaofvoices/darklua@0.18.0"
+git-cliff = "orhun/git-cliff@2.13.1"
 luau-lsp = "JohnnyMorganz/luau-lsp@1.68.0"
 lute = "luau-lang/lute@1.0.1-nightly.20260604"
 moonwave-extractor = "evaera/moonwave@1.4.2"
