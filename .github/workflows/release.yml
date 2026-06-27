@@ -14,10 +14,10 @@ on:
       ]
   workflow_dispatch:
     inputs:
-      force_publish:
-        description: Tag and create draft release from version on `main`
-        type: boolean
-        default: false
+      force-version:
+        description: "Open a publish PR that sets this exact version (e.g. 1.2.3)"
+        default: ""
+        required: false
 
 jobs:
   build:
@@ -68,7 +68,7 @@ jobs:
     steps:
       - name: Generate app token
         id: app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ secrets.FLIPBOOK_BACKEND_APP_ID }}
           private-key: ${{ secrets.FLIPBOOK_BACKEND_APP_PRIVATE_KEY }}
@@ -92,10 +92,6 @@ jobs:
         if: github.event_name != 'pull_request'
         run: wally login --token ${{ secrets.WALLY_REGISTRY_TOKEN }}
 
-      # TODO: remove once flipbook-labs/changewrite#21 ships in a release
-      - name: Clear rokit auth
-        run: rokit authenticate github --remove 2>/dev/null || true
-
       - name: Download release assets
         if: github.event_name != 'pull_request'
         uses: actions/download-artifact@v8
@@ -103,12 +99,11 @@ jobs:
           name: release-asset
           path: assets
 
-      - uses: flipbook-labs/changewrite@v0.2.0
+      - uses: flipbook-labs/changewrite@v0.3.0
         id: changewrite
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          pr-token: ${{ steps.app-token.outputs.token }}
-          force-publish: ${{ inputs.force_publish || false }}
+          github-token: ${{ steps.app-token.outputs.token }}
+          force-version: ${{ inputs.force-version || '' }}
           base: main
           branch: ${{ github.event_name == 'pull_request' && 'debug-publish-next-version' || 'publish-next-version' }}
           prepare-only: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'debug:release-pr') }}
