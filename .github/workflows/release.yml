@@ -110,7 +110,7 @@ jobs:
           name: dist
           path: dist
 
-      - uses: flipbook-labs/changewrite@v0.3.0
+      - uses: flipbook-labs/changewrite@v0.5.0
         id: changewrite
         with:
           github-token: ${{ steps.app-token.outputs.token }}
