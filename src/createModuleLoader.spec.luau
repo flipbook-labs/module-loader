@@ -140,6 +140,30 @@ describe("loadedModuleChanged", function()
 
 		expect(count).toBe(1)
 	end)
+
+	test("stops firing after the cache is cleared", function()
+		local mockModuleInstance = Instance.new("ModuleScript")
+		mockModuleInstance.Source = "return nil"
+		mockModuleInstance.Parent = game
+
+		loader.require(mockModuleInstance)
+
+		-- clear() disconnects the change listeners set up during require, so a
+		-- later change to a no-longer-tracked module must not fire the signal.
+		loader.clear()
+
+		local firedAfterClear = false
+		loader.loadedModuleChanged:Connect(function()
+			firedAfterClear = true
+		end)
+
+		mockModuleInstance.Source = "return true"
+		task.wait()
+
+		expect(firedAfterClear).toBe(false)
+
+		mockModuleInstance:Destroy()
+	end)
 end)
 
 describe("cache", function()
@@ -164,15 +188,72 @@ describe("cache", function()
 		expect(first).toBe(true)
 		expect(second).toBe(false)
 	end)
+
+	test("short-circuits execution so a cached module's source never runs", function()
+		local moduleScript = Instance.new("ModuleScript")
+		-- If the cache were bypassed, requiring would execute this and throw.
+		moduleScript.Source = "error('cached module should not be executed')"
+
+		loader.cache(moduleScript, "cached")
+
+		expect(loader.require(moduleScript)).toBe("cached")
+	end)
 end)
 
 describe("require", function()
-	test("adds the module to the cache", function()
-		local mockModuleInstance = Instance.new("ModuleScript")
-		mockModuleInstance.Source = "return nil"
+	test("returns the identical cached result on a repeated require of the same module", function()
+		local moduleScript = Instance.new("ModuleScript")
+		-- A fresh table is allocated each time the source runs, so table
+		-- identity across two requires proves the cached value was returned
+		-- rather than the source being executed a second time.
+		moduleScript.Source = "return {}"
 
-		loader.require(mockModuleInstance)
-		expect(moduleRegistry.getByInstance(mockModuleInstance)).toBeDefined()
+		local first = loader.require(moduleScript)
+		local second = loader.require(moduleScript)
+
+		expect(first).toBe(second)
+	end)
+
+	test("returns every value a module returns", function()
+		local moduleScript = Instance.new("ModuleScript")
+		moduleScript.Source = "return 1, 2, 3"
+
+		local a, b, c = loader.require(moduleScript)
+
+		expect(a).toBe(1)
+		expect(b).toBe(2)
+		expect(c).toBe(3)
+	end)
+
+	test("exposes the module itself to its source as the `script` global", function()
+		local moduleScript = Instance.new("ModuleScript")
+		moduleScript.Source = "return script"
+
+		expect(loader.require(moduleScript)).toBe(moduleScript)
+	end)
+
+	test("propagates a runtime error raised while a module loads", function()
+		local moduleScript = Instance.new("ModuleScript")
+		moduleScript.Source = "error('boom')"
+
+		expect(function()
+			loader.require(moduleScript)
+		end).toThrow("boom")
+	end)
+
+	test("does not cache a module that errored, so a later require can succeed", function()
+		local moduleScript = Instance.new("ModuleScript")
+		moduleScript.Source = "error('boom')"
+
+		expect(function()
+			loader.require(moduleScript)
+		end).toThrow("boom")
+
+		-- A failed load must not leave a poisoned (never-loaded) entry behind.
+		-- With the source fixed, requiring again re-runs it without a clear().
+		moduleScript.Source = "return true"
+
+		expect(loader.require(moduleScript)).toBe(true)
 	end)
 
 	test("returns cached results", function()
@@ -591,28 +672,29 @@ describe("require", function()
 			tree = createModuleTest(({
 				Folder = {
 					Module3 = [[
-						return {}
+						return "resolved"
 					]],
 					Folder = {
 						Module2 = [[
-							require("../Module3")
-							return {}
+							-- Leading `../` ascends two levels to the outer
+							-- Folder, from which Module3 is a child.
+							return require("../Module3")
 						]],
 					},
 				},
 				Module1 = [[
-					require("./Folder/Folder/Module2")
-					return {}
+					return require("./Folder/Folder/Module2")
 				]],
 				Consumer = [[
-					require("./Module1")
-					return nil
+					return require("./Module1")
 				]],
 			} :: any) :: ModuleTestTree)
 
 			local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
 
-			loader.require(consumer)
+			-- The sentinel threads back through every relative hop, so a
+			-- misresolved path would surface as a require error or wrong value.
+			expect(loader.require(consumer)).toBe("resolved")
 		end)
 	end)
 end)
