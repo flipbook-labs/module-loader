@@ -1,6 +1,6 @@
-local ModuleLoader = require("@self/ModuleLoader")
+local createModuleLoader = require("@self/createModuleLoader")
+local types = require("@self/types")
 
-export type ModuleLoader = ModuleLoader.ModuleLoaderClass
-export type Class = ModuleLoader.ModuleLoaderClass
+export type ModuleLoader = types.ModuleLoader
 
-return ModuleLoader
+return createModuleLoader

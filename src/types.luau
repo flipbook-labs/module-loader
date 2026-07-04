@@ -19,7 +19,6 @@ export type ModuleLoader = {
 	_getModuleRegistry: () -> ModuleRegistry,
 
 	require: (moduleScript: ModuleScript) -> ...unknown?,
-	loadModule: (moduleScript: ModuleScript) -> ...unknown?,
 	cache: (moduleScript: ModuleScript, ...unknown?) -> (),
 	clear: () -> (),
 
