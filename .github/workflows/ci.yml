@@ -7,6 +7,17 @@ on:
   pull_request:
 
 jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: flipbook-labs/changewrite@v0.5.0
+        with:
+          require-entry: 'true'
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
