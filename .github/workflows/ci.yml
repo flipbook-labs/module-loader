@@ -77,5 +77,13 @@ jobs:
       - name: Install packages
         run: lute run install
 
+      - name: Load secrets from 1Password
+        uses: 1Password/load-secrets-action@v3
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          ROBLOX_API_KEY: op://Flipbook/Flipbook CI (Open Cloud)/password
+
       - name: Run tests
-        run: lute run test --apiKey ${{ secrets.ROBLOX_API_KEY }}
+        run: lute run test --apiKey "$ROBLOX_API_KEY"
