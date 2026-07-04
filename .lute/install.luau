@@ -12,7 +12,7 @@ do
 end
 
 do
-	local FlipbookBatteries = require("@luaupkg/flipbook-batteries@v0.10.1")
+	local FlipbookBatteries = require("@luaupkg/flipbook-batteries@v0.12.0")
 
 	local run = FlipbookBatteries.run
 
