@@ -113,7 +113,8 @@ jobs:
       - uses: flipbook-labs/changewrite@v0.5.0
         id: changewrite
         with:
-          github-token: ${{ steps.app-token.outputs.token }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-token: ${{ steps.app-token.outputs.token }}
           force-version: ${{ inputs.force-version || '' }}
           base: main
           branch: ${{ github.event_name == 'pull_request' && 'debug-publish-next-version' || 'publish-next-version' }}
