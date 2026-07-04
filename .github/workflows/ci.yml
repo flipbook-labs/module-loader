@@ -83,7 +83,7 @@ jobs:
           export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          ROBLOX_API_KEY: op://Flipbook/Flipbook CI (Open Cloud)/password
+          ROBLOX_API_KEY: op://Flipbook/Strict Sandbox API Key/password
 
       - name: Run tests
         run: lute run test --apiKey "$ROBLOX_API_KEY"
