@@ -37,6 +37,64 @@ local function createModuleTest(tree: ModuleTestTree, parent: Instance?): Instan
 	return root
 end
 
+--[=[
+	Spy helper: creates a spy-wrapped require seam that throws a specified error.
+]=]
+local function createSpyRequire(shouldError: boolean, errorMessage: string?)
+	local callCount = 0
+	local currentErrorMessage = errorMessage or "Cannot require a non-RobloxScript module from a RobloxScript"
+
+	local function spyRequire(_: ModuleScript)
+		callCount += 1
+		if shouldError then
+			error(currentErrorMessage, 2)
+		end
+		return (require :: any)(_)
+	end
+
+	return {
+		fn = spyRequire,
+		getCallCount = function()
+			return callCount
+		end,
+		reset = function()
+			callCount = 0
+		end,
+	}
+end
+
+--[=[
+	Helper: creates a fake loadmodule that returns a working chunk + optional cleanup spy.
+]=]
+local function createFakeLoadmodule(exports: any?)
+	local cleanupCalls = 0
+	local cleanupFn = function()
+		cleanupCalls += 1
+	end
+
+	local function fakeLoadmodule(_: ModuleScript)
+		local chunk = function()
+			return exports or "mocked export"
+		end
+		return chunk, nil, cleanupFn
+	end
+
+	return {
+		fn = fakeLoadmodule,
+		getCleanupCallCount = function()
+			return cleanupCalls
+		end,
+	}
+end
+
+--[=[
+	Helper: compile stub that returns (nil, nil) to force tmpScript path.
+	Used to simulate loadstring being unavailable.
+]=]
+local function forceTmpScriptPath(_source: string, _chunkName: string)
+	return nil, nil
+end
+
 local mockModuleSource = {}
 local loader
 local moduleRegistry
@@ -372,7 +430,6 @@ describe("require", function()
 
 			expect(loader.require(readGlobal)).toBe(true)
 			expect(_G.bar).toBeUndefined();
-
 			(require :: any)(moduleRequiredNormally)
 
 			expect(loader.require(readGlobal)).toBe(true)
@@ -675,5 +732,194 @@ describe("roblox-ts", function()
 
 		expect(moduleRegistry.getByInstance(mockRuntime)).toBeUndefined()
 		expect(moduleRegistry.getByInstance(module)).toBeUndefined()
+	end)
+end)
+
+describe("debug.loadmodule seam integration (simulated non-RobloxScript paths)", function()
+	--[=[
+		The following tests simulate the non-RobloxScript context and debug.loadmodule paths
+		by injecting dependencies. The real security context and FFlag are only accessible in
+		internal Flipbook (LocalScript-context storybooks), but the LOGIC is fully exercised here.
+	]=]
+
+	test("falls back to debug.loadmodule when require throws NON_ROBLOXSCRIPT_ERROR", function()
+		local testModule = Instance.new("ModuleScript")
+		testModule.Source = "return 42"
+
+		local spyRequire = createSpyRequire(true, "Cannot require a non-RobloxScript module from a RobloxScript")
+		local fakeLoadmodule = createFakeLoadmodule(99)
+
+		loader = createModuleLoader({
+			require = spyRequire.fn,
+			loadmodule = fakeLoadmodule.fn,
+			getSource = function(ms: ModuleScript)
+				return ms.Source
+			end,
+			compile = forceTmpScriptPath,
+		})
+
+		local result = loader.require(testModule)
+
+		-- Should get the mocked loadmodule export (99), not the source (42).
+		expect(result).toBe(99)
+	end)
+
+	test("skips require attempt after detecting non-RobloxScript context (lazy)", function()
+		tree = createModuleTest({
+			Module1 = "return 1",
+			Module2 = "return 2",
+		})
+
+		local module1 = tree:QueryDescendants("#Module1")[1] :: ModuleScript
+		local module2 = tree:QueryDescendants("#Module2")[1] :: ModuleScript
+
+		local spyRequire = createSpyRequire(true, "Cannot require a non-RobloxScript module from a RobloxScript")
+		local fakeLoadmodule = createFakeLoadmodule()
+
+		loader = createModuleLoader({
+			require = spyRequire.fn,
+			loadmodule = fakeLoadmodule.fn,
+			getSource = function(ms: ModuleScript)
+				return ms.Source
+			end,
+			compile = forceTmpScriptPath,
+		})
+
+		-- Load module 1: require will be called and throw, then fall back to loadmodule.
+		loader.require(module1)
+		expect(spyRequire.getCallCount()).toBe(1)
+
+		-- Reset spy to test second load.
+		spyRequire.reset()
+
+		-- Load module 2: require should NOT be called (context already detected as non-RobloxScript).
+		loader.require(module2)
+
+		-- Spy should not have been called for the second module.
+		expect(spyRequire.getCallCount()).toBe(0)
+	end)
+
+	test("accumulates and flushes debug.loadmodule cleanup functions", function()
+		tree = createModuleTest({
+			Module1 = "return 1",
+			Module2 = "return 2",
+		})
+
+		local module1 = tree:QueryDescendants("#Module1")[1] :: ModuleScript
+		local module2 = tree:QueryDescendants("#Module2")[1] :: ModuleScript
+
+		local spyRequire = createSpyRequire(true, "Cannot require a non-RobloxScript module from a RobloxScript")
+		local fakeLoadmodule = createFakeLoadmodule()
+
+		loader = createModuleLoader({
+			require = spyRequire.fn,
+			loadmodule = fakeLoadmodule.fn,
+			getSource = function(ms: ModuleScript)
+				return ms.Source
+			end,
+			compile = forceTmpScriptPath,
+		})
+
+		-- Load two modules; each should accumulate one cleanup.
+		loader.require(module1)
+		loader.require(module2)
+
+		-- Cleanups not yet called.
+		expect(fakeLoadmodule.getCleanupCallCount()).toBe(0)
+
+		-- Clear flushes all accumulated cleanups.
+		loader.clear()
+
+		-- Both cleanups should have fired.
+		expect(fakeLoadmodule.getCleanupCallCount()).toBe(2)
+	end)
+
+	test("throws informative error when non-RobloxScript but debug.loadmodule unavailable", function()
+		local testModule = Instance.new("ModuleScript")
+		testModule.Source = "return 42"
+
+		local spyRequire = createSpyRequire(true, "Cannot require a non-RobloxScript module from a RobloxScript")
+
+		loader = createModuleLoader({
+			require = spyRequire.fn,
+			loadmodule = nil, -- FFlag off: loadmodule unavailable
+			getSource = function(ms: ModuleScript)
+				return ms.Source
+			end,
+			compile = forceTmpScriptPath,
+		})
+
+		expect(function()
+			loader.require(testModule)
+		end).toThrow("debug.loadmodule is required for this context but is unavailable")
+	end)
+
+	test("flips context when error contains RobloxScript (graceful heuristic)", function()
+		local testModule = Instance.new("ModuleScript")
+		testModule.Source = "return 42"
+
+		-- Inject require that throws a DIFFERENT message, but still contains "RobloxScript".
+		local differentMessage = "Some custom RobloxScript restriction error"
+		local spyRequire = createSpyRequire(true, differentMessage)
+		local fakeLoadmodule = createFakeLoadmodule(88)
+
+		loader = createModuleLoader({
+			require = spyRequire.fn,
+			loadmodule = fakeLoadmodule.fn,
+			getSource = function(ms: ModuleScript)
+				return ms.Source
+			end,
+			compile = forceTmpScriptPath,
+		})
+
+		local result = loader.require(testModule)
+
+		-- Should still fall back to loadmodule (heuristic matched "RobloxScript").
+		expect(result).toBe(88)
+	end)
+
+	test("falls back to native require when source is unreadable", function()
+		local testModule = Instance.new("ModuleScript")
+		testModule.Source = "return 123"
+
+		local spyRequire = createSpyRequire(false) -- Should NOT error; used for native path.
+
+		loader = createModuleLoader({
+			require = spyRequire.fn,
+			getSource = function(_: ModuleScript)
+				return nil -- Unreadable source
+			end,
+		})
+
+		local result = loader.require(testModule)
+
+		-- Native require returns the real module.
+		expect(result).toBe(123)
+
+		-- Spy should have been called once (native path).
+		expect(spyRequire.getCallCount()).toBe(1)
+	end)
+
+	describe("preserves high local count modules (React-like)", function()
+		test("loads a module with 200+ locals via loadstring double-factory", function()
+			local moduleScript = Instance.new("ModuleScript")
+			moduleScript.Source = ""
+
+			-- Generate a module with exactly 200 local variables.
+			-- This is a regression guard against the 200-local Luau limit that would
+			-- have caused a syntax error without the double-factory wrapper.
+			-- The double-factory pattern isolates the source locals in a nested function,
+			-- so they do not contribute to the outer function's local count.
+			for i = 1, 200 do
+				moduleScript.Source ..= `local var{i} = {i}\n`
+			end
+			moduleScript.Source ..= "return { count = 200 }"
+
+			-- This should NOT throw a syntax error about hitting the 200-local limit.
+			-- Without the double-factory, Luau would error with "Too many local variables".
+			local result = loader.require(moduleScript) :: any
+
+			expect((result :: any).count).toBe(200)
+		end)
 	end)
 end)
