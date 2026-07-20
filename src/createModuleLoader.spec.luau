@@ -191,7 +191,7 @@ describe("cache", function()
 
 	test("short-circuits execution so a cached module's source never runs", function()
 		local moduleScript = Instance.new("ModuleScript")
-		-- If the cache were bypassed, requiring would execute this and throw.
+		-- If the cache was bypassed, requiring would execute this and throw.
 		moduleScript.Source = "error('cached module should not be executed')"
 
 		loader.cache(moduleScript, "cached")
