@@ -37,9 +37,6 @@ local function createModuleTest(tree: ModuleTestTree, parent: Instance?): Instan
 	return root
 end
 
---[=[
-	Spy helper: creates a spy-wrapped require seam that throws a specified error.
-]=]
 local function createSpyRequire(shouldError: boolean, errorMessage: string?)
 	local callCount = 0
 	local currentErrorMessage = errorMessage or "Cannot require a non-RobloxScript module from a RobloxScript"
@@ -63,9 +60,6 @@ local function createSpyRequire(shouldError: boolean, errorMessage: string?)
 	}
 end
 
---[=[
-	Helper: creates a fake loadmodule that returns a working chunk + optional cleanup spy.
-]=]
 local function createFakeLoadmodule(exports: any?)
 	local cleanupCalls = 0
 	local cleanupFn = function()
@@ -87,10 +81,8 @@ local function createFakeLoadmodule(exports: any?)
 	}
 end
 
---[=[
-	Helper: compile stub that returns (nil, nil) to force tmpScript path.
-	Used to simulate loadstring being unavailable.
-]=]
+-- Returns (nil, nil) to force the tmpScript path, simulating loadstring being
+-- unavailable.
 local function forceTmpScriptPath(_source: string, _chunkName: string)
 	return nil, nil
 end
@@ -736,11 +728,10 @@ describe("roblox-ts", function()
 end)
 
 describe("debug.loadmodule seam integration (simulated non-RobloxScript paths)", function()
-	--[=[
-		The following tests simulate the non-RobloxScript context and debug.loadmodule paths
-		by injecting dependencies. The real security context and FFlag are only accessible in
-		internal Flipbook (LocalScript-context storybooks), but the LOGIC is fully exercised here.
-	]=]
+	-- These tests simulate the non-RobloxScript context and debug.loadmodule
+	-- paths by injecting dependencies. The real security context and FFlag are
+	-- only accessible in internal Flipbook (LocalScript-context storybooks), but
+	-- the logic is fully exercised here.
 
 	test("falls back to debug.loadmodule when require throws NON_ROBLOXSCRIPT_ERROR", function()
 		local testModule = Instance.new("ModuleScript")

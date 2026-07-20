@@ -17,11 +17,9 @@ type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
 
---[=[
-	Injectable dependencies for testing. The public `createModuleLoader()` uses
-	real implementations; tests can inject mocks/spies to simulate non-RobloxScript
-	contexts and FFlag states.
-]=]
+-- Injectable dependencies for testing: the public `createModuleLoader()` uses
+-- the real implementations, and tests inject mocks to simulate non-RobloxScript
+-- contexts and FFlag states.
 type ResolverDeps = {
 	require: (ModuleScript) -> ...unknown?,
 	loadmodule: any?,
@@ -31,16 +29,13 @@ type ResolverDeps = {
 
 local NON_ROBLOXSCRIPT_ERROR = "Cannot require a non-RobloxScript module from a RobloxScript"
 
---[=[
-	`debug.loadmodule` must be called on the **original** ModuleScript — not the
-	temporary wrapper ModuleScript used for `require`. Loading the wrapper yields a
-	compiled chunk shaped like a normal ModuleScript (`return …`), not the
-	double-factory shape produced by `require(tmpScript)`, which led to errors such
-	as indexing a returned table like a callable factory.
-
-	Roblox signature: (moduleScript) -> (moduleChunk?, errorMessage?, cleanupFn?)
-	`moduleChunk` runs the module body once (after `setfenv`) and returns its exports.
-]=]
+-- debug.loadmodule must be called on the original ModuleScript, not the
+-- temporary wrapper ModuleScript used for require. Loading the wrapper yields a
+-- compiled chunk shaped like a normal ModuleScript (return ...), not the
+-- double-factory shape produced by require(tmpScript), which led to errors such
+-- as indexing a returned table like a callable factory.
+--
+-- Roblox signature: (moduleScript) -> (moduleChunk?, errorMessage?, cleanupFn?)
 local function tryGetModuleFunctionWithLoadmodule(
 	originalModuleScript: ModuleScript,
 	loadmoduleFn: any?,
@@ -109,10 +104,8 @@ local function makeModuleFunction(compiledOuter): ModuleFunction
 	end
 end
 
---[=[
-	Creates a resolver for a single `createModuleLoader()` instance. Per-loader
-	because each loader may detect context independently in tests (via injected deps).
-]=]
+-- Per-loader because each loader may detect context independently in tests
+-- (via injected deps).
 local function createResolver(deps: ResolverDeps?)
 	local injectedRequire: (ModuleScript) -> ...unknown? = if deps then deps.require :: any else require :: any
 	local injectedLoadmodule: any = if deps then deps.loadmodule else (debug :: any).loadmodule
@@ -121,10 +114,8 @@ local function createResolver(deps: ResolverDeps?)
 		then deps.compile :: any
 		else compileWithLoadstring
 
-	--[=[
-		Encapsulated context state for this resolver. If the deps are injected,
-		this may flip independently from the module-level flag (used in tests).
-	]=]
+	-- With injected deps this can flip independently from the module-level flag
+	-- (used in tests).
 	local localIsNonRobloxScriptContext: boolean? = nil
 
 	return {
@@ -298,9 +289,6 @@ local function weak<K, V>(tab: { [K]: V }): { [K]: V }
 	return setmetatable(tab, { __mode = "k" }) :: any
 end
 
---[=[
-	Creates a new module loader. Optionally accepts injected dependencies for testing.
-]=]
 function createModuleLoader(injectDeps: ResolverDeps?): ModuleLoader
 	local moduleRegistry = createModuleRegistry()
 	local changedConnections = weak({} :: { [ModuleScript]: RBXScriptConnection })
