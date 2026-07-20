@@ -3,6 +3,29 @@
 All notable changes to this project will be documented in this file.
 
 
+## v0.12.0
+
+### Changes
+
+- The release workflow now mirrors the version into `loom.config.luau` alongside `wally.toml`, keeping Loom's manifest in sync on every release.
+
+### Dependencies
+
+- Add AgentSkills `v0.4.0` as a dev dependency so agents can bootstrap the shared skills library.
+
+- Upgrade FlipbookBatteries `v0.10.1` → `v0.12.0`, Lute `v1.0.1-nightly.20260604` → `v1.0.1-nightly.20260701`, darklua `0.18.0` → `0.19.0`, and luau-lsp `1.68.0` → `1.68.1`.
+
+### Features
+
+- Add `ModuleLoader.isSandboxed(): boolean` static method for checking if the current script context is being run from inside ModuleLoader
+
+### Internal
+
+- Upgrade the Changewrite release action to `v0.7.0` and adopt its `publish-lock` check.
+
+- Strengthen the unit tests with concrete assertions and new coverage for caching, the module registry, and instance path resolution.
+
+
 ## v0.11.0
 
 ### Changes
@@ -234,4 +257,3 @@ All notable changes to this project will be documented in this file.
 - Initial commit ([62f06de](https://github.com/flipbook-labs/module-loader/commit/62f06dedb182191e52024e934c0cbd79267eecee))
 
 - Initial commit ([bdf20b5](https://github.com/flipbook-labs/module-loader/commit/bdf20b5ce5b909399b31da0197d52af9049012fb))
-

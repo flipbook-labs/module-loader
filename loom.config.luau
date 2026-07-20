@@ -1,7 +1,7 @@
 return {
 	package = {
 		name = "ModuleLoader",
-		version = "0.11.0",
+		version = "0.12.0",
 		dependencies = {
 			["flipbook-batteries"] = {
 				rev = "v0.12.0",
