@@ -7,6 +7,32 @@ on:
   pull_request:
 
 jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request'
+    permissions:
+      statuses: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # `require-entry` diffs against the PR base branch, so a merge-base must
+          # exist. Full history guarantees it (the default depth-1 checkout does not).
+          fetch-depth: 0
+
+      - uses: flipbook-labs/changewrite@v0.7.0
+        with:
+          require-entry: 'true'
+
+      # Clear the publish-lock status on this PR's head so a required check can pass.
+      # The publish PR gets its lock managed by the release workflow instead.
+      - uses: flipbook-labs/changewrite/publish-lock@v0.7.0
+        if: github.head_ref != 'publish-next-version'
+        with:
+          locked: false
+          sha: ${{ github.event.pull_request.head.sha }}
+          url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
