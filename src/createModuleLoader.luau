@@ -19,6 +19,11 @@ type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
 
+-- Unique sentinel table for sandbox detection. When a loader evaluates modules,
+-- it passes a proxy _G table with this sentinel; natively-required ModuleLoader
+-- sees only the real _G and cannot find this sentinel.
+local SANDBOX_MARKER = { __internal = true }
+
 local function makeModuleFunction(compiledOuter): ModuleFunction
 	return function(...)
 		return compiledOuter(...)()
@@ -124,6 +129,10 @@ function createModuleLoader(): ModuleLoader
 	local changedConnections = weak({} :: { [ModuleScript]: RBXScriptConnection })
 	local globals = setmetatable({} :: typeof(_G), { __index = _G })
 
+	-- Plant the sandbox marker on the proxy globals so code evaluated through
+	-- this loader can detect they are running in a sandboxed context.
+	rawset(globals, "__MODULE_LOADER_SANDBOX__", SANDBOX_MARKER)
+
 	local function _getModuleRegistry()
 		return moduleRegistry
 	end
@@ -205,7 +214,11 @@ function createModuleLoader(): ModuleLoader
 
 	local function clear()
 		moduleRegistry.reset()
+
+		-- Clearing user-defined globals also wipes the sandbox marker, so it
+		-- has to be replanted for modules evaluated after the clear.
 		table.clear(globals)
+		rawset(globals, "__MODULE_LOADER_SANDBOX__", SANDBOX_MARKER)
 
 		for _, connection in changedConnections do
 			connection:Disconnect()

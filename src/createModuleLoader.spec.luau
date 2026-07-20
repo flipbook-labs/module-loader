@@ -617,6 +617,68 @@ describe("require", function()
 	end)
 end)
 
+describe("sandbox detection", function()
+	-- The generated module has no way to name the real ModuleLoader instance
+	-- by path from inside the tree, so an ObjectValue smuggles the reference
+	-- in. Requiring it through the loader evaluates the real ModuleLoader
+	-- source in the sandbox, the same way a consumer's dependency graph would.
+	local function createSandboxCheck(): ModuleScript
+		tree = createModuleTest({
+			CheckSandbox = [[
+				local ModuleLoader = require(script.ModuleLoaderScript.Value)
+				return ModuleLoader.isSandboxed()
+			]],
+		})
+
+		local checkSandbox = tree:QueryDescendants("#CheckSandbox")[1] :: ModuleScript
+
+		local moduleLoaderPointer = Instance.new("ObjectValue")
+		moduleLoaderPointer.Name = "ModuleLoaderScript"
+		moduleLoaderPointer.Value = script.Parent.ModuleLoader
+		moduleLoaderPointer.Parent = checkSandbox
+
+		return checkSandbox
+	end
+
+	test("isSandboxed() returns false outside of a loader sandbox", function()
+		local ModuleLoader = require("@root/ModuleLoader")
+
+		expect(ModuleLoader.isSandboxed()).toBe(false)
+	end)
+
+	test("isSandboxed() returns true inside a loader sandbox", function()
+		local checkSandbox = createSandboxCheck()
+
+		expect(loader.require(checkSandbox)).toBe(true)
+	end)
+
+	test("isSandboxed() returns true inside a sandbox after the loader is cleared", function()
+		local checkSandbox = createSandboxCheck()
+
+		loader.require(checkSandbox)
+		loader.clear()
+
+		expect(loader.require(checkSandbox)).toBe(true)
+	end)
+
+	test("the sandbox marker exists in _G but is not from the real _G", function()
+		tree = createModuleTest({
+			ReadMarker = [[
+				return _G.__MODULE_LOADER_SANDBOX__
+			]],
+		})
+
+		local readMarker = tree:QueryDescendants("#ReadMarker")[1] :: ModuleScript
+		local markerInSandbox = loader.require(readMarker)
+
+		-- The marker should exist in the sandbox
+		expect(markerInSandbox).toBeDefined()
+
+		-- But it should NOT exist in the real _G
+		expect(_G.__MODULE_LOADER_SANDBOX__).toBeUndefined()
+	end)
+end)
+
 describe("clear", function()
 	test("removes all modules from the cache", function()
 		local mockModuleInstance = Instance.new("ModuleScript")
