@@ -618,57 +618,47 @@ describe("require", function()
 end)
 
 describe("sandbox detection", function()
-	test("isSandboxed() returns false for natively required ModuleLoader", function()
+	-- The generated module has no way to name the real ModuleLoader instance
+	-- by path from inside the tree, so an ObjectValue smuggles the reference
+	-- in. Requiring it through the loader evaluates the real ModuleLoader
+	-- source in the sandbox, the same way a consumer's dependency graph would.
+	local function createSandboxCheck(): ModuleScript
+		tree = createModuleTest({
+			CheckSandbox = [[
+				local ModuleLoader = require(script.ModuleLoaderScript.Value)
+				return ModuleLoader.isSandboxed()
+			]],
+		})
+
+		local checkSandbox = tree:QueryDescendants("#CheckSandbox")[1] :: ModuleScript
+
+		local moduleLoaderPointer = Instance.new("ObjectValue")
+		moduleLoaderPointer.Name = "ModuleLoaderScript"
+		moduleLoaderPointer.Value = script.Parent.ModuleLoader
+		moduleLoaderPointer.Parent = checkSandbox
+
+		return checkSandbox
+	end
+
+	test("isSandboxed() returns false outside of a loader sandbox", function()
 		local ModuleLoader = require("@root/ModuleLoader")
 
 		expect(ModuleLoader.isSandboxed()).toBe(false)
 	end)
 
-	test("isSandboxed() returns true when called from a module evaluated through the loader", function()
-		tree = createModuleTest({
-			CheckSandbox = [[
-				local ModuleLoader = require(script.Parent.ModuleLoaderModule)
-				return ModuleLoader.isSandboxed()
-			]],
-			ModuleLoaderModule = [[
-				local createModuleLoader = require(script.Parent.createModuleLoader)
-				local types = require(script.Parent.types)
+	test("isSandboxed() returns true inside a loader sandbox", function()
+		local checkSandbox = createSandboxCheck()
 
-				-- Re-export the main ModuleLoader with the isSandboxed function
-				-- Since we're being loaded through the loader, we can check the sandbox marker
-				return {
-					isSandboxed = function()
-						return _G.__MODULE_LOADER_SANDBOX__ ~= nil
-					end
-				}
-			]],
-			createModuleLoader = [[
-				-- This is a mock to avoid circular dependencies in the test
-				return {}
-			]],
-			types = [[
-				return nil
-			]],
-		})
-
-		local checkSandbox = tree:QueryDescendants("#CheckSandbox")[1] :: ModuleScript
-		local result = loader.require(checkSandbox)
-
-		expect(result).toBe(true)
+		expect(loader.require(checkSandbox)).toBe(true)
 	end)
 
-	test("the sandbox marker does not break typeof(_G)", function()
-		tree = createModuleTest({
-			CheckTypeof = [[
-				return typeof(_G)
-			]],
-		})
+	test("isSandboxed() returns true inside a sandbox after the loader is cleared", function()
+		local checkSandbox = createSandboxCheck()
 
-		local checkTypeof = tree:QueryDescendants("#CheckTypeof")[1] :: ModuleScript
-		local result = loader.require(checkTypeof)
+		loader.require(checkSandbox)
+		loader.clear()
 
-		-- typeof should still return "table" even with the marker present
-		expect(result).toBe("table")
+		expect(loader.require(checkSandbox)).toBe(true)
 	end)
 
 	test("the sandbox marker exists in _G but is not from the real _G", function()

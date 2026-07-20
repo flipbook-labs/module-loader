@@ -214,7 +214,11 @@ function createModuleLoader(): ModuleLoader
 
 	local function clear()
 		moduleRegistry.reset()
+
+		-- Clearing user-defined globals also wipes the sandbox marker, so it
+		-- has to be replanted for modules evaluated after the clear.
 		table.clear(globals)
+		rawset(globals, "__MODULE_LOADER_SANDBOX__", SANDBOX_MARKER)
 
 		for _, connection in changedConnections do
 			connection:Disconnect()
