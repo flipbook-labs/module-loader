@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## v0.12.1
+
+### Changes
+
+- Route repository review requests to the `flipbook-engine` team.
+
+- Release automation reads the public Flipbook Backend App Client ID from an organization variable.
+
+
 ## v0.12.0
 
 ### Changes
