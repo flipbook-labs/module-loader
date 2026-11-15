@@ -30,7 +30,7 @@ jobs:
     permissions:
       statuses: write
     steps:
-      - uses: flipbook-labs/changewrite/publish-lock@v0.7.0
+      - uses: flipbook-labs/changewrite/publish-lock@v0.11.0
         with:
           locked: true
           url: ${{ env.RUN_URL }}
@@ -126,7 +126,7 @@ jobs:
           name: dist
           path: dist
 
-      - uses: flipbook-labs/changewrite@v0.7.0
+      - uses: flipbook-labs/changewrite@v0.11.0
         id: changewrite
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -169,7 +169,7 @@ jobs:
 
       - name: Unlock the publish PR
         if: github.event_name == 'push'
-        uses: flipbook-labs/changewrite/publish-lock@v0.7.0
+        uses: flipbook-labs/changewrite/publish-lock@v0.11.0
         with:
           locked: false
           url: ${{ env.RUN_URL }}

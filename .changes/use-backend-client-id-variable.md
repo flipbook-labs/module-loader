@@ -1,6 +1,7 @@
 ---
 bump: patch
-category: Changes
+category: Internal
+kind: release
 ---
 
 Release automation reads the public Flipbook Backend App Client ID from an organization variable.
