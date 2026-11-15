@@ -1,3 +1,5 @@
+categories = ["Features", "Changes", "Fixes", "Dependencies", "Roblox", "Internal"]
+
 [version]
 current = "0.12.0"
 mirror = [
