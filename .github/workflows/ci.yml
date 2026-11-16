@@ -20,13 +20,13 @@ jobs:
           # exist. Full history guarantees it (the default depth-1 checkout does not).
           fetch-depth: 0
 
-      - uses: flipbook-labs/changewrite@v0.11.0
+      - uses: flipbook-labs/changewrite@v0.12.0
         with:
           require-entry: 'true'
 
       # Clear the publish-lock status on this PR's head so a required check can pass.
       # The publish PR gets its lock managed by the release workflow instead.
-      - uses: flipbook-labs/changewrite/publish-lock@v0.11.0
+      - uses: flipbook-labs/changewrite/publish-lock@v0.12.0
         if: github.head_ref != 'publish-next-version'
         with:
           locked: false
