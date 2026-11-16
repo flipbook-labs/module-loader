@@ -4,7 +4,7 @@
 	path/git dependencies, so we have to make our own shim.
 ]]
 
-local FlipbookBatteries = require("@luaupkg/flipbook-batteries@v0.12.0")
+local FlipbookBatteries = require("@flipbook-batteries")
 local fs = require("@std/fs")
 local path = require("@std/path")
 

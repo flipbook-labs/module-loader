@@ -5,7 +5,7 @@ collapsed = ["Dependencies", "Internal"]
 current = "0.12.0"
 mirror = [
   { file = "wally.toml" },
-  { file = "loom.config.luau" },
+  { file = "pkg.luau" },
 ]
 
 [kind]

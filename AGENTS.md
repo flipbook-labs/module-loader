@@ -12,15 +12,15 @@ Complete every step below before you write any code, tests, changelog entries, o
    rokit install && lute run install
    ```
 
-   `rokit install` puts `lute`, `luau-lsp`, `stylua`, and `selene` on PATH. `lute run install` fetches the Loom dependencies into `~/.loom/store` and vendors the runtime ones into the package folders. The shared skills library is a dev dependency, so it lands in `~/.loom/store` for you to read but is not shipped with the package. Without this step the skills are not on disk.
+   `rokit install` puts `lute`, `luau-lsp`, `stylua`, and `selene` on PATH. `lute run install` fetches the Loom dependencies into `~/.loom/store`, writes their paths into the aliases in `.config.luau`, and installs the Wally runtime dependencies into `Packages/`. The shared skills library is a dev dependency, so it lands in `~/.loom/store` for you to read but is not shipped with the package. Without this step the skills are not on disk.
 
 2. Resolve the concrete skills path from the pinned version (do not guess it):
 
    ```sh
-   ls -d ~/.loom/store/AgentSkills@*
+   echo ~/.loom/store/$(sed -n 's|.*installPath = "@pkg/\(agent-skills--[^"]*\)".*|\1|p' pkg.lock.luau)
    ```
 
-   The store can hold more than one version, so match the `rev` pinned for `AgentSkills` in [`loom.config.luau`](loom.config.luau): the path is `~/.loom/store/AgentSkills@<rev>`. Use it wherever `<skills>` appears below, and ignore any other versions the listing prints.
+   `pkg.lock.luau` records where the `AgentSkills` rev pinned in [`pkg.luau`](pkg.luau) was installed, with `@pkg/` standing for `~/.loom/store/`. Use the printed path wherever `<skills>` appears below.
 
 3. Read the routing index at `<skills>/AGENTS.md` in full. Its **Project Skills** section lists every skill with a trigger-rich one-liner, so you know what exists before you start. This read is unconditional.
 
