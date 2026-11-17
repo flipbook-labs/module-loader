@@ -15,11 +15,15 @@ local VENDOR_PATH = "LuauPackages"
 -- `LuauPackages/<name>`, using its name from `pkg.luau`, and `.config.luau`
 -- aliases those folders. https://github.com/flipbook-labs/flipbook/issues/689
 -- tracks removing this once Lute resolves dependencies by name.
+--
+-- A vendored package's own `.config.luau` aliases its dependencies the same
+-- way, as `./LuauPackages/<name>` inside its folder. So each package's
+-- dependencies are copied into its own `LuauPackages/`, all the way down.
 
 type Lockfile = {
 	dependencies: { [string]: string },
 	devDependencies: { [string]: string }?,
-	packages: { [string]: { installPath: string } },
+	packages: { [string]: { installPath: string, dependencies: { [string]: string } } },
 }
 
 -- The lockfile writes `@pkg/` for the store, and the path of a dependency
@@ -43,6 +47,13 @@ local function copyDirectory(src: path.Path, dest: path.Path)
 	end
 end
 
+local function vendor(lockfile: Lockfile, key: string, dest: path.Path)
+	copyDirectory(getStorePath(lockfile, key), dest)
+	for name, dependencyKey in lockfile.packages[key].dependencies do
+		vendor(lockfile, dependencyKey, path.join(dest, VENDOR_PATH, name))
+	end
+end
+
 -- The Wally step below requires flipbook-batteries, so the Loom dependencies
 -- are installed and vendored first.
 do
@@ -58,7 +69,7 @@ do
 
 	for _, dependencies in { lockfile.dependencies, lockfile.devDependencies or {} } do
 		for name, key in dependencies do
-			copyDirectory(getStorePath(lockfile, key), path.join(VENDOR_PATH, name))
+			vendor(lockfile, key, path.join(VENDOR_PATH, name))
 		end
 	end
 
