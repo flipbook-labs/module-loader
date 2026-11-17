@@ -3,7 +3,7 @@ return {
 		name = "ModuleLoader",
 		version = "0.12.0",
 		dependencies = {
-			["flipbook-batteries"] = {
+			FlipbookBatteries = {
 				rev = "v0.13.0",
 				sourceKind = "github",
 				source = "https://github.com/flipbook-labs/flipbook-batteries",

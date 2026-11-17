@@ -10,11 +10,9 @@ return {
 			scripts = "./.lute",
 			repo = ".",
 
-			-- The store folder's name hashes the dependency's source and rev, so
-			-- this path is the same on every machine. `lute run install`
-			-- rewrites it from `pkg.lock.luau` when the rev changes.
-			-- https://github.com/flipbook-labs/infra/issues/41 tracks removing this injection.
-			["flipbook-batteries"] = "~/.loom/store/flipbook-batteries--github-cd561061b96224c3881d0f76944a9bb8bad2d09ff72e9e09eb3cfaa2e62b6613@2f0b52aa834b5bccd5b10d223b712227121916715a67505b557393845d5af93e",
+			-- `lute run install` copies these from the Loom store.
+			-- https://github.com/flipbook-labs/flipbook/issues/689 tracks removing this vendoring.
+			["flipbook-batteries"] = "./LuauPackages/FlipbookBatteries",
 		},
 	},
 }

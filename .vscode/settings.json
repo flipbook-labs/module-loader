@@ -3,6 +3,7 @@
   "luau-lsp.ignoreGlobs": [
     "**/_Index/**",
     "**/.loom/store/**",
+    "**/LuauPackages/**",
     "**/dist/**",
     "**/.lute/typedefs/**"
   ]
