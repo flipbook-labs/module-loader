@@ -8,6 +8,7 @@
 local compileWithLoadstring = require("@root/compileWithLoadstring")
 local createModuleRegistry = require("@root/createModuleRegistry")
 local getModuleSource = require("@root/getModuleSource")
+local loadWithLoadmodule = require("@root/loadWithLoadmodule")
 local resolveInstancePath = require("@root/resolveInstancePath")
 local setModuleSource = require("@root/setModuleSource")
 local types = require("@root/types")
@@ -24,13 +25,37 @@ type ModuleFunction = types.ModuleFunction
 -- sees only the real _G and cannot find this sentinel.
 local SANDBOX_MARKER = { __internal = true }
 
+-- Code running at RobloxScript security, such as a built-in plugin, can't
+-- require the tmpScript because the ModuleScripts it creates don't share that
+-- security level.
+local NON_ROBLOXSCRIPT_REQUIRE_ERROR = "Cannot require a non-RobloxScript module from a RobloxScript"
+
+-- Set once a tmpScript require fails with NON_ROBLOXSCRIPT_REQUIRE_ERROR. All
+-- of a plugin's code runs at one security level, so every later tmpScript
+-- would fail the same way and later modules go straight to `debug.loadmodule`.
+local shouldUseLoadmodule = false
+
 local function makeModuleFunction(compiledOuter): ModuleFunction
 	return function(...)
 		return compiledOuter(...)()
 	end
 end
 
-local function getModuleFunction(moduleScript: ModuleScript, params: { string }?): ModuleFunction
+local function getModuleFunctionWithLoadmodule(moduleScript: ModuleScript, onCleanup: (() -> ()) -> ()): ModuleFunction?
+	local moduleFunction, err = loadWithLoadmodule(moduleScript, onCleanup)
+
+	if err then
+		error(err, 0)
+	end
+
+	return moduleFunction
+end
+
+local function getModuleFunction(
+	moduleScript: ModuleScript,
+	params: { string }?,
+	onCleanup: (() -> ()) -> ()
+): ModuleFunction
 	local nativeRequire: ModuleFunction = function()
 		return requireAny(moduleScript)
 	end
@@ -96,6 +121,13 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		error(syntaxErrorMessage, 0)
 	end
 
+	if shouldUseLoadmodule then
+		local moduleFunction = getModuleFunctionWithLoadmodule(moduleScript, onCleanup)
+		if moduleFunction then
+			return moduleFunction
+		end
+	end
+
 	local tmpScript = Instance.new("ModuleScript")
 	tmpScript.Name = moduleScript.Name
 	tmpScript.Archivable = false
@@ -112,6 +144,14 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	tmpScript:Destroy()
 
 	if not ok then
+		if err:find(NON_ROBLOXSCRIPT_REQUIRE_ERROR, 1, true) then
+			local moduleFunction = getModuleFunctionWithLoadmodule(moduleScript, onCleanup)
+			if moduleFunction then
+				shouldUseLoadmodule = true
+				return moduleFunction
+			end
+		end
+
 		error(err, 0)
 	end
 
@@ -128,6 +168,11 @@ function createModuleLoader(): ModuleLoader
 	local moduleRegistry = createModuleRegistry()
 	local changedConnections = weak({} :: { [ModuleScript]: RBXScriptConnection })
 	local globals = setmetatable({} :: typeof(_G), { __index = _G })
+	local loadmoduleCleanupFns: { () -> () } = {}
+
+	local function onLoadmoduleCleanup(cleanupFn: () -> ())
+		table.insert(loadmoduleCleanupFns, cleanupFn)
+	end
 
 	-- Plant the sandbox marker on the proxy globals so code evaluated through
 	-- this loader can detect they are running in a sandboxed context.
@@ -178,7 +223,7 @@ function createModuleLoader(): ModuleLoader
 
 			moduleRegistry.add(resolvedModule, loadedModule)
 
-			local moduleFunction = getModuleFunction(resolvedModule, { "_G" })
+			local moduleFunction = getModuleFunction(resolvedModule, { "_G" }, onLoadmoduleCleanup)
 
 			local function childRequire(childModule: ModuleScript | string)
 				return weHaveRequireAtHome(childModule, resolvedModule)
@@ -224,6 +269,11 @@ function createModuleLoader(): ModuleLoader
 			connection:Disconnect()
 		end
 		table.clear(changedConnections)
+
+		for _, cleanupFn in loadmoduleCleanupFns do
+			pcall(cleanupFn)
+		end
+		table.clear(loadmoduleCleanupFns)
 	end
 
 	return {
