@@ -12,7 +12,6 @@ sourcemap*.json
 # Third-party Packages
 /DevPackages
 /Packages
-/LuauPackages
 /*.lock*
 
 
