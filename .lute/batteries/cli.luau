@@ -38,7 +38,11 @@ function cli.parser(): Parser
 	local self = {
 		arguments = {},
 		positional = {},
-		parsed = { values = {}, flags = {}, fwdArgs = {} },
+		parsed = {
+			values = {},
+			flags = {},
+			fwdArgs = {},
+		},
 	}
 
 	return setmetatable(self, cli)
@@ -73,8 +77,8 @@ function cli.parse(self: Parser, args: { string }): ()
 		end
 
 		-- if the argument starts with two dashes, we're parsing either a flag or an option
-		if string.sub(arg, 1, 2) == "--" then
-			local name = string.sub(arg, 3)
+		if arg:sub(1, 2) == "--" then
+			local name = arg:sub(3)
 			local found = false
 
 			for _, argument in self.arguments do
@@ -103,11 +107,11 @@ function cli.parse(self: Parser, args: { string }): ()
 		end
 
 		-- if the argument starts with a single dash, we're parsing a flag
-		if string.sub(arg, 1, 1) == "-" then
-			local flags = string.sub(arg, 2)
+		if arg:sub(1, 1) == "-" then
+			local flags = arg:sub(2)
 
 			for j = 1, #flags do
-				local name = string.sub(flags, j, j)
+				local name = flags:sub(j, j)
 				local found = false
 				for _, argument in self.arguments do
 					local aliases = argument.options.aliases or {}

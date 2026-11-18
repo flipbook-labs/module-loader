@@ -8,6 +8,8 @@ type ModuleLoaderProps = {
 	loadedModuleChanged: RBXScriptSignal,
 }
 
+-- `unknown` here breaks the typed call sites that depend on these return types.
+-- lute-lint-ignore(no_any)
 type ModuleLoaderImpl = {
 	__index: ModuleLoaderImpl,
 
@@ -21,6 +23,11 @@ type ModuleLoaderImpl = {
 	clear: (self: ModuleLoaderClass) -> (),
 }
 
+-- Writing the class as `ModuleLoaderProps & ModuleLoaderImpl` fails analyze at the constructor's
+-- return with "Expected this to be 'ModuleLoaderImpl & ModuleLoaderProps' but got
+-- '{ @metatable ModuleLoaderImpl, {| _loader: ModuleLoader, loadedModuleChanged: RBXScriptSignal<...any> |} }'",
+-- so the type stays the typeof of setmetatable, which gives the metatable-shaped table type.
+-- lute-lint-ignore(explicit_instantiation)
 export type ModuleLoaderClass = typeof(setmetatable({} :: ModuleLoaderProps, {} :: ModuleLoaderImpl))
 
 --[=[
@@ -34,6 +41,10 @@ export type ModuleLoaderClass = typeof(setmetatable({} :: ModuleLoaderProps, {} 
 
 	@class ModuleLoader
 ]=]
+-- Annotating the empty table fails analyze with "Table type 'ModuleLoader' not compatible with type
+-- 'ModuleLoaderImpl' because the former is missing fields '__index', 'cache', 'clear', 'clearModule',
+-- 'isLocked', 'isSandboxed', 'new', and 'require'", because the methods are assigned after this line.
+-- lute-lint-ignore(prefer_annotation)
 local ModuleLoader = {} :: ModuleLoaderImpl
 ModuleLoader.__index = ModuleLoader
 
@@ -116,6 +127,8 @@ end
 	loader:cache(moduleInstance, moduleScript)
 	```
 ]=]
+-- Matches the `cache` field of `ModuleLoaderImpl`, which stays `any` for the same reason.
+-- lute-lint-ignore(no_any)
 function ModuleLoader:cache(moduleScript: ModuleScript, result: any)
 	self._loader.cache(moduleScript, result)
 end

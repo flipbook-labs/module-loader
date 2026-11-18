@@ -12,7 +12,9 @@ local resolveInstancePath = require("@root/resolveInstancePath")
 local setModuleSource = require("@root/setModuleSource")
 local types = require("@root/types")
 
-local requireAny = require :: any
+type ModuleFactory = (...unknown) -> () -> ...unknown
+
+local requireAny = require :: (moduleScript: ModuleScript) -> unknown
 
 type LoadedModule = types.LoadedModule
 type ModuleLoader = types.ModuleLoader
@@ -87,7 +89,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 			-- I don't think there's a way to narrow this further but we know by
 			-- this point we we're getting back the newSource result so I think
 			-- this is fine
-			return makeModuleFunction(result :: any)
+			return makeModuleFunction(result :: ModuleFactory)
 		end
 		error(result, 0)
 	end
@@ -104,9 +106,9 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		return nativeRequire
 	end
 
-	local createModuleFunction
+	local createModuleFunction: ModuleFactory
 	local ok, err = xpcall(function()
-		createModuleFunction = requireAny(tmpScript)
+		createModuleFunction = requireAny(tmpScript) :: ModuleFactory
 	end, debug.traceback)
 
 	tmpScript:Destroy()
@@ -119,15 +121,16 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 end
 
 local function weak<K, V>(tab: { [K]: V }): { [K]: V }
-	-- We lie about the return type because having a metatable attached to the table means generic for loops don't work
-	-- without wrapping the table with `pairs`
-	return setmetatable(tab, { __mode = "k" }) :: any
+	-- setmetatable's return type carries a metatable that generic for loops don't accept, so the
+	-- result is passed through `unknown` and returned under the declared type.
+	local weakTab: unknown = setmetatable(tab, { __mode = "k" })
+	return weakTab :: { [K]: V }
 end
 
 function createModuleLoader(): ModuleLoader
 	local moduleRegistry = createModuleRegistry()
-	local changedConnections = weak({} :: { [ModuleScript]: RBXScriptConnection })
-	local globals = setmetatable({} :: typeof(_G), { __index = _G })
+	local changedConnections = weak<<ModuleScript, RBXScriptConnection>>({})
+	local globals = setmetatable({}, { __index = _G }) :: typeof(_G)
 
 	-- Plant the sandbox marker on the proxy globals so code evaluated through
 	-- this loader can detect they are running in a sandboxed context.
@@ -139,7 +142,7 @@ function createModuleLoader(): ModuleLoader
 
 	local loadedModuleChanged = Instance.new("BindableEvent")
 
-	local function cache(moduleScript: ModuleScript, ...: any)
+	local function cache(moduleScript: ModuleScript, ...: unknown)
 		local loadedModule: LoadedModule = {
 			instance = moduleScript,
 			exports = table.pack(...),
@@ -150,8 +153,7 @@ function createModuleLoader(): ModuleLoader
 	end
 
 	local function require(moduleScript: ModuleScript): ...unknown?
-		local weHaveRequireAtHome
-		function weHaveRequireAtHome(module: ModuleScript | string, caller: ModuleScript?)
+		local function weHaveRequireAtHome(module: ModuleScript | string, caller: ModuleScript?)
 			local resolvedModule: ModuleScript
 			if type(module) == "string" then
 				local relativeTo: Instance = if caller then caller else moduleScript
