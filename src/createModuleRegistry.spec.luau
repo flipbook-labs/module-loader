@@ -5,6 +5,17 @@ local describe = JestGlobals.describe
 
 local createModuleRegistry = require("./createModuleRegistry")
 
+local types = require("@root/types")
+
+type LoadedModule = types.LoadedModule
+
+local function newLoadedModule(moduleScript: ModuleScript): LoadedModule
+	return {
+		instance = moduleScript,
+		isLoaded = true,
+	}
+end
+
 local function newModule(name: string?): ModuleScript
 	local moduleScript = Instance.new("ModuleScript")
 	if name then
@@ -17,7 +28,7 @@ describe("add / getByInstance / getByFullName", function()
 	test("stores the exact LoadedModule that was added, keyed by Instance", function()
 		local registry = createModuleRegistry()
 		local moduleScript = newModule()
-		local loadedModule = {} :: any
+		local loadedModule = newLoadedModule(moduleScript)
 
 		registry.add(moduleScript, loadedModule)
 
@@ -27,7 +38,7 @@ describe("add / getByInstance / getByFullName", function()
 	test("indexes the same LoadedModule under the Instance's full name", function()
 		local registry = createModuleRegistry()
 		local moduleScript = newModule()
-		local loadedModule = {} :: any
+		local loadedModule = newLoadedModule(moduleScript)
 
 		registry.add(moduleScript, loadedModule)
 
@@ -40,8 +51,8 @@ describe("add / getByInstance / getByFullName", function()
 	test("overwrites the previous entry when the same Instance is added twice", function()
 		local registry = createModuleRegistry()
 		local moduleScript = newModule()
-		local first = {} :: any
-		local second = {} :: any
+		local first = newLoadedModule(moduleScript)
+		local second = newLoadedModule(moduleScript)
 
 		registry.add(moduleScript, first)
 		registry.add(moduleScript, second)
@@ -67,8 +78,7 @@ describe("remove", function()
 	test("clears both the Instance and full-name indexes for a module", function()
 		local registry = createModuleRegistry()
 		local moduleScript = newModule()
-
-		registry.add(moduleScript, {} :: any)
+		registry.add(moduleScript, newLoadedModule(moduleScript))
 		registry.remove(moduleScript)
 
 		expect(registry.getByInstance(moduleScript)).toBeNil()
@@ -79,10 +89,10 @@ describe("remove", function()
 		local registry = createModuleRegistry()
 		local kept = newModule("Kept")
 		local removed = newModule("Removed")
-		local keptModule = {} :: any
+		local keptModule = newLoadedModule(kept)
 
 		registry.add(kept, keptModule)
-		registry.add(removed, {} :: any)
+		registry.add(removed, newLoadedModule(removed))
 
 		registry.remove(removed)
 
@@ -111,10 +121,9 @@ describe("getAllModules", function()
 		local moduleA = newModule("ModuleA")
 		local moduleB = newModule("ModuleB")
 		local moduleC = newModule("ModuleC")
-
-		registry.add(moduleA, {} :: any)
-		registry.add(moduleB, {} :: any)
-		registry.add(moduleC, {} :: any)
+		registry.add(moduleA, newLoadedModule(moduleA))
+		registry.add(moduleB, newLoadedModule(moduleB))
+		registry.add(moduleC, newLoadedModule(moduleC))
 
 		local all = registry.getAllModules()
 
@@ -127,8 +136,7 @@ describe("getAllModules", function()
 	test("stops reporting a module once it is removed", function()
 		local registry = createModuleRegistry()
 		local moduleScript = newModule()
-
-		registry.add(moduleScript, {} :: any)
+		registry.add(moduleScript, newLoadedModule(moduleScript))
 		registry.remove(moduleScript)
 
 		expect(registry.getAllModules()).never.toContain(moduleScript)
@@ -144,7 +152,7 @@ describe("reset", function()
 		for _, name in { "ModuleA", "ModuleB", "ModuleC" } do
 			local moduleScript = newModule(name)
 			moduleScript.Parent = folder
-			registry.add(moduleScript, {} :: any)
+			registry.add(moduleScript, newLoadedModule(moduleScript))
 			table.insert(modules, moduleScript)
 		end
 

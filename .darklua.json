@@ -3,7 +3,11 @@
     {
       "rule": "convert_require",
       "current": {
-        "name": "luau"
+        "name": "luau",
+        "aliases": {
+          "@pkg": "./Packages",
+          "@root": "./src"
+        }
       },
       "target": {
         "name": "roblox",

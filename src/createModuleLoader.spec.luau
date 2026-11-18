@@ -38,9 +38,9 @@ local function createModuleTest(tree: ModuleTestTree, parent: Instance?): Instan
 end
 
 local mockModuleSource = {}
-local loader
-local moduleRegistry
-local tree
+local loader: typeof(createModuleLoader())
+local moduleRegistry: typeof(loader._getModuleRegistry())
+local tree: Instance
 
 beforeEach(function()
 	loader = createModuleLoader()
@@ -454,7 +454,7 @@ describe("require", function()
 			expect(loader.require(readGlobal)).toBe(true)
 			expect(_G.bar).toBeUndefined();
 
-			(require :: any)(moduleRequiredNormally)
+			(require :: (moduleScript: ModuleScript) -> unknown)(moduleRequiredNormally)
 
 			expect(loader.require(readGlobal)).toBe(true)
 			expect(_G.bar).toBe(true)
@@ -527,7 +527,8 @@ describe("require", function()
 					}
 				]]
 
-				local result = loader.require(moduleScript) :: { getValue: () -> boolean, setValue: (boolean) -> () }
+				local result =
+					loader.require(moduleScript) :: { getValue: () -> boolean, setValue: (value: boolean) -> () }
 
 				expect(result.getValue()).toBe(true)
 
@@ -537,7 +538,7 @@ describe("require", function()
 
 				loader.clear()
 
-				result = loader.require(moduleScript) :: { getValue: () -> boolean, setValue: (boolean) -> () }
+				result = loader.require(moduleScript) :: { getValue: () -> boolean, setValue: (value: boolean) -> () }
 				expect(result.getValue()).toBe(true)
 			end)
 		end)
@@ -688,7 +689,7 @@ describe("require", function()
 				Consumer = [[
 					return require("./Module1")
 				]],
-			} :: any) :: ModuleTestTree)
+			} :: unknown) :: ModuleTestTree)
 
 			local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
 
@@ -987,8 +988,8 @@ describe("RobloxScript security", function()
 end)
 
 describe("roblox-ts", function()
-	local rbxtsInclude
-	local mockRuntime
+	local rbxtsInclude: Folder
+	local mockRuntime: ModuleScript
 
 	beforeEach(function()
 		rbxtsInclude = Instance.new("Folder")
