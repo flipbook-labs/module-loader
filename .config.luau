@@ -12,9 +12,10 @@ return {
 
 			-- `lute run install` writes these paths from `pkg.lock.luau`.
 			-- https://github.com/flipbook-labs/flipbook/issues/689 tracks removing this injection.
-			["flipbook-batteries"] = "~/.loom/store/flipbook-batteries--github-cd561061b96224c3881d0f76944a9bb8bad2d09ff72e9e09eb3cfaa2e62b6613@2f0b52aa834b5bccd5b10d223b712227121916715a67505b557393845d5af93e",
 			["agent-skills"] = "~/.loom/store/agent-skills--github-9a5fa281b004edd0a2d24adfca334a5b9f2dc7230401fbbbd8816c81f971a3ed@50ab7418ec44018e5cfb2826c68fe26616f4ae4399ad5da286264e4e826b123b",
 			["code-quality"] = "~/.loom/store/code-quality--github-1234fc23be7b191af0dfcb12c5bcd80ec53c2a90ee282c59e48cdfd534b41adb@6dca183548532e4d8cb4cd774c3dad26684a6b3dead4825f79f9ee8fc20a599b",
+			["flipbook-batteries"] = "~/.loom/store/flipbook-batteries--github-cd561061b96224c3881d0f76944a9bb8bad2d09ff72e9e09eb3cfaa2e62b6613@2f0b52aa834b5bccd5b10d223b712227121916715a67505b557393845d5af93e",
+			-- End of aliases written by `lute run install`.
 		},
 	},
 }
