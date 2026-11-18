@@ -241,6 +241,27 @@ describe("require", function()
 		end).toThrow("boom")
 	end)
 
+	test("adds one traceback to an error raised by a nested require", function()
+		tree = createModuleTest({
+			Outer = [[
+				require(script.Parent.Middle)
+			]],
+			Middle = [[
+				require(script.Parent.Inner)
+			]],
+			Inner = [[
+				error("boom")
+			]],
+		})
+
+		local outer = tree:QueryDescendants("#Outer")[1] :: ModuleScript
+		local ok, err = pcall(loader.require, outer)
+
+		expect(ok).toBe(false)
+		local _, specFrameCount = tostring(err):gsub("createModuleLoader%.spec", "")
+		expect(specFrameCount).toBe(1)
+	end)
+
 	test("does not cache a module that errored, so a later require can succeed", function()
 		local moduleScript = Instance.new("ModuleScript")
 		moduleScript.Source = "error('boom')"

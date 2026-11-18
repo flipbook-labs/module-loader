@@ -26,6 +26,25 @@ type ModuleFunction = types.ModuleFunction
 -- sees only the real _G and cannot find this sentinel.
 local SANDBOX_MARKER = { __internal = true }
 
+-- Every require runs its module inside `xpcall`, and a failed require re-raises
+-- the error into the module that required it. So an error deep in a chain of
+-- requires passes through one `xpcall` per module in the chain.
+--
+-- The innermost handler runs while the failing module is still on the stack,
+-- so the traceback it adds already lists every require above it. Each re-raise
+-- uses `error(err, 0)`, which leaves the message exactly as it was. This
+-- handler remembers the last message it traced and passes that message through
+-- unchanged, so the stack appears once instead of once per module.
+local lastTracedError: unknown
+local function traceOnce(err: unknown): unknown
+	if err == lastTracedError then
+		return err
+	end
+	local traced = debug.traceback(err :: string, 2)
+	lastTracedError = traced
+	return traced
+end
+
 local function makeModuleFunction(compiledOuter): ModuleFunction
 	return function(...)
 		return compiledOuter(...)()
@@ -84,7 +103,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	local chunkFn, syntaxErrorMessage = compileWithLoadstring(newSource, moduleScript:GetFullName())
 
 	if chunkFn then
-		local ok, result = xpcall(chunkFn, debug.traceback)
+		local ok, result = xpcall(chunkFn, traceOnce)
 		if ok and typeof(result) == "function" then
 			-- I don't think there's a way to narrow this further but we know by
 			-- this point we we're getting back the newSource result so I think
@@ -109,7 +128,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	local createModuleFunction: ModuleFactory
 	local ok, err = xpcall(function()
 		createModuleFunction = requireAny(tmpScript) :: ModuleFactory
-	end, debug.traceback)
+	end, traceOnce)
 
 	tmpScript:Destroy()
 
@@ -192,7 +211,7 @@ function createModuleLoader(): ModuleLoader
 				-- `getModuleFunction`, which in this case is `script`,
 				-- `require`, and `_G` in the context of the loaded module.
 				exports = table.pack(moduleFunction(resolvedModule, childRequire, globals))
-			end, debug.traceback)
+			end, traceOnce)
 
 			if not ok then
 				moduleRegistry.remove(resolvedModule)
