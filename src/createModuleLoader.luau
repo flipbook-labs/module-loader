@@ -8,6 +8,7 @@
 local compileWithLoadstring = require("@root/compileWithLoadstring")
 local createModuleRegistry = require("@root/createModuleRegistry")
 local getModuleSource = require("@root/getModuleSource")
+local loadWithLoadmodule = require("@root/loadWithLoadmodule")
 local resolveInstancePath = require("@root/resolveInstancePath")
 local setModuleSource = require("@root/setModuleSource")
 local types = require("@root/types")
@@ -20,11 +21,35 @@ type LoadedModule = types.LoadedModule
 type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
+type ModuleLoaderDependencies = types.ModuleLoaderDependencies
+
+type LoaderContext = {
+	dependencies: ModuleLoaderDependencies,
+
+	-- Set once a tmpScript require fails with NON_ROBLOXSCRIPT_REQUIRE_ERROR.
+	-- All of a plugin's code runs at one security level, so every later
+	-- tmpScript would fail the same way and later modules go straight to
+	-- `debug.loadmodule`.
+	shouldUseLoadmodule: boolean,
+
+	loadmoduleCleanupFns: { () -> () },
+}
 
 -- Unique sentinel table for sandbox detection. When a loader evaluates modules,
 -- it passes a proxy _G table with this sentinel; natively-required ModuleLoader
 -- sees only the real _G and cannot find this sentinel.
 local SANDBOX_MARKER = { __internal = true }
+
+-- Code running at RobloxScript security, such as a built-in plugin, can't
+-- require the tmpScript because the ModuleScripts it creates don't share that
+-- security level.
+local NON_ROBLOXSCRIPT_REQUIRE_ERROR = "Cannot require a non-RobloxScript module from a RobloxScript"
+
+local DEFAULT_DEPENDENCIES: ModuleLoaderDependencies = {
+	compile = compileWithLoadstring,
+	require = requireAny,
+	loadmodule = (debug :: any).loadmodule,
+}
 
 local function makeModuleFunction(compiledOuter): ModuleFunction
 	return function(...)
@@ -32,9 +57,29 @@ local function makeModuleFunction(compiledOuter): ModuleFunction
 	end
 end
 
-local function getModuleFunction(moduleScript: ModuleScript, params: { string }?): ModuleFunction
+local function getModuleFunctionWithLoadmodule(moduleScript: ModuleScript, context: LoaderContext): ModuleFunction?
+	local moduleFunction, err, cleanupFn = loadWithLoadmodule(context.dependencies.loadmodule, moduleScript)
+
+	if err then
+		error(err, 0)
+	end
+
+	if cleanupFn then
+		table.insert(context.loadmoduleCleanupFns, cleanupFn)
+	end
+
+	return moduleFunction
+end
+
+local function getModuleFunction(
+	moduleScript: ModuleScript,
+	params: { string }?,
+	context: LoaderContext
+): ModuleFunction
+	local dependencies = context.dependencies
+
 	local nativeRequire: ModuleFunction = function()
-		return requireAny(moduleScript)
+		return dependencies.require(moduleScript)
 	end
 
 	local mergedParams = { "script", "require" }
@@ -81,7 +126,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 	-- A nil chunkFn with a message means a real syntax error (surface it); a
 	-- nil chunkFn with no message means loadstring is disabled (fall through to
 	-- tmpScript).
-	local chunkFn, syntaxErrorMessage = compileWithLoadstring(newSource, moduleScript:GetFullName())
+	local chunkFn, syntaxErrorMessage = dependencies.compile(newSource, moduleScript:GetFullName())
 
 	if chunkFn then
 		local ok, result = xpcall(chunkFn, debug.traceback)
@@ -98,6 +143,13 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		error(syntaxErrorMessage, 0)
 	end
 
+	if context.shouldUseLoadmodule then
+		local moduleFunction = getModuleFunctionWithLoadmodule(moduleScript, context)
+		if moduleFunction then
+			return moduleFunction
+		end
+	end
+
 	local tmpScript = Instance.new("ModuleScript")
 	tmpScript.Name = moduleScript.Name
 	tmpScript.Archivable = false
@@ -108,12 +160,20 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 
 	local createModuleFunction: ModuleFactory
 	local ok, err = xpcall(function()
-		createModuleFunction = requireAny(tmpScript) :: ModuleFactory
+		createModuleFunction = dependencies.require(tmpScript) :: ModuleFactory
 	end, debug.traceback)
 
 	tmpScript:Destroy()
 
 	if not ok then
+		if err:find(NON_ROBLOXSCRIPT_REQUIRE_ERROR, 1, true) then
+			local moduleFunction = getModuleFunctionWithLoadmodule(moduleScript, context)
+			if moduleFunction then
+				context.shouldUseLoadmodule = true
+				return moduleFunction
+			end
+		end
+
 		error(err, 0)
 	end
 
@@ -127,10 +187,15 @@ local function weak<K, V>(tab: { [K]: V }): { [K]: V }
 	return weakTab :: { [K]: V }
 end
 
-function createModuleLoader(): ModuleLoader
+function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoader
 	local moduleRegistry = createModuleRegistry()
 	local changedConnections = weak<<ModuleScript, RBXScriptConnection>>({})
 	local globals = setmetatable({}, { __index = _G }) :: typeof(_G)
+	local context: LoaderContext = {
+		dependencies = dependencies or DEFAULT_DEPENDENCIES,
+		shouldUseLoadmodule = false,
+		loadmoduleCleanupFns = {},
+	}
 
 	-- Plant the sandbox marker on the proxy globals so code evaluated through
 	-- this loader can detect they are running in a sandboxed context.
@@ -180,7 +245,7 @@ function createModuleLoader(): ModuleLoader
 
 			moduleRegistry.add(resolvedModule, loadedModule)
 
-			local moduleFunction = getModuleFunction(resolvedModule, { "_G" })
+			local moduleFunction = getModuleFunction(resolvedModule, { "_G" }, context)
 
 			local function childRequire(childModule: ModuleScript | string)
 				return weHaveRequireAtHome(childModule, resolvedModule)
@@ -226,6 +291,11 @@ function createModuleLoader(): ModuleLoader
 			connection:Disconnect()
 		end
 		table.clear(changedConnections)
+
+		for _, cleanupFn in context.loadmoduleCleanupFns do
+			pcall(cleanupFn)
+		end
+		table.clear(context.loadmoduleCleanupFns)
 	end
 
 	return {
