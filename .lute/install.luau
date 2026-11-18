@@ -21,10 +21,12 @@ local LOCKFILE_PATH = "pkg.lock.luau"
 -- without running this script.
 --
 -- Keys are aliases in `.config.luau`, and values are dependency names in
--- `pkg.luau`. `agent-skills` points agents at the shared skills library.
+-- `pkg.luau`. `agent-skills` points agents at the shared skills library, and
+-- `lute run lint` reads the CodeQuality rules through `code-quality`.
 local DEPENDENCY_ALIASES: { [string]: string } = {
 	["flipbook-batteries"] = "FlipbookBatteries",
 	["agent-skills"] = "AgentSkills",
+	["code-quality"] = "CodeQuality",
 }
 
 type Lockfile = {
