@@ -1,4 +1,5 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ScriptService = game:GetService("ScriptService")
 
 local JestGlobals = require("@pkg/JestGlobals")
 local test = JestGlobals.test
@@ -697,6 +698,45 @@ describe("require", function()
 			-- misresolved path would surface as a require error or wrong value.
 			expect(loader.require(consumer)).toBe("resolved")
 		end)
+
+		-- `.config` aliases resolve only through ScriptService:ResolveModulePath
+		-- with engine alias resolution on. Both sit behind engine flags that
+		-- Open Cloud Luau Execution leaves off, so this probes a real alias.
+		local isConfigAliasEnabled
+		do
+			local probe = createModuleTest({
+				[".config"] = "return { luau = { aliases = { probe = './Target' } } }",
+				Target = "return nil",
+				Requirer = "return nil",
+			})
+			local requirer = probe:QueryDescendants("#Requirer")[1] :: ModuleScript
+
+			isConfigAliasEnabled = pcall(function()
+				return ScriptService:ResolveModulePath(requirer, "@probe")
+			end)
+
+			probe:Destroy()
+		end
+
+		if isConfigAliasEnabled then
+			test("supports aliases from a .config module", function()
+				tree = createModuleTest(({
+					[".config"] = "return { luau = { aliases = { shared = './Shared' } } }",
+					Shared = {
+						Value = [[
+							return "aliased"
+						]],
+					},
+					Consumer = [[
+						return require("@shared/Value")
+					]],
+				} :: unknown) :: ModuleTestTree)
+
+				local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
+
+				expect(loader.require(consumer)).toBe("aliased")
+			end)
+		end
 	end)
 end)
 

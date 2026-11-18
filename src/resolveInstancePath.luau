@@ -1,6 +1,19 @@
+local ScriptService = game:GetService("ScriptService")
+
+-- ResolveModulePath is gated by DFFlagScriptServiceResolveModulePath, which
+-- user code can't read, so the method is probed instead. Once the flag rolls
+-- out, the probe and the parser below the early return can be deleted.
+local isResolveModulePathEnabled = pcall(function()
+	return ScriptService:ResolveModulePath(script, "@self")
+end)
+
 local PATH_SEPARATOR = "/"
 
 local function resolveInstancePath(relativeTo: Instance, instancePath: string): Instance
+	if isResolveModulePathEnabled then
+		return ScriptService:ResolveModulePath(relativeTo, instancePath)
+	end
+
 	local prevPathPart: string?
 
 	local function resolvePathPart(current: Instance, pathPart: string): Instance
