@@ -12,9 +12,9 @@ local resolveInstancePath = require("@root/resolveInstancePath")
 local setModuleSource = require("@root/setModuleSource")
 local types = require("@root/types")
 
--- Calling `unknown` fails type checking, so the native require stays `any`.
--- lute-lint-ignore(no_any)
-local requireAny = require :: any
+type ModuleFactory = (...unknown) -> () -> ...unknown
+
+local requireAny = require :: (moduleScript: ModuleScript) -> unknown
 
 type LoadedModule = types.LoadedModule
 type ModuleLoader = types.ModuleLoader
@@ -89,9 +89,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 			-- I don't think there's a way to narrow this further but we know by
 			-- this point we we're getting back the newSource result so I think
 			-- this is fine
-			-- The check above only narrows `result` to a function, so `unknown` fails the call.
-			-- lute-lint-ignore(no_any)
-			return makeModuleFunction(result :: any)
+			return makeModuleFunction(result :: ModuleFactory)
 		end
 		error(result, 0)
 	end
@@ -108,9 +106,9 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		return nativeRequire
 	end
 
-	local createModuleFunction: (...unknown) -> () -> ...unknown
+	local createModuleFunction: ModuleFactory
 	local ok, err = xpcall(function()
-		createModuleFunction = requireAny(tmpScript)
+		createModuleFunction = requireAny(tmpScript) :: ModuleFactory
 	end, debug.traceback)
 
 	tmpScript:Destroy()
@@ -123,11 +121,10 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 end
 
 local function weak<K, V>(tab: { [K]: V }): { [K]: V }
-	-- We lie about the return type because having a metatable attached to the table means generic for loops don't work
-	-- without wrapping the table with `pairs`
-	-- The return type is deliberately a lie; see the comment above.
-	-- lute-lint-ignore(no_any)
-	return setmetatable(tab, { __mode = "k" }) :: any
+	-- setmetatable's return type carries a metatable that generic for loops don't accept, so the
+	-- result is passed through `unknown` and returned under the declared type.
+	local weakTab: unknown = setmetatable(tab, { __mode = "k" })
+	return weakTab :: { [K]: V }
 end
 
 function createModuleLoader(): ModuleLoader

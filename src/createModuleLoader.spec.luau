@@ -454,9 +454,7 @@ describe("require", function()
 			expect(loader.require(readGlobal)).toBe(true)
 			expect(_G.bar).toBeUndefined();
 
-			-- Calling `unknown` fails type checking, so the native require stays `any`.
-			-- lute-lint-ignore(no_any)
-			(require :: any)(moduleRequiredNormally)
+			(require :: (moduleScript: ModuleScript) -> unknown)(moduleRequiredNormally)
 
 			expect(loader.require(readGlobal)).toBe(true)
 			expect(_G.bar).toBe(true)
@@ -672,8 +670,6 @@ describe("require", function()
 		end)
 
 		test("supports relative paths", function()
-			-- The fixture's inferred type doesn't match ModuleTestTree, so the cast to `any` stays.
-			-- lute-lint-ignore(no_any)
 			tree = createModuleTest(({
 				Folder = {
 					Module3 = [[
@@ -693,7 +689,7 @@ describe("require", function()
 				Consumer = [[
 					return require("./Module1")
 				]],
-			} :: any) :: ModuleTestTree)
+			} :: unknown) :: ModuleTestTree)
 
 			local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
 
