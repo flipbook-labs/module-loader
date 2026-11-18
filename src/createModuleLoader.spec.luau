@@ -38,9 +38,9 @@ local function createModuleTest(tree: ModuleTestTree, parent: Instance?): Instan
 end
 
 local mockModuleSource = {}
-local loader
-local moduleRegistry
-local tree
+local loader: typeof(createModuleLoader())
+local moduleRegistry: typeof(loader._getModuleRegistry())
+local tree: Instance
 
 beforeEach(function()
 	loader = createModuleLoader()
@@ -454,6 +454,8 @@ describe("require", function()
 			expect(loader.require(readGlobal)).toBe(true)
 			expect(_G.bar).toBeUndefined();
 
+			-- Calling `unknown` fails type checking, so the native require stays `any`.
+			-- lute-lint-ignore(no_any)
 			(require :: any)(moduleRequiredNormally)
 
 			expect(loader.require(readGlobal)).toBe(true)
@@ -527,7 +529,8 @@ describe("require", function()
 					}
 				]]
 
-				local result = loader.require(moduleScript) :: { getValue: () -> boolean, setValue: (boolean) -> () }
+				local result =
+					loader.require(moduleScript) :: { getValue: () -> boolean, setValue: (value: boolean) -> () }
 
 				expect(result.getValue()).toBe(true)
 
@@ -537,7 +540,7 @@ describe("require", function()
 
 				loader.clear()
 
-				result = loader.require(moduleScript) :: { getValue: () -> boolean, setValue: (boolean) -> () }
+				result = loader.require(moduleScript) :: { getValue: () -> boolean, setValue: (value: boolean) -> () }
 				expect(result.getValue()).toBe(true)
 			end)
 		end)
@@ -669,6 +672,8 @@ describe("require", function()
 		end)
 
 		test("supports relative paths", function()
+			-- The fixture's inferred type doesn't match ModuleTestTree, so the cast to `any` stays.
+			-- lute-lint-ignore(no_any)
 			tree = createModuleTest(({
 				Folder = {
 					Module3 = [[
@@ -777,8 +782,8 @@ describe("clear", function()
 end)
 
 describe("roblox-ts", function()
-	local rbxtsInclude
-	local mockRuntime
+	local rbxtsInclude: Folder
+	local mockRuntime: ModuleScript
 
 	beforeEach(function()
 		rbxtsInclude = Instance.new("Folder")

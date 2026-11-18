@@ -17,6 +17,9 @@ describe("add / getByInstance / getByFullName", function()
 	test("stores the exact LoadedModule that was added, keyed by Instance", function()
 		local registry = createModuleRegistry()
 		local moduleScript = newModule()
+		-- Stub entry: the registry only stores it, so `any` avoids building a full LoadedModule.
+		-- lute-lint-ignore(no_any)
+		-- lute-lint-ignore(prefer_annotation)
 		local loadedModule = {} :: any
 
 		registry.add(moduleScript, loadedModule)
@@ -27,6 +30,9 @@ describe("add / getByInstance / getByFullName", function()
 	test("indexes the same LoadedModule under the Instance's full name", function()
 		local registry = createModuleRegistry()
 		local moduleScript = newModule()
+		-- Stub entry: the registry only stores it, so `any` avoids building a full LoadedModule.
+		-- lute-lint-ignore(no_any)
+		-- lute-lint-ignore(prefer_annotation)
 		local loadedModule = {} :: any
 
 		registry.add(moduleScript, loadedModule)
@@ -40,7 +46,13 @@ describe("add / getByInstance / getByFullName", function()
 	test("overwrites the previous entry when the same Instance is added twice", function()
 		local registry = createModuleRegistry()
 		local moduleScript = newModule()
+		-- Stub entry: the registry only stores it, so `any` avoids building a full LoadedModule.
+		-- lute-lint-ignore(no_any)
+		-- lute-lint-ignore(prefer_annotation)
 		local first = {} :: any
+		-- Stub entry: the registry only stores it, so `any` avoids building a full LoadedModule.
+		-- lute-lint-ignore(no_any)
+		-- lute-lint-ignore(prefer_annotation)
 		local second = {} :: any
 
 		registry.add(moduleScript, first)
@@ -68,6 +80,9 @@ describe("remove", function()
 		local registry = createModuleRegistry()
 		local moduleScript = newModule()
 
+		-- Stub entry: the registry only stores it, so `any` avoids building a full LoadedModule.
+		-- lute-lint-ignore(no_any)
+		-- lute-lint-ignore(explicit_instantiation)
 		registry.add(moduleScript, {} :: any)
 		registry.remove(moduleScript)
 
@@ -79,9 +94,15 @@ describe("remove", function()
 		local registry = createModuleRegistry()
 		local kept = newModule("Kept")
 		local removed = newModule("Removed")
+		-- Stub entry: the registry only stores it, so `any` avoids building a full LoadedModule.
+		-- lute-lint-ignore(no_any)
+		-- lute-lint-ignore(prefer_annotation)
 		local keptModule = {} :: any
 
 		registry.add(kept, keptModule)
+		-- Stub entry: the registry only stores it, so `any` avoids building a full LoadedModule.
+		-- lute-lint-ignore(no_any)
+		-- lute-lint-ignore(explicit_instantiation)
 		registry.add(removed, {} :: any)
 
 		registry.remove(removed)
@@ -112,8 +133,17 @@ describe("getAllModules", function()
 		local moduleB = newModule("ModuleB")
 		local moduleC = newModule("ModuleC")
 
+		-- Stub entry: the registry only stores it, so `any` avoids building a full LoadedModule.
+		-- lute-lint-ignore(no_any)
+		-- lute-lint-ignore(explicit_instantiation)
 		registry.add(moduleA, {} :: any)
+		-- Stub entry: the registry only stores it, so `any` avoids building a full LoadedModule.
+		-- lute-lint-ignore(no_any)
+		-- lute-lint-ignore(explicit_instantiation)
 		registry.add(moduleB, {} :: any)
+		-- Stub entry: the registry only stores it, so `any` avoids building a full LoadedModule.
+		-- lute-lint-ignore(no_any)
+		-- lute-lint-ignore(explicit_instantiation)
 		registry.add(moduleC, {} :: any)
 
 		local all = registry.getAllModules()
@@ -128,6 +158,9 @@ describe("getAllModules", function()
 		local registry = createModuleRegistry()
 		local moduleScript = newModule()
 
+		-- Stub entry: the registry only stores it, so `any` avoids building a full LoadedModule.
+		-- lute-lint-ignore(no_any)
+		-- lute-lint-ignore(explicit_instantiation)
 		registry.add(moduleScript, {} :: any)
 		registry.remove(moduleScript)
 
@@ -144,6 +177,9 @@ describe("reset", function()
 		for _, name in { "ModuleA", "ModuleB", "ModuleC" } do
 			local moduleScript = newModule(name)
 			moduleScript.Parent = folder
+			-- Stub entry: the registry only stores it, so `any` avoids building a full LoadedModule.
+			-- lute-lint-ignore(no_any)
+			-- lute-lint-ignore(explicit_instantiation)
 			registry.add(moduleScript, {} :: any)
 			table.insert(modules, moduleScript)
 		end

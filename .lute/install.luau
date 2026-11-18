@@ -42,7 +42,8 @@ local function getStorePath(lockfile: Lockfile, name: string): string
 	assert(key, `{name} is not a dependency in {LOCKFILE_PATH}`)
 
 	local installPath = lockfile.packages[key].installPath
-	return (installPath:gsub("^@pkg/", "~/.loom/store/"):gsub("/%.$", ""))
+	local storePath = installPath:gsub("^@pkg/", "~/.loom/store/"):gsub("/%.$", "")
+	return storePath
 end
 
 local result = process.run({ "lute", "pkg", "install" }, { stdio = "inherit" })

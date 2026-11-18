@@ -26,6 +26,8 @@ export type ModuleLoader = {
 	loadedModuleChanged: RBXScriptSignal,
 }
 
+-- `unknown` here fails the type checks in createModuleLoader, which passes module functions around.
+-- lute-lint-ignore(no_any)
 export type ModuleFunction = (...any) -> ...unknown?
 
 return nil

@@ -8,6 +8,8 @@ type ModuleLoaderProps = {
 	loadedModuleChanged: RBXScriptSignal,
 }
 
+-- `unknown` here breaks the typed call sites that depend on these return types.
+-- lute-lint-ignore(no_any)
 type ModuleLoaderImpl = {
 	__index: ModuleLoaderImpl,
 
@@ -21,6 +23,8 @@ type ModuleLoaderImpl = {
 	clear: (self: ModuleLoaderClass) -> (),
 }
 
+-- `setmetatable` isn't generic, so these casts are how the class type names its props and implementation.
+-- lute-lint-ignore(explicit_instantiation)
 export type ModuleLoaderClass = typeof(setmetatable({} :: ModuleLoaderProps, {} :: ModuleLoaderImpl))
 
 --[=[
@@ -34,6 +38,8 @@ export type ModuleLoaderClass = typeof(setmetatable({} :: ModuleLoaderProps, {} 
 
 	@class ModuleLoader
 ]=]
+-- Methods are assigned below, so an annotation on the empty table would not type check.
+-- lute-lint-ignore(prefer_annotation)
 local ModuleLoader = {} :: ModuleLoaderImpl
 ModuleLoader.__index = ModuleLoader
 
@@ -116,6 +122,8 @@ end
 	loader:cache(moduleInstance, moduleScript)
 	```
 ]=]
+-- Matches the `cache` field of `ModuleLoaderImpl`, which stays `any` for the same reason.
+-- lute-lint-ignore(no_any)
 function ModuleLoader:cache(moduleScript: ModuleScript, result: any)
 	self._loader.cache(moduleScript, result)
 end

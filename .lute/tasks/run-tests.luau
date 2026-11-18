@@ -2,6 +2,8 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+-- The native require is called on an untyped module, so `unknown` fails the call.
+-- lute-lint-ignore(no_any)
 local Jest = (require :: any)(ReplicatedStorage.Packages.Jest)
 
 local root = ReplicatedStorage.Packages.ModuleLoader

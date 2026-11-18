@@ -12,6 +12,8 @@ local resolveInstancePath = require("@root/resolveInstancePath")
 local setModuleSource = require("@root/setModuleSource")
 local types = require("@root/types")
 
+-- Calling `unknown` fails type checking, so the native require stays `any`.
+-- lute-lint-ignore(no_any)
 local requireAny = require :: any
 
 type LoadedModule = types.LoadedModule
@@ -87,6 +89,8 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 			-- I don't think there's a way to narrow this further but we know by
 			-- this point we we're getting back the newSource result so I think
 			-- this is fine
+			-- The check above only narrows `result` to a function, so `unknown` fails the call.
+			-- lute-lint-ignore(no_any)
 			return makeModuleFunction(result :: any)
 		end
 		error(result, 0)
@@ -104,7 +108,7 @@ local function getModuleFunction(moduleScript: ModuleScript, params: { string }?
 		return nativeRequire
 	end
 
-	local createModuleFunction
+	local createModuleFunction: (...unknown) -> () -> ...unknown
 	local ok, err = xpcall(function()
 		createModuleFunction = requireAny(tmpScript)
 	end, debug.traceback)
@@ -121,13 +125,15 @@ end
 local function weak<K, V>(tab: { [K]: V }): { [K]: V }
 	-- We lie about the return type because having a metatable attached to the table means generic for loops don't work
 	-- without wrapping the table with `pairs`
+	-- The return type is deliberately a lie; see the comment above.
+	-- lute-lint-ignore(no_any)
 	return setmetatable(tab, { __mode = "k" }) :: any
 end
 
 function createModuleLoader(): ModuleLoader
 	local moduleRegistry = createModuleRegistry()
-	local changedConnections = weak({} :: { [ModuleScript]: RBXScriptConnection })
-	local globals = setmetatable({} :: typeof(_G), { __index = _G })
+	local changedConnections = weak<<ModuleScript, RBXScriptConnection>>({})
+	local globals = setmetatable({}, { __index = _G }) :: typeof(_G)
 
 	-- Plant the sandbox marker on the proxy globals so code evaluated through
 	-- this loader can detect they are running in a sandboxed context.
@@ -139,7 +145,7 @@ function createModuleLoader(): ModuleLoader
 
 	local loadedModuleChanged = Instance.new("BindableEvent")
 
-	local function cache(moduleScript: ModuleScript, ...: any)
+	local function cache(moduleScript: ModuleScript, ...: unknown)
 		local loadedModule: LoadedModule = {
 			instance = moduleScript,
 			exports = table.pack(...),
@@ -150,8 +156,7 @@ function createModuleLoader(): ModuleLoader
 	end
 
 	local function require(moduleScript: ModuleScript): ...unknown?
-		local weHaveRequireAtHome
-		function weHaveRequireAtHome(module: ModuleScript | string, caller: ModuleScript?)
+		local function weHaveRequireAtHome(module: ModuleScript | string, caller: ModuleScript?)
 			local resolvedModule: ModuleScript
 			if type(module) == "string" then
 				local relativeTo: Instance = if caller then caller else moduleScript

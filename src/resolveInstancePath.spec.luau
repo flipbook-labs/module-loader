@@ -57,7 +57,7 @@ describe("@self alias", function()
 end)
 
 describe("relative ascent", function()
-	local root, child1, child2, descendant
+	local root: ModuleScript, child1: ModuleScript, child2: ModuleScript, descendant: ModuleScript
 
 	local function buildTree()
 		root = Instance.new("ModuleScript")
