@@ -80,8 +80,9 @@ type LintReport = {
 -- It only prints an error and moves on. So the findings go to a JSON file
 -- instead of the terminal, and anything `lute lint` still prints counts as a
 -- failure. It lints one file at a time because Lute's parallel linting can
--- crash at random (flipbook-labs/code-quality#27).
-local reportPath = path.join(system.tmpdir(), "module-loader-lint.json")
+-- crash at random (flipbook-labs/code-quality#27). The report's name includes
+-- this process's id, so lint runs in other checkouts can't overwrite it.
+local reportPath = path.join(system.tmpdir(), `module-loader-lint-{process.pid()}.json`)
 local lintResult = process.run({
 	"lute",
 	"lint",
@@ -102,6 +103,7 @@ if not lintResult.ok or lintOutput:find("%S") then
 end
 
 local report = json.deserialize(fs.readFileToString(reportPath)) :: LintReport
+fs.remove(reportPath)
 local findingCount = 0
 for _, file in report.items do
 	for _, finding in file.items do
