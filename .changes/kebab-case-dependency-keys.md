@@ -4,4 +4,4 @@ category: Internal
 kind: tooling
 ---
 
-Name Loom dependencies in lowercase kebab-case, and generate an alias in `.config.luau` for each one from `pkg.lock.luau`.
+Name Loom dependencies in kebab-case with generated aliases, and ship `src/.config.luau` so a vendored copy resolves `@root` itself.

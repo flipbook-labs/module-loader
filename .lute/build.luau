@@ -1,6 +1,7 @@
 local FlipbookBatteries = require("@flipbook-batteries")
 local cli = require("@scripts/batteries/cli")
 local fs = require("@std/fs")
+local path = require("@std/path")
 
 local project = require("@repo/project")
 
@@ -54,6 +55,11 @@ local function build()
 		project.SOURCE_PATH,
 		project.BUILD_PATH,
 	})
+
+	-- `src/.config.luau` gives Loom consumers the package's own aliases. The
+	-- Roblox build has already converted those requires, and Rojo would turn the
+	-- file into a ModuleScript named `.config`, so it stays out of `dist/`.
+	fs.remove(path.join(project.BUILD_PATH, ".config.luau"))
 
 	if channel == "prod" then
 		for _, specFile in find(project.BUILD_PATH, ".*%.spec%.luau") do
