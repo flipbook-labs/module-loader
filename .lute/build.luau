@@ -1,8 +1,11 @@
 local FlipbookBatteries = require("@flipbook-batteries")
 local cli = require("@scripts/batteries/cli")
 local fs = require("@std/fs")
+local json = require("@std/json")
+local path = require("@std/path")
 
 local project = require("@repo/project")
+local rewriteLuau = require("@scripts/lib/rewriteLuau")
 
 local run = FlipbookBatteries.run
 local watch = FlipbookBatteries.watch
@@ -42,18 +45,26 @@ local function build()
 		makeParents = true,
 	})
 
+	-- The rewriter turns string requires into `require(script...)` paths. It
+	-- reads which instance each file becomes from a sourcemap of
+	-- `build.project.json`, which mounts `src/` as `ModuleLoader` inside
+	-- `Packages`. That's where `tests.project.json` mounts `dist/`, and `dist/`
+	-- copies `src/` file for file, so the same paths hold there.
 	run("rojo", {
 		"sourcemap",
 		project.ROJO_BUILD_PROJECT,
 		"-o",
-		project.DARKLUA_SOURCEMAP_PATH,
+		project.BUILD_SOURCEMAP_PATH,
 	})
 
-	run("darklua", {
-		"process",
-		project.SOURCE_PATH,
-		project.BUILD_PATH,
+	local sourcemap: unknown = json.deserialize(fs.readFileToString(project.BUILD_SOURCEMAP_PATH))
+	local rewriter = rewriteLuau.create({
+		repoPath = path.format(path.resolve(".")),
+		sourcemap = sourcemap :: rewriteLuau.SourcemapNode,
+		globalNames = {},
+		globalValues = {},
 	})
+	rewriteLuau.rewriteFolder(rewriter, path.resolve(project.SOURCE_PATH), path.resolve(project.BUILD_PATH))
 
 	if channel == "prod" then
 		for _, specFile in find(project.BUILD_PATH, ".*%.spec%.luau") do
