@@ -1,4 +1,4 @@
-local FlipbookBatteries = require("@flipbook-batteries")
+local FlipbookBatteries = require("@lpm/flipbook-batteries@v0.13.1")
 local cli = require("@scripts/batteries/cli")
 local fs = require("@std/fs")
 local path = require("@std/path")
@@ -56,7 +56,7 @@ local function build()
 		project.BUILD_PATH,
 	})
 
-	-- `src/.config.luau` gives Loom consumers the package's own aliases. The
+	-- `src/.config.luau` gives Lute consumers the package's own aliases. The
 	-- Roblox build has already converted those requires, and Rojo would turn the
 	-- file into a ModuleScript named `.config`, so it stays out of `dist/`.
 	fs.remove(path.join(project.BUILD_PATH, ".config.luau"))

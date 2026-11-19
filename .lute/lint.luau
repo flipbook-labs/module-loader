@@ -1,4 +1,4 @@
-local FlipbookBatteries = require("@flipbook-batteries")
+local FlipbookBatteries = require("@lpm/flipbook-batteries@v0.13.1")
 local fs = require("@std/fs")
 local json = require("@std/json")
 local luau = require("@std/luau")
@@ -11,15 +11,13 @@ local project = require("@repo/project")
 local run = FlipbookBatteries.run
 
 -- CodeQuality is the org's shared package of Luau lint rules, which `lute lint`
--- runs alongside its own. It lives in the Loom store, and `lute run install`
--- writes its folder into the `code-quality` alias in `.config.luau`. Lute
--- resolves the alias's leading `~`, but `lute lint --rules` takes a plain path,
--- so this expands it.
+-- runs alongside its own. `lute run install` vendors it into a folder under
+-- `.lpm`, and the lockfile maps its key in `pkg.luau` to that folder's name.
 local function getCodeQualityRulesPath(): path.Path
-	local config = luau.loadModule(".config.luau")
-	local alias: string = config.luau.aliases["code-quality"]
-	assert(alias:sub(1, 2) == "~/", `Expected the code-quality alias to start with "~/", got "{alias}"`)
-	return path.join(process.homedir(), alias:sub(3), "src", "rules")
+	local lockfile = luau.loadModule("pkg.lock.luau")
+	local folder: string? = lockfile.devDependencies and lockfile.devDependencies["code-quality"]
+	assert(folder, "pkg.lock.luau has no code-quality dev dependency. Run 'lute run install' and try again")
+	return path.join(".lpm", folder, "src", "rules")
 end
 
 local CODE_QUALITY_RULES_PATH = getCodeQualityRulesPath()

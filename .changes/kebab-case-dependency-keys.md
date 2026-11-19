@@ -4,4 +4,4 @@ category: Internal
 kind: tooling
 ---
 
-Name Loom dependencies in kebab-case with generated aliases, and ship `src/.config.luau` so a vendored copy resolves `@root` itself.
+Vendor Lute dependencies into `.lpm/` and require them through one `@lpm` alias, and ship `src/.config.luau` so a vendored copy resolves `@root` itself.
