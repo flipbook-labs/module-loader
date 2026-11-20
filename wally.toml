@@ -18,5 +18,5 @@ include = [
 [dependencies]
 
 #[dev-dependencies]
-Jest = "jsdotlua/jest@3.10.0"
-JestGlobals = "jsdotlua/jest-globals@3.10.0"
+Jest = "roblox/jest@3.21.0"
+JestGlobals = "roblox/jest-globals@3.21.0"
