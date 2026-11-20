@@ -1,0 +1,53 @@
+{
+  "context": {
+    "repos": [
+      "flipbook-labs/agent-skills",
+      "flipbook-labs/storyteller",
+      "flipbook-labs/flipbook"
+    ]
+  },
+  "instructions": "ModuleLoader is a Wally package that Storyteller and Flipbook consume. Review for impact on those repos as well as local correctness. In the summary, name what in Storyteller or Flipbook could change because of this PR, even when nothing in ModuleLoader breaks.\n\nWhen the PR description links an issue, compare the diff with that issue and call out work it does not cover. When no issue is linked, say so in the summary without treating it as a defect.\n\nWithhold a 5/5 score for defects and for high- or medium-severity rule violations. Leave low-severity rule notes as comments that do not lower the score.",
+  "rules": [
+    {
+      "id": "consumer-impact",
+      "rule": "When a change alters what ModuleLoader exports from src/init.luau, including function signatures, return shapes, exported types, events, or caching and require behavior, check how flipbook-labs/storyteller and flipbook-labs/flipbook use it and report anything that would break. A breaking change needs a .changes/ entry with a major bump and the breaking flag.",
+      "scope": ["src/**/*.luau"],
+      "severity": "high"
+    },
+    {
+      "id": "skill-drift",
+      "rule": "When a change renames a symbol, changes a value, or fixes a bug that a skill in flipbook-labs/agent-skills describes, name the skill that now needs updating. That fix lands in agent-skills, so this is a follow-up note for the author.",
+      "severity": "low"
+    },
+    {
+      "id": "present-tense-comments",
+      "rule": "Comments explain why the code is the way it is now, for a reader who never saw an earlier version. Flag comments that only make sense against a past shape of the code, such as ones that say what the code 'used to' do, what happened 'previously', or where logic 'moved to'.",
+      "scope": ["**/*.luau"],
+      "severity": "medium"
+    },
+    {
+      "id": "spec-coverage",
+      "rule": "New or changed logic needs a colocated *.spec.luau test that would fail without the change. Flag tests that only restate what the implementation returns, mock the module under test, or cannot fail.",
+      "scope": ["src/**/*.luau"],
+      "severity": "medium"
+    },
+    {
+      "id": "workflow-conventions",
+      "rule": "Check logic belongs in .lute/ scripts that workflows call, not inline in workflow YAML. Action pinning and job timeouts follow org/repo-conventions in flipbook-labs/agent-skills.",
+      "scope": [".github/workflows/**", ".github/actions/**"],
+      "severity": "medium"
+    },
+    {
+      "id": "no-install-patches",
+      "rule": "Do not add new install-time patches to upstream packages. Flag a change that rewrites files under Packages/ after they are installed. A problem in an upstream package gets an issue filed with that package instead.",
+      "scope": [".lute/**", "pkg.luau", "wally.toml", "rokit.toml"],
+      "severity": "medium"
+    },
+    {
+      "id": "changelog-entry",
+      "rule": "A PR adds at most one .changes/ entry. Its body is one short sentence, about 140 characters at most, in present tense, with no references to PRs, branches, or how the change was developed. Developers read this changelog, so naming the affected API is welcome. Maintenance with no user-facing effect uses the Internal category and a patch bump.",
+      "scope": [".changes/**"],
+      "severity": "low"
+    }
+  ]
+}
