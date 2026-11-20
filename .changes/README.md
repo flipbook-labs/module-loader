@@ -20,7 +20,7 @@ Add support for Foo values so Bar can be Bazzed.
 - **`category`** (required) — the heading this entry appears under in the changelog: `Features`, `Changes`, `Fixes`, `Dependencies`, or `Internal`. The changelog lists the headings in that order, as set by `categories` in [`changewrite.toml`](../changewrite.toml). Dependencies and Internal start collapsed in GitHub release notes.
 - **`kind`** (required) — the part of ModuleLoader the change landed in, shown as a chip beside the entry. Pick one of the kinds under `[kind]` in [`changewrite.toml`](../changewrite.toml): `requiring`, `cache`, `events`, `sandbox`, `docs`, `build`, `tooling`, `packages`, `ci`, `release`, or `contributing`. A refactor takes the kind of whatever it touches.
 - **`highlight`** (optional) — a short title for a change worth a headline. The entry's full body appears under Highlights at the top of the release notes.
-- **Body** — everything below the frontmatter is the changelog text. Aim for one or two sentences; it can span multiple paragraphs if a change needs it.
+- **Body** — everything below the frontmatter is the changelog text. Keep it to one short sentence, about 140 characters at most, written for someone reading the changelog without the pull request.
 
 An optional `release.md` in this folder opens the next release's notes with a one- or two-sentence summary of what it brings. Changewrite consumes it with the entries.
 
