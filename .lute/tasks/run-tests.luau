@@ -6,9 +6,7 @@ local Jest = (require :: (instance: Instance) -> unknown)(ReplicatedStorage.Pack
 
 local root = ReplicatedStorage.Packages.ModuleLoader
 
--- selene: allow(global_usage)
 _G.__DEV__ = true
--- selene: allow(global_usage)
 _G.__ROACT_17_MOCK_SCHEDULER__ = true
 
 local status, result = Jest.runCLI(root, {
