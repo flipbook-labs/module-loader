@@ -68,9 +68,10 @@ local function build()
 
 	-- `convertRequire` reads which instance each file becomes from a sourcemap
 	-- of `build.project.json`, which mounts `src/` as `ModuleLoader` inside
-	-- `Packages`. That's where `tests.project.json` mounts `dist/`. The
-	-- sourcemap names files in `src/`, so `--sourceFolder` and `--buildFolder`
-	-- tell the mod to look up each file in `dist/` by its path in `src/`.
+	-- `Packages`. `tests.project.json` mounts `dist/` in the same place,
+	-- through `default.project.json`. The sourcemap names files in `src/`, so
+	-- `--sourceFolder` and `--buildFolder` tell the mod to look up each file in
+	-- `dist/` by its path in `src/`.
 	run("rojo", {
 		"sourcemap",
 		project.ROJO_BUILD_PROJECT,

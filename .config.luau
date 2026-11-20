@@ -21,7 +21,8 @@ return {
 		lint = {
 			ruleconfigs = {
 				-- ModuleLoader keeps its sandbox flag in `_G`, and the specs
-				-- and test runner set `_G` fields on purpose.
+				-- and test runner set `_G` fields on purpose. `selene.toml`
+				-- allows `global_usage` everywhere, and this matches it.
 				global_usage = { off = true },
 			},
 		},
