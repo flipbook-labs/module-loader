@@ -1,12 +1,12 @@
+local CodeQuality = require("@code-quality")
 local FlipbookBatteries = require("@flipbook-batteries")
 local cli = require("@scripts/batteries/cli")
 local fs = require("@std/fs")
-local json = require("@std/json")
 local path = require("@std/path")
 
 local project = require("@repo/project")
-local rewriteLuau = require("@scripts/lib/rewriteLuau")
 
+local copyInto = FlipbookBatteries.copyInto
 local run = FlipbookBatteries.run
 local watch = FlipbookBatteries.watch
 local find = FlipbookBatteries.find
@@ -37,19 +37,40 @@ if output then
 	assert(output ~= "", `bad value for --output (pathto an rbxm file expected, got {output})`)
 end
 
+-- The build turns a copy of `src/` in `dist/` into code Roblox can run, using
+-- CodeQuality's code mods. `lute transform` runs one mod over every file and
+-- rewrites them in place. `convertRequire` turns string requires into
+-- `require(script...)` paths. The rest fold constant expressions and remove the
+-- code that can never run. They go in the order CodeQuality's README lists,
+-- since a later mod cleans up what an earlier one leaves behind, such as the
+-- empty `do ... end` blocks `removeEmptyDo` removes.
+local function transform(mod: string, ...: string)
+	run("lute", {
+		"transform",
+		path.format(path.join(CodeQuality.MODS_PATH, `{mod}.luau`)),
+		project.BUILD_PATH,
+		"--",
+		...,
+	})
+end
+
 local function build()
 	fs.removeDirectory(project.BUILD_PATH, {
 		recursive = true,
 	})
-	fs.createDirectory(project.BUILD_PATH, {
-		makeParents = true,
-	})
+	copyInto(project.SOURCE_PATH, project.BUILD_PATH)
 
-	-- The rewriter turns string requires into `require(script...)` paths. It
-	-- reads which instance each file becomes from a sourcemap of
-	-- `build.project.json`, which mounts `src/` as `ModuleLoader` inside
-	-- `Packages`. That's where `tests.project.json` mounts `dist/`, and `dist/`
-	-- copies `src/` file for file, so the same paths hold there.
+	if channel == "prod" then
+		for _, specFile in find(project.BUILD_PATH, ".*%.spec%.luau") do
+			fs.remove(specFile)
+		end
+	end
+
+	-- `convertRequire` reads which instance each file becomes from a sourcemap
+	-- of `build.project.json`, which mounts `src/` as `ModuleLoader` inside
+	-- `Packages`. That's where `tests.project.json` mounts `dist/`. The
+	-- sourcemap names files in `src/`, so `--sourceFolder` and `--buildFolder`
+	-- tell the mod to look up each file in `dist/` by its path in `src/`.
 	run("rojo", {
 		"sourcemap",
 		project.ROJO_BUILD_PROJECT,
@@ -57,20 +78,21 @@ local function build()
 		project.BUILD_SOURCEMAP_PATH,
 	})
 
-	local sourcemap: unknown = json.deserialize(fs.readFileToString(project.BUILD_SOURCEMAP_PATH))
-	local rewriter = rewriteLuau.create({
-		repoPath = path.format(path.resolve(".")),
-		sourcemap = sourcemap :: rewriteLuau.SourcemapNode,
-		globalNames = {},
-		globalValues = {},
-	})
-	rewriteLuau.rewriteFolder(rewriter, path.resolve(project.SOURCE_PATH), path.resolve(project.BUILD_PATH))
-
-	if channel == "prod" then
-		for _, specFile in find(project.BUILD_PATH, ".*%.spec%.luau") do
-			fs.remove(specFile)
-		end
-	end
+	transform(
+		"convertRequire",
+		"--sourcemap",
+		project.BUILD_SOURCEMAP_PATH,
+		"--sourceFolder",
+		project.SOURCE_PATH,
+		"--buildFolder",
+		project.BUILD_PATH
+	)
+	transform("computeExpression")
+	transform("removeUnusedIfBranch")
+	transform("removeUnusedWhile")
+	transform("filterAfterEarlyReturn")
+	transform("removeNilDeclaration")
+	transform("removeEmptyDo")
 
 	if output then
 		run("rojo", { "build", "-o", output })
