@@ -11,7 +11,7 @@ return {
 		},
 		dev_dependencies = {
 			CodeQuality = {
-				rev = "v0.5.0",
+				rev = "v0.6.0",
 				sourceKind = "github",
 				source = "https://github.com/flipbook-labs/code-quality",
 			},
