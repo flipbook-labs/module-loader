@@ -1,7 +1,7 @@
 return {
 	package = {
 		name = "ModuleLoader",
-		version = "0.12.0",
+		version = "0.12.1",
 		-- `src/.config.luau` is hidden, so it has to be named to ship.
 		files = { "/src/**", "/src/.config.luau", "!/src/**/*.spec.luau", "!/src/jest.config.luau", "/README.md", "/LICENSE" },
 		dependencies = {
