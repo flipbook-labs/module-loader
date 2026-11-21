@@ -9,7 +9,12 @@ local project = require("@repo/project")
 -- vendors such a package has to define the same alias.
 -- The following issue tracks removing that requirement:
 -- https://github.com/flipbook-labs/flipbook/issues/694
-local result = process.run({ "lute", "pkg", "install", "--vendor" }, { stdio = "inherit" })
+local result = process.run({
+	"lute",
+	"pkg",
+	"install",
+	"--vendor",
+}, { stdio = "inherit" })
 assert(result.ok, "lute pkg install failed")
 
 do
@@ -19,7 +24,12 @@ do
 
 	local function installWallyPackages()
 		run("wally", { "install" })
-		run("rojo", { "sourcemap", project.ROJO_BUILD_PROJECT, "-o", "sourcemap.json" })
+		run("rojo", {
+			"sourcemap",
+			project.ROJO_BUILD_PROJECT,
+			"-o",
+			"sourcemap.json",
+		})
 		run("wally-package-types", { "--sourcemap", "sourcemap.json", project.PACKAGES_PATH })
 	end
 

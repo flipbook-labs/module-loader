@@ -4,7 +4,6 @@
 # New tools can be added by running `rokit add <tool>` in a terminal.
 
 [tools]
-darklua = "seaofvoices/darklua@0.19.0"
 luau-lsp = "JohnnyMorganz/luau-lsp@1.68.1"
 lute = "luau-lang/lute@1.0.1-nightly.20261117"
 moonwave-extractor = "evaera/moonwave@1.4.2"

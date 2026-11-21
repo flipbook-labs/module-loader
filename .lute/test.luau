@@ -36,7 +36,12 @@ local filter = args:get("filter")
 -- This gets picked up by the build step which uses Darklua to inject globals
 process.env.JEST_TEST_PATH_PATTERN = if filter then filter else ""
 
-run("lute", { "run", "build", "--channel", "dev" })
+run("lute", {
+	"run",
+	"build",
+	"--channel",
+	"dev",
+})
 
 local success, err = pcall(function()
 	run("rocale", {
