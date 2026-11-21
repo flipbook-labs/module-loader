@@ -13,14 +13,13 @@ Thank you for your interest in contributing to this repository! This guide will 
 You should be using [Visual Studio Code](https://code.visualstudio.com/) as your text editor and have the following extensions installed:
 
 - [Rojo](https://marketplace.visualstudio.com/items?itemName=evaera.vscode-rojo)
-- [Selene](https://marketplace.visualstudio.com/items?itemName=Kampfkarren.selene-vscode)
 - [StyLua](https://marketplace.visualstudio.com/items?itemName=JohnnyMorganz.stylua)
 
 Once installed, the Rojo extension will display a welcome screen. Scroll down to the section for the Roblox Studio plugin and select "Manage it for me." Next time you open a place in Studio you will have the Rojo plugin ready to go.
 
 ### Foreman
 
-[Foreman](https://github.com/Roblox/foreman/) handles the installation of several of our other tools, like Rojo, Wally, Selene, and StyLua.
+[Foreman](https://github.com/Roblox/foreman/) handles the installation of several of our other tools, like Rojo, Wally, and StyLua.
 
 To install through Cargo, run the following:
 
@@ -53,7 +52,7 @@ Changes to the `PATH` will only take effect in new terminals. If you are not abl
 With the above requirements satisfied, run the following commands from your clone of this repository to start developing:
 
 ```sh
-# Install Rojo, Wally, Selene, StyLua, and others
+# Install Rojo, Wally, StyLua, and others
 foreman install
 
 # Install this package's dependencie

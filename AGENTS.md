@@ -12,7 +12,7 @@ Complete every step below before you write any code, tests, changelog entries, o
    rokit install && lute run install
    ```
 
-   `rokit install` puts `lute`, `luau-lsp`, `stylua`, and `selene` on PATH. `lute run install` vendors the Lute dependencies into `.lpm/`, one `<key>@<rev>` folder each, and installs the Wally runtime dependencies into `Packages/`. The shared skills library is a dev dependency, so it lands in `.lpm/` for you to read but is not shipped with the package. Without this step the skills are not on disk.
+   `rokit install` puts `lute`, `luau-lsp`, and `stylua` on PATH. `lute run install` vendors the Lute dependencies into `.lpm/`, one `<key>@<rev>` folder each, and installs the Wally runtime dependencies into `Packages/`. The shared skills library is a dev dependency, so it lands in `.lpm/` for you to read but is not shipped with the package. Without this step the skills are not on disk.
 
 2. Find the skills folder: it's `.lpm/agent-skills@<rev>`, where `<rev>` is the `rev` pinned for `agent-skills` in [`pkg.luau`](pkg.luau). Run `ls -d .lpm/agent-skills@*` to print it, and use that path wherever `<skills>` appears below.
 
@@ -37,7 +37,7 @@ Skills are living documents. When your work here contradicts a skill (a renamed 
 
 ## Repo specifics
 
-- Toolchain is managed with [Rokit](https://github.com/rojo-rbx/rokit). Run `rokit install` once to get `lute`, `luau-lsp`, `stylua`, and `selene` on PATH.
+- Toolchain is managed with [Rokit](https://github.com/rojo-rbx/rokit). Run `rokit install` once to get `lute`, `luau-lsp`, and `stylua` on PATH.
 - `lute run --list` shows the available scripts: `install`, `build` (`--channel dev`/`prod`), `lint`, `analyze`, and `test`.
 - Tests are `*.spec.luau` files alongside the code they cover. Run the suite with `lute run test`.
 - The build copies `src/` to `dist/` and runs [CodeQuality](https://github.com/flipbook-labs/code-quality)'s code mods over the copy with `lute transform`. `convertRequire` rewrites string requires such as `require("@root/types")` into the `require(script...)` paths Roblox runs, using the aliases in `.config.luau` and a Rojo sourcemap of `build.project.json`. Wally publishes from `dist/`. Never edit `dist/` by hand.
