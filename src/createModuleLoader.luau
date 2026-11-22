@@ -5,6 +5,8 @@
 	https://github.com/flipbook-labs/module-loader/pull/34#issuecomment-4082559439
 ]]
 
+local ScriptService = game:GetService("ScriptService")
+
 local compileWithLoadstring = require("@root/compileWithLoadstring")
 local createModuleRegistry = require("@root/createModuleRegistry")
 local getModuleSource = require("@root/getModuleSource")
@@ -23,6 +25,7 @@ type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
 type LoadModule = types.LoadModule
 type ModuleLoaderDependencies = types.ModuleLoaderDependencies
+type ResolveModulePath = types.ResolveModulePath
 
 type LoaderContext = {
 	dependencies: ModuleLoaderDependencies,
@@ -46,10 +49,24 @@ local SANDBOX_MARKER = { __internal = true }
 -- security level.
 local NON_ROBLOXSCRIPT_REQUIRE_ERROR = "Cannot require a non-RobloxScript module from a RobloxScript"
 
+-- ScriptService:ResolveModulePath resolves string requires the same way native
+-- `require` does, including aliases from `.config` modules. It's gated by
+-- DFFlagScriptServiceResolveModulePath, which user code can't read, so the
+-- method is probed instead. Once the flag rolls out, the probe and
+-- `resolveInstancePath` can be deleted.
+local isResolveModulePathEnabled = pcall(function()
+	return ScriptService:ResolveModulePath(script, "@self")
+end)
+
 local DEFAULT_DEPENDENCIES: ModuleLoaderDependencies = {
 	compile = compileWithLoadstring,
 	require = requireAny,
 	loadmodule = (debug :: typeof(debug) & { loadmodule: LoadModule? }).loadmodule,
+	resolveModulePath = if isResolveModulePathEnabled
+		then function(relativeTo: Instance, path: string): Instance
+			return ScriptService:ResolveModulePath(relativeTo, path)
+		end
+		else nil,
 }
 
 local function makeModuleFunction(compiledOuter): ModuleFunction
@@ -221,7 +238,8 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 			local resolvedModule: ModuleScript
 			if type(module) == "string" then
 				local relativeTo: Instance = if caller then caller else moduleScript
-				resolvedModule = resolveInstancePath(relativeTo, module) :: ModuleScript
+				local resolve: ResolveModulePath = context.dependencies.resolveModulePath or resolveInstancePath
+				resolvedModule = resolve(relativeTo, module) :: ModuleScript
 			else
 				resolvedModule = module
 			end

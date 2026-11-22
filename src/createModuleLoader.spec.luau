@@ -8,6 +8,7 @@ local describe = JestGlobals.describe
 local beforeEach = JestGlobals.beforeEach
 local afterEach = JestGlobals.afterEach
 
+local compileWithLoadstring = require("./compileWithLoadstring")
 local createModuleLoader = require("./createModuleLoader")
 
 type ModuleTestTree = {
@@ -698,6 +699,81 @@ describe("require", function()
 			-- misresolved path would surface as a require error or wrong value.
 			expect(loader.require(consumer)).toBe("resolved")
 		end)
+
+		test("resolves string requires with the injected resolver", function()
+			tree = createModuleTest({
+				Consumer = [[
+					return require("@anything/Target")
+				]],
+				Target = [[
+					return "target"
+				]],
+			})
+
+			local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
+			local target = tree:QueryDescendants("#Target")[1] :: ModuleScript
+
+			local resolveCalls: { { relativeTo: Instance, path: string } } = {}
+			loader = createModuleLoader({
+				compile = compileWithLoadstring,
+				require = require :: (moduleScript: ModuleScript) -> unknown,
+				loadmodule = nil,
+				-- ModuleLoader's own parser can't resolve `@anything`, so the
+				-- require only succeeds through this resolver.
+				resolveModulePath = function(relativeTo: Instance, path: string): Instance
+					table.insert(resolveCalls, { relativeTo = relativeTo, path = path })
+					return target
+				end,
+			})
+
+			expect(loader.require(consumer)).toBe("target")
+			expect(resolveCalls).toEqual({ { relativeTo = consumer, path = "@anything/Target" } })
+		end)
+
+		-- By default, string requires go through ScriptService:ResolveModulePath
+		-- when the engine enables it. It sits behind an engine flag that Open
+		-- Cloud Luau Execution leaves off, so these specs only run in Studio
+		-- with the flag on.
+		local isResolveModulePathEnabled = pcall(function()
+			return ScriptService:ResolveModulePath(script, "@self")
+		end)
+
+		if isResolveModulePathEnabled then
+			test("resolves '..' after the beginning of the path", function()
+				tree = createModuleTest(({
+					Consumer = [[
+						return require("./Child/../Target")
+					]],
+					Child = {
+						Placeholder = "return nil",
+					},
+					Target = [[
+						return "target"
+					]],
+				} :: unknown) :: ModuleTestTree)
+
+				local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
+
+				expect(loader.require(consumer)).toBe("target")
+			end)
+
+			test("throws when the path resolves to something other than a ModuleScript", function()
+				tree = createModuleTest(({
+					Consumer = [[
+						return require("./Child")
+					]],
+					Child = {
+						Placeholder = "return nil",
+					},
+				} :: unknown) :: ModuleTestTree)
+
+				local consumer = tree:QueryDescendants("#Consumer")[1] :: ModuleScript
+
+				expect(function()
+					loader.require(consumer)
+				end).toThrow("unable to resolve module path")
+			end)
+		end
 
 		-- `.config` aliases resolve only through ScriptService:ResolveModulePath
 		-- with engine alias resolution on. Both sit behind engine flags that

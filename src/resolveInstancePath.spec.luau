@@ -1,5 +1,4 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local ScriptService = game:GetService("ScriptService")
 
 local JestGlobals = require("@pkg/JestGlobals")
 local test = JestGlobals.test
@@ -7,13 +6,6 @@ local expect = JestGlobals.expect
 local describe = JestGlobals.describe
 
 local resolveInstancePath = require("./resolveInstancePath")
-
--- Open Cloud Luau Execution runs with engine flags off, so CI only exercises
--- the parser. Specs whose behavior differs under the engine resolver branch on
--- the same probe `resolveInstancePath` makes.
-local isResolveModulePathEnabled = pcall(function()
-	return ScriptService:ResolveModulePath(script, "@self")
-end)
 
 describe("@game alias", function()
 	test("resolves a descendant path under game", function()
@@ -25,13 +17,11 @@ describe("@game alias", function()
 		moduleScript:Destroy()
 	end)
 
-	if not isResolveModulePathEnabled then
-		test("resolves to game itself when the path is only the alias", function()
-			local moduleScript = Instance.new("ModuleScript")
+	test("resolves to game itself when the path is only the alias", function()
+		local moduleScript = Instance.new("ModuleScript")
 
-			expect(resolveInstancePath(moduleScript, "@game")).toBe(game)
-		end)
-	end
+		expect(resolveInstancePath(moduleScript, "@game")).toBe(game)
+	end)
 end)
 
 describe("@self alias", function()
@@ -110,17 +100,6 @@ describe("relative ascent", function()
 		-- ../ lands on child1 (two levels up), then Sibling descends into it.
 		expect(resolveInstancePath(descendant, "../Sibling")).toBe(sibling)
 	end)
-
-	if isResolveModulePathEnabled then
-		test("resolves '..' after the beginning of the path", function()
-			buildTree()
-			local sibling = Instance.new("ModuleScript")
-			sibling.Name = "Sibling"
-			sibling.Parent = child1
-
-			expect(resolveInstancePath(descendant, "../Child2/../Sibling")).toBe(sibling)
-		end)
-	end
 end)
 
 describe("errors", function()
@@ -137,42 +116,22 @@ describe("errors", function()
 
 		expect(function()
 			resolveInstancePath(moduleScript, "/Foo/Bar")
-		end).toThrow(
-			if isResolveModulePathEnabled
-				then "unable to resolve module path"
-				else "paths beginning with '/' are not supported in sandboxed string requires"
-		)
+		end).toThrow("paths beginning with '/' are not supported in sandboxed string requires")
 	end)
 
-	if not isResolveModulePathEnabled then
-		test("throws when '..' appears after the beginning of the path", function()
-			local root = Instance.new("ModuleScript")
+	test("throws when '..' appears after the beginning of the path", function()
+		local root = Instance.new("ModuleScript")
 
-			local child = Instance.new("ModuleScript")
-			child.Name = "Child"
-			child.Parent = root
+		local child = Instance.new("ModuleScript")
+		child.Name = "Child"
+		child.Parent = root
 
-			local sibling = Instance.new("ModuleScript")
-			sibling.Name = "Sibling"
-			sibling.Parent = root
+		local sibling = Instance.new("ModuleScript")
+		sibling.Name = "Sibling"
+		sibling.Parent = root
 
-			expect(function()
-				resolveInstancePath(root, "@self/Child/../Sibling")
-			end).toThrow("paths including '..' after the beginning are not supported in sandboxed string requires")
-		end)
-	end
-
-	if isResolveModulePathEnabled then
-		test("throws when the path resolves to something other than a ModuleScript", function()
-			local root = Instance.new("ModuleScript")
-
-			local folder = Instance.new("Folder")
-			folder.Name = "Folder"
-			folder.Parent = root
-
-			expect(function()
-				resolveInstancePath(root, "@self/Folder")
-			end).toThrow("unable to resolve module path")
-		end)
-	end
+		expect(function()
+			resolveInstancePath(root, "@self/Child/../Sibling")
+		end).toThrow("paths including '..' after the beginning are not supported in sandboxed string requires")
+	end)
 end)
