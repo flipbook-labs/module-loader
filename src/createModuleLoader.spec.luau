@@ -279,6 +279,35 @@ describe("require", function()
 		expect(tostring(err)).toMatch("createModuleLoader%.spec")
 	end)
 
+	test("adds a traceback to an error that another loader already traced", function()
+		tree = createModuleTest({
+			Failing = [[
+				error("boom")
+			]],
+			Rethrowing = [[
+				error(_G.__MODULE_LOADER_SPEC_ERROR, 0)
+			]],
+		})
+
+		local otherLoader = createModuleLoader()
+		local failing = tree:QueryDescendants("#Failing")[1] :: ModuleScript
+		local _, otherErr = pcall(otherLoader.require, failing)
+		otherLoader.clear()
+
+		-- Modules read the real _G through the loader's proxy globals, so this
+		-- hands the first loader's traced error to a module in the second.
+		_G.__MODULE_LOADER_SPEC_ERROR = otherErr
+		local rethrowing = tree:QueryDescendants("#Rethrowing")[1] :: ModuleScript
+		local ok, err = pcall(loader.require, rethrowing)
+		_G.__MODULE_LOADER_SPEC_ERROR = nil
+
+		-- If the loaders shared a handler, the second would pass the error
+		-- through unchanged. Its own handler keeps the message and adds a trace.
+		expect(ok).toBe(false)
+		expect(err).never.toBe(otherErr)
+		expect(tostring(err):sub(1, #tostring(otherErr))).toBe(otherErr)
+	end)
+
 	test("does not cache a module that errored, so a later require can succeed", function()
 		local moduleScript = Instance.new("ModuleScript")
 		moduleScript.Source = "error('boom')"
