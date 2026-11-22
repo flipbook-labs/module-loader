@@ -3,6 +3,78 @@
 All notable changes to this project will be documented in this file.
 
 
+## v0.13.0
+
+Features 1 · Changes 1 · Fixes 2 · Dependencies 1 · Internal 10
+
+### Features
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-light.png" alt="Requiring" height="18" align="texttop" /></picture> Resolve string requires with `ScriptService:ResolveModulePath` when the engine enables it, so `.config` aliases work in loaded modules. ([#77](https://github.com/flipbook-labs/module-loader/pull/77))
+
+### Changes
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-docs-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-docs-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-docs-light.png" alt="Docs" height="18" align="texttop" /></picture> Rewrite the README with install snippets for Wally and Lute and a runnable example. ([#84](https://github.com/flipbook-labs/module-loader/pull/84))
+
+### Fixes
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-light.png" alt="Requiring" height="18" align="texttop" /></picture> Load modules with `debug.loadmodule` when running at RobloxScript security, where requiring a temporary ModuleScript is not allowed. ([#72](https://github.com/flipbook-labs/module-loader/pull/72))
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-light.png" alt="Requiring" height="18" align="texttop" /></picture> An error raised inside a chain of requires now carries one stack traceback. ([#78](https://github.com/flipbook-labs/module-loader/pull/78))
+
+<details>
+<summary>Details</summary>
+
+Each module in the chain used to append the full stack again, so the message grew with every level.
+
+</details>
+
+<details>
+<summary>Dependencies (1)</summary>
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-light.png" alt="Tooling" height="18" align="texttop" /></picture> Upgrade Jest to v3.21.0 from Roblox's `roblox/*` Wally packages. ([#80](https://github.com/flipbook-labs/module-loader/pull/80))
+
+<details>
+<summary>Details</summary>
+
+String requires in tests resolve through `ScriptService:ResolveModulePath` on engines that support it.
+
+</details>
+
+</details>
+
+<details>
+<summary>Internal (10)</summary>
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-release-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-release-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-release-light.png" alt="Release" height="18" align="texttop" /></picture> Release automation reads the public Flipbook Backend App Client ID from an organization variable. ([#62](https://github.com/flipbook-labs/module-loader/pull/62))
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-contributing-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-contributing-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-contributing-light.png" alt="Contributing" height="18" align="texttop" /></picture> Route repository review requests to the `flipbook-engine` team. ([#64](https://github.com/flipbook-labs/module-loader/pull/64))
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-release-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-release-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-release-light.png" alt="Release" height="18" align="texttop" /></picture> Upgrade Changewrite to `v0.12.0`, so release notes mark each entry with a chip naming the part of ModuleLoader it changed. ([#68](https://github.com/flipbook-labs/module-loader/pull/68))
+
+<details>
+<summary>Details</summary>
+
+The Dependencies and Internal sections start collapsed.
+
+</details>
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-light.png" alt="Tooling" height="18" align="texttop" /></picture> Run the org's shared CodeQuality lint rules in `lute run lint`, and fix the findings they report. ([#73](https://github.com/flipbook-labs/module-loader/pull/73))
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-light.png" alt="Tooling" height="18" align="texttop" /></picture> Declare the Loom tooling dependencies in `pkg.luau` and build with Lute `1.0.1-nightly.20261115`. ([#69](https://github.com/flipbook-labs/module-loader/pull/69))
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-contributing-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-contributing-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-contributing-light.png" alt="Contributing" height="18" align="texttop" /></picture> Give Greptile repository rules for impact on Storyteller and Flipbook, tests, comments, and changelog entries. ([#81](https://github.com/flipbook-labs/module-loader/pull/81))
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-light.png" alt="Tooling" height="18" align="texttop" /></picture> Manage the Lute tooling with `pkg.luau`, and ship `src/.config.luau` so ModuleLoader keeps its own aliases. ([#76](https://github.com/flipbook-labs/module-loader/pull/76))
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-build-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-build-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-build-light.png" alt="Build" height="18" align="texttop" /></picture> Build `dist/` without Darklua. ([#79](https://github.com/flipbook-labs/module-loader/pull/79))
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-light.png" alt="Tooling" height="18" align="texttop" /></picture> Lint without Selene. ([#82](https://github.com/flipbook-labs/module-loader/pull/82))
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-release-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-release-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-release-light.png" alt="Release" height="18" align="texttop" /></picture> Upgrade Changewrite to `v0.14.1`, so the changelog's chips build in the docs site and entries are written in Luau. ([#88](https://github.com/flipbook-labs/module-loader/pull/88))
+
+</details>
+
+
 ## v0.12.0
 
 ### Changes
