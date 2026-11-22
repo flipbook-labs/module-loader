@@ -5,6 +5,9 @@
 	https://github.com/flipbook-labs/module-loader/pull/34#issuecomment-4082559439
 ]]
 
+local ScriptService = game:GetService("ScriptService")
+
+local bind = require("@root/bind")
 local compileWithLoadstring = require("@root/compileWithLoadstring")
 local createModuleRegistry = require("@root/createModuleRegistry")
 local getModuleSource = require("@root/getModuleSource")
@@ -15,14 +18,12 @@ local types = require("@root/types")
 
 type ModuleFactory = (...unknown) -> () -> ...unknown
 
-local requireAny = require :: (moduleScript: ModuleScript) -> unknown
-
 type LoadedModule = types.LoadedModule
 type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
-type LoadModule = types.LoadModule
 type ModuleLoaderDependencies = types.ModuleLoaderDependencies
+type ResolveModulePath = types.ResolveModulePath
 
 type LoaderContext = {
 	dependencies: ModuleLoaderDependencies,
@@ -48,10 +49,25 @@ local SANDBOX_MARKER = { __internal = true }
 -- security level.
 local NON_ROBLOXSCRIPT_REQUIRE_ERROR = "Cannot require a non-RobloxScript module from a RobloxScript"
 
+-- ScriptService:ResolveModulePath resolves string requires the same way native
+-- `require` does, including aliases from `.config` modules. It's gated by
+-- DFFlagScriptServiceResolveModulePath, which user code can't read, so the
+-- method is probed instead. Once the flag rolls out, the probe and
+-- `resolveInstancePath` can be deleted.
+local isResolveModulePathEnabled = pcall(function()
+	return ScriptService:ResolveModulePath(script, "@self")
+end)
+
 local DEFAULT_DEPENDENCIES: ModuleLoaderDependencies = {
 	compile = compileWithLoadstring,
-	require = requireAny,
-	loadmodule = (debug :: typeof(debug) & { loadmodule: LoadModule? }).loadmodule,
+	require = require,
+	-- debug.loadmodule only exists behind an engine flag, so Roblox's type
+	-- definitions leave it out and `debug.loadmodule` fails analysis. rawget
+	-- reads the same field without the type checker looking it up.
+	loadmodule = rawget(debug, "loadmodule"),
+	resolveModulePath = if isResolveModulePathEnabled
+		then bind(ScriptService.ResolveModulePath, ScriptService)
+		else nil,
 }
 
 -- Every require runs its module inside `xpcall`, and a failed require re-raises
@@ -252,7 +268,8 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 			local resolvedModule: ModuleScript
 			if type(module) == "string" then
 				local relativeTo: Instance = if caller then caller else moduleScript
-				resolvedModule = resolveInstancePath(relativeTo, module) :: ModuleScript
+				local resolve: ResolveModulePath = context.dependencies.resolveModulePath or resolveInstancePath
+				resolvedModule = resolve(relativeTo, module) :: ModuleScript
 			else
 				resolvedModule = module
 			end
