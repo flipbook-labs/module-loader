@@ -7,6 +7,7 @@
 
 local ScriptService = game:GetService("ScriptService")
 
+local bind = require("@root/bind")
 local compileWithLoadstring = require("@root/compileWithLoadstring")
 local createModuleRegistry = require("@root/createModuleRegistry")
 local getModuleSource = require("@root/getModuleSource")
@@ -16,8 +17,6 @@ local setModuleSource = require("@root/setModuleSource")
 local types = require("@root/types")
 
 type ModuleFactory = (...unknown) -> () -> ...unknown
-
-local requireAny = require :: (moduleScript: ModuleScript) -> unknown
 
 type LoadedModule = types.LoadedModule
 type ModuleLoader = types.ModuleLoader
@@ -62,12 +61,12 @@ end)
 
 local DEFAULT_DEPENDENCIES: ModuleLoaderDependencies = {
 	compile = compileWithLoadstring,
-	require = requireAny,
+	require = require,
+	-- debug.loadmodule only exists behind an engine flag, so Roblox's type
+	-- definitions leave it out.
 	loadmodule = (debug :: typeof(debug) & { loadmodule: LoadModule? }).loadmodule,
 	resolveModulePath = if isResolveModulePathEnabled
-		then function(relativeTo: Instance, path: string): Instance
-			return ScriptService:ResolveModulePath(relativeTo, path)
-		end
+		then bind(ScriptService.ResolveModulePath, ScriptService)
 		else nil,
 }
 
