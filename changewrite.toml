@@ -2,7 +2,7 @@ categories = ["Features", "Changes", "Fixes", "Dependencies", "Internal"]
 collapsed = ["Dependencies", "Internal"]
 
 [version]
-current = "0.12.0"
+current = "0.13.0"
 mirror = [
   { file = "wally.toml" },
   { file = "pkg.luau" },
