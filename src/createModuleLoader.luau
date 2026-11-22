@@ -22,7 +22,6 @@ type LoadedModule = types.LoadedModule
 type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
-type LoadModule = types.LoadModule
 type ModuleLoaderDependencies = types.ModuleLoaderDependencies
 type ResolveModulePath = types.ResolveModulePath
 
@@ -63,8 +62,9 @@ local DEFAULT_DEPENDENCIES: ModuleLoaderDependencies = {
 	compile = compileWithLoadstring,
 	require = require,
 	-- debug.loadmodule only exists behind an engine flag, so Roblox's type
-	-- definitions leave it out.
-	loadmodule = (debug :: typeof(debug) & { loadmodule: LoadModule? }).loadmodule,
+	-- definitions leave it out and `debug.loadmodule` fails analysis. rawget
+	-- reads the same field without the type checker looking it up.
+	loadmodule = rawget(debug, "loadmodule"),
 	resolveModulePath = if isResolveModulePathEnabled
 		then bind(ScriptService.ResolveModulePath, ScriptService)
 		else nil,
