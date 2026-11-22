@@ -777,6 +777,216 @@ describe("clear", function()
 	end)
 end)
 
+describe("RobloxScript security", function()
+	local NON_ROBLOXSCRIPT_REQUIRE_ERROR = "Cannot require a non-RobloxScript module from a RobloxScript"
+
+	-- Open Cloud Luau Execution doesn't run at RobloxScript security, so these
+	-- tests stand in for the engine calls that behave differently there:
+	-- loadstring is unavailable, requiring a created ModuleScript is rejected,
+	-- and `debug.loadmodule` compiles the module instead.
+	local function compileWithoutLoadstring(_source: string, _chunkName: string)
+		return nil, nil
+	end
+
+	local requireCallCount = 0
+
+	local function rejectRequire(_moduleScript: ModuleScript): unknown
+		requireCallCount += 1
+		error(NON_ROBLOXSCRIPT_REQUIRE_ERROR, 2)
+	end
+
+	beforeEach(function()
+		requireCallCount = 0
+	end)
+
+	test("loads a module with debug.loadmodule when requiring it is rejected", function()
+		tree = createModuleTest({
+			Module = "return script.Name",
+		})
+
+		loader = createModuleLoader({
+			compile = compileWithoutLoadstring,
+			require = rejectRequire,
+			loadmodule = function(_moduleScript)
+				return function()
+					return script.Name
+				end
+			end,
+		})
+
+		local module = tree:QueryDescendants("#Module")[1] :: ModuleScript
+
+		expect(loader.require(module)).toBe("Module")
+	end)
+
+	test("resolves requires inside a debug.loadmodule chunk through the loader", function()
+		tree = createModuleTest({
+			Helper = "return {}",
+			Story = "return require(script.Parent.Helper)",
+		})
+
+		local chunks: { [string]: () -> ...unknown } = {
+			Helper = function()
+				return {}
+			end,
+			Story = function()
+				-- The cast keeps the type checker from resolving `Helper`
+				-- next to this spec. At runtime both globals belong to the
+				-- Story module.
+				return (require :: (moduleScript: Instance) -> unknown)(script.Parent.Helper)
+			end,
+		}
+
+		loader = createModuleLoader({
+			compile = compileWithoutLoadstring,
+			require = rejectRequire,
+			loadmodule = function(moduleScript)
+				return chunks[moduleScript.Name]
+			end,
+		})
+
+		local helper = tree:QueryDescendants("#Helper")[1] :: ModuleScript
+		local story = tree:QueryDescendants("#Story")[1] :: ModuleScript
+
+		expect(loader.require(story)).toBe(loader.require(helper))
+	end)
+
+	test("stops trying to require modules once requiring has been rejected", function()
+		tree = createModuleTest({
+			ModuleA = "return 'A'",
+			ModuleB = "return 'B'",
+		})
+
+		loader = createModuleLoader({
+			compile = compileWithoutLoadstring,
+			require = rejectRequire,
+			loadmodule = function(moduleScript)
+				return function()
+					return moduleScript.Name
+				end
+			end,
+		})
+
+		loader.require(tree:QueryDescendants("#ModuleA")[1] :: ModuleScript)
+		loader.require(tree:QueryDescendants("#ModuleB")[1] :: ModuleScript)
+
+		expect(requireCallCount).toBe(1)
+	end)
+
+	test("runs debug.loadmodule cleanup functions when cleared", function()
+		tree = createModuleTest({
+			ModuleA = "return 'A'",
+			ModuleB = "return 'B'",
+		})
+
+		local cleanupCount = 0
+
+		loader = createModuleLoader({
+			compile = compileWithoutLoadstring,
+			require = rejectRequire,
+			loadmodule = function(moduleScript)
+				return function()
+					return moduleScript.Name
+				end, nil, function()
+					cleanupCount += 1
+				end
+			end,
+		})
+
+		loader.require(tree:QueryDescendants("#ModuleA")[1] :: ModuleScript)
+		loader.require(tree:QueryDescendants("#ModuleB")[1] :: ModuleScript)
+		loader.clear()
+
+		expect(cleanupCount).toBe(2)
+	end)
+
+	test("throws the debug.loadmodule error when a module fails to compile", function()
+		tree = createModuleTest({
+			Module = "return",
+		})
+
+		loader = createModuleLoader({
+			compile = compileWithoutLoadstring,
+			require = rejectRequire,
+			loadmodule = function(_moduleScript)
+				return nil, "Module:1: Expected expression"
+			end,
+		})
+
+		local module = tree:QueryDescendants("#Module")[1] :: ModuleScript
+
+		expect(function()
+			loader.require(module)
+		end).toThrow("Expected expression")
+	end)
+
+	test("throws the require error when debug.loadmodule is unavailable", function()
+		tree = createModuleTest({
+			Module = "return nil",
+		})
+
+		loader = createModuleLoader({
+			compile = compileWithoutLoadstring,
+			require = rejectRequire,
+			loadmodule = nil,
+		})
+
+		local module = tree:QueryDescendants("#Module")[1] :: ModuleScript
+
+		expect(function()
+			loader.require(module)
+		end).toThrow(NON_ROBLOXSCRIPT_REQUIRE_ERROR)
+	end)
+
+	test("throws the require error when debug.loadmodule isn't allowed in this context", function()
+		tree = createModuleTest({
+			Module = "return nil",
+		})
+
+		loader = createModuleLoader({
+			compile = compileWithoutLoadstring,
+			require = rejectRequire,
+			loadmodule = function(_moduleScript)
+				error("debug.loadmodule is not available at this security level")
+			end,
+		})
+
+		local module = tree:QueryDescendants("#Module")[1] :: ModuleScript
+
+		expect(function()
+			loader.require(module)
+		end).toThrow(NON_ROBLOXSCRIPT_REQUIRE_ERROR)
+	end)
+
+	test("does not use debug.loadmodule for other require errors", function()
+		tree = createModuleTest({
+			Module = "return nil",
+		})
+
+		local loadmoduleCallCount = 0
+
+		loader = createModuleLoader({
+			compile = compileWithoutLoadstring,
+			require = function(_moduleScript)
+				error("Module code did not return exactly one value")
+			end,
+			loadmodule = function(_moduleScript)
+				loadmoduleCallCount += 1
+				return function()
+					return nil
+				end
+			end,
+		})
+
+		local module = tree:QueryDescendants("#Module")[1] :: ModuleScript
+
+		expect(function()
+			loader.require(module)
+		end).toThrow("Module code did not return exactly one value")
+		expect(loadmoduleCallCount).toBe(0)
+	end)
+end)
+
 describe("roblox-ts", function()
 	local rbxtsInclude: Folder
 	local mockRuntime: ModuleScript
