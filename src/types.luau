@@ -38,7 +38,7 @@ export type LoadModule = (moduleScript: ModuleScript) -> ((() -> ...unknown)?, s
 -- contexts that Open Cloud Luau Execution can't reproduce.
 export type ModuleLoaderDependencies = {
 	compile: (source: string, chunkName: string) -> (ModuleFunction?, string?),
-	require: (moduleScript: ModuleScript) -> ...any,
+	require: (moduleScript: ModuleScript) -> unknown,
 	loadmodule: LoadModule?,
 }
 

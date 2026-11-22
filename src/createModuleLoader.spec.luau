@@ -790,7 +790,7 @@ describe("RobloxScript security", function()
 
 	local requireCallCount = 0
 
-	local function rejectRequire(_moduleScript: ModuleScript): ...any
+	local function rejectRequire(_moduleScript: ModuleScript): unknown
 		requireCallCount += 1
 		error(NON_ROBLOXSCRIPT_REQUIRE_ERROR, 2)
 	end
@@ -833,7 +833,7 @@ describe("RobloxScript security", function()
 				-- The cast keeps the type checker from resolving `Helper`
 				-- next to this spec. At runtime both globals belong to the
 				-- Story module.
-				return (require :: any)(script.Parent.Helper)
+				return (require :: (moduleScript: Instance) -> unknown)(script.Parent.Helper)
 			end,
 		}
 

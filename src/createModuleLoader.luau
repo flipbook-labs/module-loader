@@ -21,6 +21,7 @@ type LoadedModule = types.LoadedModule
 type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
+type LoadModule = types.LoadModule
 type ModuleLoaderDependencies = types.ModuleLoaderDependencies
 
 type LoaderContext = {
@@ -48,7 +49,7 @@ local NON_ROBLOXSCRIPT_REQUIRE_ERROR = "Cannot require a non-RobloxScript module
 local DEFAULT_DEPENDENCIES: ModuleLoaderDependencies = {
 	compile = compileWithLoadstring,
 	require = requireAny,
-	loadmodule = (debug :: any).loadmodule,
+	loadmodule = (debug :: typeof(debug) & { loadmodule: LoadModule? }).loadmodule,
 }
 
 local function makeModuleFunction(compiledOuter): ModuleFunction
@@ -76,10 +77,8 @@ local function getModuleFunction(
 	params: { string }?,
 	context: LoaderContext
 ): ModuleFunction
-	local dependencies = context.dependencies
-
 	local nativeRequire: ModuleFunction = function()
-		return dependencies.require(moduleScript)
+		return context.dependencies.require(moduleScript)
 	end
 
 	local mergedParams = { "script", "require" }
@@ -126,7 +125,7 @@ local function getModuleFunction(
 	-- A nil chunkFn with a message means a real syntax error (surface it); a
 	-- nil chunkFn with no message means loadstring is disabled (fall through to
 	-- tmpScript).
-	local chunkFn, syntaxErrorMessage = dependencies.compile(newSource, moduleScript:GetFullName())
+	local chunkFn, syntaxErrorMessage = context.dependencies.compile(newSource, moduleScript:GetFullName())
 
 	if chunkFn then
 		local ok, result = xpcall(chunkFn, debug.traceback)
@@ -160,7 +159,7 @@ local function getModuleFunction(
 
 	local createModuleFunction: ModuleFactory
 	local ok, err = xpcall(function()
-		createModuleFunction = dependencies.require(tmpScript) :: ModuleFactory
+		createModuleFunction = context.dependencies.require(tmpScript) :: ModuleFactory
 	end, debug.traceback)
 
 	tmpScript:Destroy()
