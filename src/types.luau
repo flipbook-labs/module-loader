@@ -30,4 +30,16 @@ export type ModuleLoader = {
 -- lute-lint-ignore(no_any)
 export type ModuleFunction = (...any) -> ...unknown?
 
+-- Roblox signature for `debug.loadmodule`: the module's chunk, or nil and an
+-- error message, plus a function that releases the chunk.
+export type LoadModule = (moduleScript: ModuleScript) -> ((() -> ...unknown)?, string?, (() -> ())?)
+
+-- The engine calls a loader makes. Specs replace them to simulate security
+-- contexts that Open Cloud Luau Execution can't reproduce.
+export type ModuleLoaderDependencies = {
+	compile: (source: string, chunkName: string) -> (ModuleFunction?, string?),
+	require: (moduleScript: ModuleScript) -> unknown,
+	loadmodule: LoadModule?,
+}
+
 return nil
