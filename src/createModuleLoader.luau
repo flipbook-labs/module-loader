@@ -32,17 +32,26 @@ local SANDBOX_MARKER = { __internal = true }
 --
 -- The innermost handler runs while the failing module is still on the stack,
 -- so the traceback it adds already lists every require above it. Each re-raise
--- uses `error(err, 0)`, which leaves the message exactly as it was. This
--- handler remembers the last message it traced and passes that message through
--- unchanged, so the stack appears once instead of once per module.
-local lastTracedError: unknown
-local function traceOnce(err: unknown): unknown
-	if err ~= nil and err == lastTracedError then
-		return err
+-- uses `error(err, 0)`, which leaves the message exactly as it was. The
+-- handler this creates remembers the last message it traced and passes that
+-- message through unchanged, so the stack appears once instead of once per
+-- module. Each loader creates its own handler, so a message traced by one
+-- loader is never skipped by another.
+type ErrorHandler = (err: unknown) -> unknown
+
+local function createTraceOnce(): ErrorHandler
+	local lastTracedError: unknown
+
+	return function(err: unknown): unknown
+		-- A nil error can't be told apart from nothing traced yet, so it always
+		-- gets a traceback.
+		if err ~= nil and err == lastTracedError then
+			return err
+		end
+		local traced = debug.traceback(err :: string, 2)
+		lastTracedError = traced
+		return traced
 	end
-	local traced = debug.traceback(err :: string, 2)
-	lastTracedError = traced
-	return traced
 end
 
 local function makeModuleFunction(compiledOuter): ModuleFunction
@@ -51,7 +60,11 @@ local function makeModuleFunction(compiledOuter): ModuleFunction
 	end
 end
 
-local function getModuleFunction(moduleScript: ModuleScript, params: { string }?): ModuleFunction
+local function getModuleFunction(
+	moduleScript: ModuleScript,
+	params: { string }?,
+	traceOnce: ErrorHandler
+): ModuleFunction
 	local nativeRequire: ModuleFunction = function()
 		return requireAny(moduleScript)
 	end
@@ -150,6 +163,7 @@ function createModuleLoader(): ModuleLoader
 	local moduleRegistry = createModuleRegistry()
 	local changedConnections = weak<<ModuleScript, RBXScriptConnection>>({})
 	local globals = setmetatable({}, { __index = _G }) :: typeof(_G)
+	local traceOnce = createTraceOnce()
 
 	-- Plant the sandbox marker on the proxy globals so code evaluated through
 	-- this loader can detect they are running in a sandboxed context.
@@ -199,7 +213,7 @@ function createModuleLoader(): ModuleLoader
 
 			moduleRegistry.add(resolvedModule, loadedModule)
 
-			local moduleFunction = getModuleFunction(resolvedModule, { "_G" })
+			local moduleFunction = getModuleFunction(resolvedModule, { "_G" }, traceOnce)
 
 			local function childRequire(childModule: ModuleScript | string)
 				return weHaveRequireAtHome(childModule, resolvedModule)

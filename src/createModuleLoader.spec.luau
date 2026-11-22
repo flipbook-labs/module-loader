@@ -262,6 +262,23 @@ describe("require", function()
 		expect(specFrameCount).toBe(1)
 	end)
 
+	test("adds a traceback to a nil error raised before any other error", function()
+		tree = createModuleTest({
+			Outer = [[
+				require(script.Parent.Inner)
+			]],
+			Inner = [[
+				error(nil)
+			]],
+		})
+
+		local outer = tree:QueryDescendants("#Outer")[1] :: ModuleScript
+		local ok, err = pcall(loader.require, outer)
+
+		expect(ok).toBe(false)
+		expect(tostring(err)).toMatch("createModuleLoader%.spec")
+	end)
+
 	test("does not cache a module that errored, so a later require can succeed", function()
 		local moduleScript = Instance.new("ModuleScript")
 		moduleScript.Source = "error('boom')"
