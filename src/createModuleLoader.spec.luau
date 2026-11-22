@@ -243,6 +243,73 @@ describe("require", function()
 		end).toThrow("boom")
 	end)
 
+	test("adds one traceback to an error raised by a nested require", function()
+		tree = createModuleTest({
+			Outer = [[
+				require(script.Parent.Middle)
+			]],
+			Middle = [[
+				require(script.Parent.Inner)
+			]],
+			Inner = [[
+				error("boom")
+			]],
+		})
+
+		local outer = tree:QueryDescendants("#Outer")[1] :: ModuleScript
+		local ok, err = pcall(loader.require, outer)
+
+		expect(ok).toBe(false)
+		local _, specFrameCount = tostring(err):gsub("createModuleLoader%.spec", "")
+		expect(specFrameCount).toBe(1)
+	end)
+
+	test("adds a traceback to a nil error raised before any other error", function()
+		tree = createModuleTest({
+			Outer = [[
+				require(script.Parent.Inner)
+			]],
+			Inner = [[
+				error(nil)
+			]],
+		})
+
+		local outer = tree:QueryDescendants("#Outer")[1] :: ModuleScript
+		local ok, err = pcall(loader.require, outer)
+
+		expect(ok).toBe(false)
+		expect(tostring(err)).toMatch("createModuleLoader%.spec")
+	end)
+
+	test("adds a traceback to an error that another loader already traced", function()
+		tree = createModuleTest({
+			Failing = [[
+				error("boom")
+			]],
+			Rethrowing = [[
+				error(_G.__MODULE_LOADER_SPEC_ERROR, 0)
+			]],
+		})
+
+		local otherLoader = createModuleLoader()
+		local failing = tree:QueryDescendants("#Failing")[1] :: ModuleScript
+		local _, otherErr = pcall(otherLoader.require, failing)
+		otherLoader.clear()
+
+		-- Modules read the real _G through the loader's proxy globals, so this
+		-- hands the first loader's traced error to a module in the second.
+		_G.__MODULE_LOADER_SPEC_ERROR = otherErr
+		local rethrowing = tree:QueryDescendants("#Rethrowing")[1] :: ModuleScript
+		local ok, err = pcall(loader.require, rethrowing)
+		_G.__MODULE_LOADER_SPEC_ERROR = nil
+
+		-- If the loaders shared a handler, the second would pass the error
+		-- through unchanged. Its own handler keeps the message and adds a trace.
+		expect(ok).toBe(false)
+		expect(err).never.toBe(otherErr)
+		expect(tostring(err):sub(1, #tostring(otherErr))).toBe(otherErr)
+	end)
+
 	test("does not cache a module that errored, so a later require can succeed", function()
 		local moduleScript = Instance.new("ModuleScript")
 		moduleScript.Source = "error('boom')"
