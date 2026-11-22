@@ -37,7 +37,7 @@ local SANDBOX_MARKER = { __internal = true }
 -- unchanged, so the stack appears once instead of once per module.
 local lastTracedError: unknown
 local function traceOnce(err: unknown): unknown
-	if err == lastTracedError then
+	if err ~= nil and err == lastTracedError then
 		return err
 	end
 	local traced = debug.traceback(err :: string, 2)
