@@ -4,7 +4,7 @@
 	path/git dependencies, so we have to make our own shim.
 ]]
 
-local FlipbookBatteries = require("@flipbook-batteries")
+local FlipbookBatteries = require("@lpm/flipbook-batteries@v0.13.1")
 local fs = require("@std/fs")
 local path = require("@std/path")
 

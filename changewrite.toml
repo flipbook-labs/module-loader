@@ -6,6 +6,8 @@ current = "0.12.0"
 mirror = [
   { file = "wally.toml" },
   { file = "pkg.luau" },
+  { file = "README.md", pattern = "flipbook%-labs/module%-loader@([%d%.]+)" },
+  { file = "README.md", pattern = "rev = \"v([%d%.]+)\"" },
 ]
 
 [kind]
