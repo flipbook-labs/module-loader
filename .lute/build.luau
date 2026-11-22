@@ -1,9 +1,11 @@
-local FlipbookBatteries = require("@flipbook-batteries")
+local CodeQuality = require("@lpm/code-quality@v0.7.0")
+local FlipbookBatteries = require("@lpm/flipbook-batteries@v0.13.1")
 local cli = require("@scripts/batteries/cli")
 local fs = require("@std/fs")
 
 local project = require("@repo/project")
 
+local copyInto = FlipbookBatteries.copyInto
 local run = FlipbookBatteries.run
 local watch = FlipbookBatteries.watch
 local find = FlipbookBatteries.find
@@ -38,28 +40,35 @@ local function build()
 	fs.removeDirectory(project.BUILD_PATH, {
 		recursive = true,
 	})
-	fs.createDirectory(project.BUILD_PATH, {
-		makeParents = true,
-	})
-
-	run("rojo", {
-		"sourcemap",
-		project.ROJO_BUILD_PROJECT,
-		"-o",
-		project.DARKLUA_SOURCEMAP_PATH,
-	})
-
-	run("darklua", {
-		"process",
-		project.SOURCE_PATH,
-		project.BUILD_PATH,
-	})
+	copyInto(project.SOURCE_PATH, project.BUILD_PATH)
 
 	if channel == "prod" then
 		for _, specFile in find(project.BUILD_PATH, ".*%.spec%.luau") do
 			fs.remove(specFile)
 		end
 	end
+
+	-- CodeQuality's build, below, turns the copy in `dist/` into code Roblox
+	-- can run. To turn a string require into a `require(script...)` path, it
+	-- has to know which Roblox instance each file becomes. It reads that from
+	-- this Rojo sourcemap of `build.project.json`, which mounts `src/` as
+	-- `ModuleLoader` inside a `Packages` folder. `tests.project.json` mounts
+	-- `dist/` the same way, as `ModuleLoader` inside its own `Packages`
+	-- folder, so the paths work there too. The sourcemap names files in
+	-- `src/`, so `sourceFolder` and `buildFolder` tell the build to look up
+	-- each file in `dist/` by its path in `src/`.
+	run("rojo", {
+		"sourcemap",
+		project.ROJO_BUILD_PROJECT,
+		"-o",
+		project.BUILD_SOURCEMAP_PATH,
+	})
+
+	CodeQuality.build({
+		sourceFolder = project.SOURCE_PATH,
+		buildFolder = project.BUILD_PATH,
+		sourcemap = project.BUILD_SOURCEMAP_PATH,
+	})
 
 	if output then
 		run("rojo", { "build", "-o", output })
