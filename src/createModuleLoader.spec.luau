@@ -702,7 +702,7 @@ describe("require", function()
 		-- `.config` aliases resolve only through ScriptService:ResolveModulePath
 		-- with engine alias resolution on. Both sit behind engine flags that
 		-- Open Cloud Luau Execution leaves off, so this probes a real alias.
-		local isConfigAliasEnabled
+		local isConfigAliasEnabled: boolean
 		do
 			local probe = createModuleTest({
 				[".config"] = "return { luau = { aliases = { probe = './Target' } } }",
