@@ -26,7 +26,7 @@ With Lute, add this to `pkg.luau` and run `lute pkg install --vendor`:
 Require a ModuleScript through a loader instead of `require`:
 
 ```luau
-local ModuleLoader = require("@pkg/ModuleLoader")
+local ModuleLoader = require(game:GetService("ReplicatedStorage").Packages.ModuleLoader)
 
 local loader = ModuleLoader.new()
 local result = loader:require(game:GetService("ReplicatedStorage").Stories.Button)
@@ -37,7 +37,7 @@ local result = loader:require(game:GetService("ReplicatedStorage").Stories.Butto
 `loadedModuleChanged` fires when a module loaded through the loader, or any module it requires, has its ancestry or `Source` changed. Clear the loader's cache and require the module again inside the handler:
 
 ```luau
-local ModuleLoader = require("@pkg/ModuleLoader")
+local ModuleLoader = require(game:GetService("ReplicatedStorage").Packages.ModuleLoader)
 
 local loader = ModuleLoader.new()
 local module = game:GetService("ReplicatedStorage").Stories.Button
