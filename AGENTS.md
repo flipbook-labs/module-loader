@@ -12,9 +12,9 @@ Complete every step below before you write any code, tests, changelog entries, o
    rokit install && lute run install
    ```
 
-   `rokit install` puts `lute`, `luau-lsp`, `stylua`, and `selene` on PATH. `lute run install` fetches the Loom dependencies into `~/.loom/store`, writes their paths into the aliases in `.config.luau`, and installs the Wally runtime dependencies into `Packages/`. The shared skills library is a dev dependency, so it lands in the store for you to read but is not shipped with the package. Without this step the skills are not on disk.
+   `rokit install` puts `lute`, `luau-lsp`, and `stylua` on PATH. `lute run install` vendors the Lute dependencies into `.lpm/`, one `<key>@<rev>` folder each, and installs the Wally runtime dependencies into `Packages/`. The shared skills library is a dev dependency, so it lands in `.lpm/` for you to read but is not shipped with the package. Without this step the skills are not on disk.
 
-2. Find the skills folder: it's the `agent-skills` alias in [`.config.luau`](.config.luau). Use that path wherever `<skills>` appears below.
+2. Find the skills folder: it's `.lpm/agent-skills@<rev>`, where `<rev>` is the `rev` pinned for `agent-skills` in [`pkg.luau`](pkg.luau). Run `ls -d .lpm/agent-skills@*` to print it, and use that path wherever `<skills>` appears below.
 
 3. Read the routing index at `<skills>/AGENTS.md` in full. Its **Project Skills** section lists every skill with a trigger-rich one-liner, so you know what exists before you start. This read is unconditional.
 
@@ -37,8 +37,8 @@ Skills are living documents. When your work here contradicts a skill (a renamed 
 
 ## Repo specifics
 
-- Toolchain is managed with [Rokit](https://github.com/rojo-rbx/rokit). Run `rokit install` once to get `lute`, `luau-lsp`, `stylua`, and `selene` on PATH.
+- Toolchain is managed with [Rokit](https://github.com/rojo-rbx/rokit). Run `rokit install` once to get `lute`, `luau-lsp`, and `stylua` on PATH.
 - `lute run --list` shows the available scripts: `install`, `build` (`--channel dev`/`prod`), `lint`, `analyze`, and `test`.
 - Tests are `*.spec.luau` files alongside the code they cover. Run the suite with `lute run test`.
-- The build is a Darklua-processed mirror of `src/` written to `dist/`, and Wally publishes from `dist/`. Never edit `dist/` by hand.
+- The build copies `src/` to `dist/` and runs [CodeQuality](https://github.com/flipbook-labs/code-quality)'s code mods over the copy with `lute transform`. `convertRequire` rewrites string requires such as `require("@root/types")` into the `require(script...)` paths Roblox runs, using the aliases in `.config.luau` and a Rojo sourcemap of `build.project.json`. Wally publishes from `dist/`. Never edit `dist/` by hand.
 - Releases are handled by the [Changewrite](https://github.com/flipbook-labs/changewrite) action. Unreleased entries live as partials in [`.changes/`](.changes) and are assembled into [`CHANGELOG.md`](CHANGELOG.md) at release time. Add a `.changes/` entry for any user-facing change.

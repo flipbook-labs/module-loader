@@ -22,3 +22,6 @@ build
 # Other
 /*.log
 __pycache__
+
+# Dependencies vendored by `lute run install`
+/.lpm/
