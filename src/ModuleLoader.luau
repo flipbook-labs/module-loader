@@ -23,10 +23,12 @@ type ModuleLoaderImpl = {
 	clear: (self: ModuleLoaderClass) -> (),
 }
 
--- Writing the class as `ModuleLoaderProps & ModuleLoaderImpl` fails analyze at the constructor's
--- return with "Expected this to be 'ModuleLoaderImpl & ModuleLoaderProps' but got
--- '{ @metatable ModuleLoaderImpl, {| _loader: ModuleLoader, loadedModuleChanged: RBXScriptSignal<...any> |} }'",
--- so the type stays the typeof of setmetatable, which gives the metatable-shaped table type.
+--[[
+	Writing the class as `ModuleLoaderProps & ModuleLoaderImpl` fails analyze at the constructor's
+	return with "Expected this to be 'ModuleLoaderImpl & ModuleLoaderProps' but got
+	'{ @metatable ModuleLoaderImpl, {| _loader: ModuleLoader, loadedModuleChanged: RBXScriptSignal<...any> |} }'",
+	so the type stays the typeof of setmetatable, which gives the metatable-shaped table type.
+]]
 -- lute-lint-ignore(explicit_instantiation)
 export type ModuleLoaderClass = typeof(setmetatable({} :: ModuleLoaderProps, {} :: ModuleLoaderImpl))
 
