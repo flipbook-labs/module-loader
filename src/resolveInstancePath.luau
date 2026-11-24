@@ -49,13 +49,15 @@ local function resolveInstancePath(relativeTo: Instance, instancePath: string): 
 	local current = relativeTo
 
 	for _, pathPart in instancePath:split(PATH_SEPARATOR) do
-		-- This handles cases where splitting up the path results in empty
-		-- strings. For example, `./` splits to `{ ".", "" }` and the latter is
-		-- not actually important, so we just skip those ones.
-		--
-		-- Similar happens if the path has more than one separator, i.e.
-		-- `@self/Foo//Bar`, which would become `{ "@self", "Foo", "", "Bar" }`.
-		-- We just pretend that empty string doesn't exist
+		--[[
+			This handles cases where splitting up the path results in empty
+			strings. For example, `./` splits to `{ ".", "" }` and the latter is
+			not actually important, so we just skip those ones.
+
+			Similar happens if the path has more than one separator, i.e.
+			`@self/Foo//Bar`, which would become `{ "@self", "Foo", "", "Bar" }`.
+			We just pretend that empty string doesn't exist
+		]]
 		if pathPart == "" and prevPathPart ~= nil then
 			continue
 		end

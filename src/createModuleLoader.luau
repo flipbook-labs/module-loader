@@ -28,10 +28,12 @@ type ResolveModulePath = types.ResolveModulePath
 type LoaderContext = {
 	dependencies: ModuleLoaderDependencies,
 
-	-- Set once a tmpScript require fails with NON_ROBLOXSCRIPT_REQUIRE_ERROR.
-	-- All of a plugin's code runs at one security level, so every later
-	-- tmpScript would fail the same way and later modules go straight to
-	-- `debug.loadmodule`.
+	--[[
+		Set once a tmpScript require fails with NON_ROBLOXSCRIPT_REQUIRE_ERROR.
+		All of a plugin's code runs at one security level, so every later
+		tmpScript would fail the same way and later modules go straight to
+		`debug.loadmodule`.
+	]]
 	shouldUseLoadmodule: boolean,
 
 	loadmoduleCleanupFns: { () -> () },
@@ -49,11 +51,13 @@ local SANDBOX_MARKER = { __internal = true }
 -- security level.
 local NON_ROBLOXSCRIPT_REQUIRE_ERROR = "Cannot require a non-RobloxScript module from a RobloxScript"
 
--- ScriptService:ResolveModulePath resolves string requires the same way native
--- `require` does, including aliases from `.config` modules. It's gated by
--- DFFlagScriptServiceResolveModulePath, which user code can't read, so the
--- method is probed instead. Once the flag rolls out, the probe and
--- `resolveInstancePath` can be deleted.
+--[[
+	ScriptService:ResolveModulePath resolves string requires the same way native
+	`require` does, including aliases from `.config` modules. It's gated by
+	DFFlagScriptServiceResolveModulePath, which user code can't read, so the
+	method is probed instead. Once the flag rolls out, the probe and
+	`resolveInstancePath` can be deleted.
+]]
 local isResolveModulePathEnabled = pcall(function()
 	return ScriptService:ResolveModulePath(script, "@self")
 end)
@@ -70,17 +74,19 @@ local DEFAULT_DEPENDENCIES: ModuleLoaderDependencies = {
 		else nil,
 }
 
--- Every require runs its module inside `xpcall`, and a failed require re-raises
--- the error into the module that required it. So an error deep in a chain of
--- requires passes through one `xpcall` per module in the chain.
---
--- The innermost handler runs while the failing module is still on the stack,
--- so the traceback it adds already lists every require above it. Each re-raise
--- uses `error(err, 0)`, which leaves the message exactly as it was. The
--- handler this creates remembers the last message it traced and passes that
--- message through unchanged, so the stack appears once instead of once per
--- module. Each loader creates its own handler, so a message traced by one
--- loader is never skipped by another.
+--[[
+	Every require runs its module inside `xpcall`, and a failed require re-raises
+	the error into the module that required it. So an error deep in a chain of
+	requires passes through one `xpcall` per module in the chain.
+
+	The innermost handler runs while the failing module is still on the stack,
+	so the traceback it adds already lists every require above it. Each re-raise
+	uses `error(err, 0)`, which leaves the message exactly as it was. The
+	handler this creates remembers the last message it traced and passes that
+	message through unchanged, so the stack appears once instead of once per
+	module. Each loader creates its own handler, so a message traced by one
+	loader is never skipped by another.
+]]
 type ErrorHandler = (err: unknown) -> unknown
 
 local function createTraceOnce(): ErrorHandler

@@ -48,15 +48,17 @@ local function build()
 		end
 	end
 
-	-- CodeQuality's build, below, turns the copy in `dist/` into code Roblox
-	-- can run. To turn a string require into a `require(script...)` path, it
-	-- has to know which Roblox instance each file becomes. It reads that from
-	-- this Rojo sourcemap of `build.project.json`, which mounts `src/` as
-	-- `ModuleLoader` inside a `Packages` folder. `tests.project.json` mounts
-	-- `dist/` the same way, as `ModuleLoader` inside its own `Packages`
-	-- folder, so the paths work there too. The sourcemap names files in
-	-- `src/`, so `sourceFolder` and `buildFolder` tell the build to look up
-	-- each file in `dist/` by its path in `src/`.
+	--[[
+		CodeQuality's build, below, turns the copy in `dist/` into code Roblox
+		can run. To turn a string require into a `require(script...)` path, it
+		has to know which Roblox instance each file becomes. It reads that from
+		this Rojo sourcemap of `build.project.json`, which mounts `src/` as
+		`ModuleLoader` inside a `Packages` folder. `tests.project.json` mounts
+		`dist/` the same way, as `ModuleLoader` inside its own `Packages`
+		folder, so the paths work there too. The sourcemap names files in
+		`src/`, so `sourceFolder` and `buildFolder` tell the build to look up
+		each file in `dist/` by its path in `src/`.
+	]]
 	run("rojo", {
 		"sourcemap",
 		project.ROJO_BUILD_PROJECT,

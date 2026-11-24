@@ -34,12 +34,14 @@ local function loadWithLoadmodule(
 	local defaultEnvironment = getfenv(moduleChunk)
 
 	local function moduleFunction(script: ModuleScript, require: unknown, globals: unknown)
-		-- The other loading paths compile a wrapper that takes `script`,
-		-- `require`, and `_G` as parameters. This chunk is the module's own
-		-- top-level function and takes none, so they're set as globals in its
-		-- environment instead. Any other global falls back to the chunk's
-		-- original environment through a metatable. setfenv's type definition
-		-- only accepts a plain table, so the environment is cast to any.
+		--[[
+			The other loading paths compile a wrapper that takes `script`,
+			`require`, and `_G` as parameters. This chunk is the module's own
+			top-level function and takes none, so they're set as globals in its
+			environment instead. Any other global falls back to the chunk's
+			original environment through a metatable. setfenv's type definition
+			only accepts a plain table, so the environment is cast to any.
+		]]
 		-- lute-lint-ignore(no_any)
 		local environment = setmetatable({
 			script = script,

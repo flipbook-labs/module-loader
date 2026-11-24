@@ -797,10 +797,12 @@ describe("require", function()
 			expect(resolveCalls).toEqual({ { relativeTo = consumer, path = "@anything/Target" } })
 		end)
 
-		-- By default, string requires go through ScriptService:ResolveModulePath
-		-- when the engine enables it. It sits behind an engine flag that Open
-		-- Cloud Luau Execution leaves off, so these specs only run in Studio
-		-- with the flag on.
+		--[[
+			By default, string requires go through ScriptService:ResolveModulePath
+			when the engine enables it. It sits behind an engine flag that Open
+			Cloud Luau Execution leaves off, so these specs only run in Studio
+			with the flag on.
+		]]
 		local isResolveModulePathEnabled = pcall(function()
 			return ScriptService:ResolveModulePath(script, "@self")
 		end)
@@ -884,10 +886,12 @@ describe("require", function()
 end)
 
 describe("sandbox detection", function()
-	-- The generated module has no way to name the real ModuleLoader instance
-	-- by path from inside the tree, so an ObjectValue smuggles the reference
-	-- in. Requiring it through the loader evaluates the real ModuleLoader
-	-- source in the sandbox, the same way a consumer's dependency graph would.
+	--[[
+		The generated module has no way to name the real ModuleLoader instance
+		by path from inside the tree, so an ObjectValue smuggles the reference
+		in. Requiring it through the loader evaluates the real ModuleLoader
+		source in the sandbox, the same way a consumer's dependency graph would.
+	]]
 	local function createSandboxCheck(): ModuleScript
 		tree = createModuleTest({
 			CheckSandbox = [[
@@ -963,10 +967,12 @@ end)
 describe("RobloxScript security", function()
 	local NON_ROBLOXSCRIPT_REQUIRE_ERROR = "Cannot require a non-RobloxScript module from a RobloxScript"
 
-	-- Open Cloud Luau Execution doesn't run at RobloxScript security, so these
-	-- tests stand in for the engine calls that behave differently there:
-	-- loadstring is unavailable, requiring a created ModuleScript is rejected,
-	-- and `debug.loadmodule` compiles the module instead.
+	--[[
+		Open Cloud Luau Execution doesn't run at RobloxScript security, so these
+		tests stand in for the engine calls that behave differently there:
+		loadstring is unavailable, requiring a created ModuleScript is rejected,
+		and `debug.loadmodule` compiles the module instead.
+	]]
 	local function compileWithoutLoadstring(_source: string, _chunkName: string)
 		return nil, nil
 	end
