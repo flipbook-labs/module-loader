@@ -355,12 +355,12 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 			return table.unpack(exports, 1, exports.n)
 		end
 
-		--[=[
+		--[[
 			An error raised before `moduleScript` runs, such as its syntax
 			error, happens outside every `xpcall`, so no handler traced it and
 			it reaches this point as a string. Wrapping it here means every
 			string error a caller sees is a LoadError, traced or not.
-		]=]
+		]]
 		local results = table.pack(pcall(weHaveRequireAtHome, moduleScript, nil))
 		if not results[1] then
 			local err = results[2]
