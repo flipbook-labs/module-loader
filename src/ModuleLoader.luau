@@ -1,4 +1,4 @@
-local LoadError = require("./LoadError")
+local ModuleLoadError = require("./ModuleLoadError")
 local createModuleLoader = require("./createModuleLoader")
 local types = require("./types")
 
@@ -17,7 +17,7 @@ type ModuleLoaderImpl = {
 	new: () -> ModuleLoaderClass,
 	isLocked: (instance: Instance) -> boolean,
 	isSandboxed: () -> boolean,
-	isLoadError: (value: unknown) -> boolean,
+	isModuleLoadError: (value: unknown) -> boolean,
 
 	require: (self: ModuleLoaderClass, moduleScript: ModuleScript) -> any,
 	cache: (self: ModuleLoaderClass, moduleScript: ModuleScript, result: any) -> (),
@@ -117,14 +117,15 @@ function ModuleLoader.isSandboxed(): boolean
 end
 
 --[=[
-	Checks whether an error raised by `ModuleLoader:require()` is a LoadError.
+	Checks whether an error raised by `ModuleLoader:require()` is a
+	ModuleLoadError.
 
-	When a module fails to load, `require` raises a LoadError with the error's
-	`message` and, separately, the `traceback` the loader adds. A string,
-	number, or nil error always arrives as a LoadError. A module can also raise
-	a table or another value of its own, and that value arrives as it was
-	raised. Converting a LoadError to a string gives the message, then the
-	traceback when there is one.
+	When a module fails to load, `require` raises a ModuleLoadError with the
+	error's `message` and, separately, the `traceback` the loader adds. A
+	string, number, or nil error always arrives as a ModuleLoadError. A module
+	can also raise a table or another value of its own, and that value arrives
+	as it was raised. Converting a ModuleLoadError to a string gives the
+	message, then the traceback when there is one.
 
 	```lua
 	local loader = ModuleLoader.new()
@@ -132,18 +133,18 @@ end
 		return loader:require(script.Parent.ModuleScript)
 	end)
 
-	if not ok and ModuleLoader.isLoadError(err) then
+	if not ok and ModuleLoader.isModuleLoadError(err) then
 		print(err.message)
 	end
 	```
 
-	@function isLoadError
+	@function isModuleLoadError
 	@within ModuleLoader
 	@param value unknown
 	@return boolean
 ]=]
-function ModuleLoader.isLoadError(value: unknown): boolean
-	return LoadError.is(value)
+function ModuleLoader.isModuleLoadError(value: unknown): boolean
+	return ModuleLoadError.is(value)
 end
 
 --[=[

@@ -5,7 +5,7 @@ local test = JestGlobals.test
 
 local ModuleLoader = require("./ModuleLoader")
 
-describe("isLoadError", function()
+describe("isModuleLoadError", function()
 	test("accepts the error `require` raises when a module fails to load", function()
 		local loader = ModuleLoader.new()
 		local moduleScript = Instance.new("ModuleScript")
@@ -16,13 +16,13 @@ describe("isLoadError", function()
 		end)
 
 		expect(ok).toBe(false)
-		expect(ModuleLoader.isLoadError(err)).toBe(true)
+		expect(ModuleLoader.isModuleLoadError(err)).toBe(true)
 		expect((err :: { message: string }).message).toMatch("boom$")
 	end)
 
-	test("rejects a string, nil, and a table shaped like a LoadError", function()
-		expect(ModuleLoader.isLoadError("boom")).toBe(false)
-		expect(ModuleLoader.isLoadError(nil)).toBe(false)
-		expect(ModuleLoader.isLoadError({ message = "boom", traceback = "" })).toBe(false)
+	test("rejects a string, nil, and a table shaped like a ModuleLoadError", function()
+		expect(ModuleLoader.isModuleLoadError("boom")).toBe(false)
+		expect(ModuleLoader.isModuleLoadError(nil)).toBe(false)
+		expect(ModuleLoader.isModuleLoadError({ message = "boom", traceback = "" })).toBe(false)
 	end)
 end)

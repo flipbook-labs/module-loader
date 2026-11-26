@@ -8,7 +8,7 @@ local describe = JestGlobals.describe
 local beforeEach = JestGlobals.beforeEach
 local afterEach = JestGlobals.afterEach
 
-local LoadError = require("./LoadError")
+local ModuleLoadError = require("./ModuleLoadError")
 local compileWithLoadstring = require("./compileWithLoadstring")
 local createModuleLoader = require("./createModuleLoader")
 
@@ -308,12 +308,14 @@ describe("require", function()
 		-- through unchanged. Its own handler keeps the message and adds a trace.
 		expect(ok).toBe(false)
 		expect(err).never.toBe(otherErr)
-		expect(LoadError.is(err)).toBe(true)
-		expect((err :: LoadError.LoadError).message).toBe((otherErr :: LoadError.LoadError).message)
+		expect(ModuleLoadError.is(err)).toBe(true)
+		expect((err :: ModuleLoadError.ModuleLoadError).message).toBe(
+			(otherErr :: ModuleLoadError.ModuleLoadError).message
+		)
 		expect(tostring(err):sub(1, #tostring(otherErr))).toBe(tostring(otherErr))
 	end)
 
-	describe("LoadError", function()
+	describe("ModuleLoadError", function()
 		test("keeps a nested module's message apart from the traceback", function()
 			tree = createModuleTest({
 				Outer = [[
@@ -328,11 +330,11 @@ describe("require", function()
 			local ok, err = pcall(loader.require, outer)
 
 			expect(ok).toBe(false)
-			assert(LoadError.is(err), "expected a LoadError")
-			local loadError = err :: LoadError.LoadError
-			expect(loadError.message).toMatch('Inner"]:%d+: boom$')
-			expect(loadError.traceback).toMatch("createModuleLoader%.spec")
-			expect(tostring(loadError)).toBe(`{loadError.message}\n{loadError.traceback}`)
+			assert(ModuleLoadError.is(err), "expected a ModuleLoadError")
+			local moduleLoadError = err :: ModuleLoadError.ModuleLoadError
+			expect(moduleLoadError.message).toMatch('Inner"]:%d+: boom$')
+			expect(moduleLoadError.traceback).toMatch("createModuleLoader%.spec")
+			expect(tostring(moduleLoadError)).toBe(`{moduleLoadError.message}\n{moduleLoadError.traceback}`)
 		end)
 
 		test("has no traceback for a syntax error in the module required directly", function()
@@ -342,11 +344,11 @@ describe("require", function()
 			local ok, err = pcall(loader.require, moduleScript)
 
 			expect(ok).toBe(false)
-			assert(LoadError.is(err), "expected a LoadError")
-			local loadError = err :: LoadError.LoadError
-			expect(loadError.message).toMatch("Incomplete statement")
-			expect(loadError.traceback).toBe("")
-			expect(tostring(loadError)).toBe(loadError.message)
+			assert(ModuleLoadError.is(err), "expected a ModuleLoadError")
+			local moduleLoadError = err :: ModuleLoadError.ModuleLoadError
+			expect(moduleLoadError.message).toMatch("Incomplete statement")
+			expect(moduleLoadError.traceback).toBe("")
+			expect(tostring(moduleLoadError)).toBe(moduleLoadError.message)
 		end)
 
 		test("passes through an error that isn't a string", function()
