@@ -8,6 +8,7 @@ local describe = JestGlobals.describe
 local beforeEach = JestGlobals.beforeEach
 local afterEach = JestGlobals.afterEach
 
+local LoadError = require("./LoadError")
 local compileWithLoadstring = require("./compileWithLoadstring")
 local createModuleLoader = require("./createModuleLoader")
 
@@ -307,7 +308,59 @@ describe("require", function()
 		-- through unchanged. Its own handler keeps the message and adds a trace.
 		expect(ok).toBe(false)
 		expect(err).never.toBe(otherErr)
-		expect(tostring(err):sub(1, #tostring(otherErr))).toBe(otherErr)
+		expect(LoadError.is(err)).toBe(true)
+		expect((err :: LoadError.LoadError).message).toBe((otherErr :: LoadError.LoadError).message)
+		expect(tostring(err):sub(1, #tostring(otherErr))).toBe(tostring(otherErr))
+	end)
+
+	describe("LoadError", function()
+		test("keeps a nested module's message apart from the traceback", function()
+			tree = createModuleTest({
+				Outer = [[
+					require(script.Parent.Inner)
+				]],
+				Inner = [[
+					error("boom")
+				]],
+			})
+
+			local outer = tree:QueryDescendants("#Outer")[1] :: ModuleScript
+			local ok, err = pcall(loader.require, outer)
+
+			expect(ok).toBe(false)
+			assert(LoadError.is(err), "expected a LoadError")
+			local loadError = err :: LoadError.LoadError
+			expect(loadError.message).toMatch('Inner"]:%d+: boom$')
+			expect(loadError.traceback).toMatch("createModuleLoader%.spec")
+			expect(tostring(loadError)).toBe(`{loadError.message}\n{loadError.traceback}`)
+		end)
+
+		test("has no traceback for a syntax error in the module required directly", function()
+			local moduleScript = Instance.new("ModuleScript")
+			moduleScript.Source = "syntax error"
+
+			local ok, err = pcall(loader.require, moduleScript)
+
+			expect(ok).toBe(false)
+			assert(LoadError.is(err), "expected a LoadError")
+			local loadError = err :: LoadError.LoadError
+			expect(loadError.message).toMatch("Incomplete statement")
+			expect(loadError.traceback).toBe("")
+			expect(tostring(loadError)).toBe(loadError.message)
+		end)
+
+		test("passes through an error that isn't a string", function()
+			local raised = {}
+			_G.__MODULE_LOADER_SPEC_ERROR = raised
+			local moduleScript = Instance.new("ModuleScript")
+			moduleScript.Source = "error(_G.__MODULE_LOADER_SPEC_ERROR)"
+
+			local ok, err = pcall(loader.require, moduleScript)
+			_G.__MODULE_LOADER_SPEC_ERROR = nil
+
+			expect(ok).toBe(false)
+			expect(err).toBe(raised)
+		end)
 	end)
 
 	test("does not cache a module that errored, so a later require can succeed", function()

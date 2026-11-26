@@ -7,6 +7,7 @@
 
 local ScriptService = game:GetService("ScriptService")
 
+local LoadError = require("@root/LoadError")
 local bind = require("@root/bind")
 local compileWithLoadstring = require("@root/compileWithLoadstring")
 local createModuleRegistry = require("@root/createModuleRegistry")
@@ -80,27 +81,49 @@ local DEFAULT_DEPENDENCIES: ModuleLoaderDependencies = {
 	requires passes through one `xpcall` per module in the chain.
 
 	The innermost handler runs while the failing module is still on the stack,
-	so the traceback it adds already lists every require above it. Each re-raise
-	uses `error(err, 0)`, which leaves the message exactly as it was. The
-	handler this creates remembers the last message it traced and passes that
-	message through unchanged, so the stack appears once instead of once per
-	module. Each loader creates its own handler, so a message traced by one
-	loader is never skipped by another.
+	so the traceback it adds already lists every require above it. The handler
+	this creates turns the error into a LoadError carrying that traceback. Each
+	re-raise uses `error(err, 0)`, which passes the LoadError on unchanged. The
+	handler remembers the last LoadError it made and passes that one through as
+	it is, so the stack appears once instead of once per module.
+
+	Each loader creates its own handler, so a LoadError made by one loader is
+	never skipped by another. When another loader's LoadError reaches this
+	handler, it keeps the message and adds this loader's stack after the
+	traceback the LoadError already has.
+
+	Strings, numbers, and nil become a LoadError's message. Any other value a
+	module raises, such as a table, passes through as it was raised, so code
+	that catches its own error objects still gets them back.
 ]]
 type ErrorHandler = (err: unknown) -> unknown
 
 local function createTraceOnce(): ErrorHandler
-	local lastTracedError: unknown
+	local lastLoadError: unknown
 
 	return function(err: unknown): unknown
-		-- A nil error can't be told apart from nothing traced yet, so it always
-		-- gets a traceback.
-		if err ~= nil and err == lastTracedError then
+		-- `lastLoadError` starts out nil, so a nil error would otherwise look
+		-- like one this handler already made.
+		if err ~= nil and err == lastLoadError then
 			return err
 		end
-		local traced = debug.traceback(err :: string, 2)
-		lastTracedError = traced
-		return traced
+
+		local loadError: unknown
+		if LoadError.is(err) then
+			local otherLoadError = err :: LoadError.LoadError
+			local stack = debug.traceback(nil, 2)
+			loadError = LoadError.new(
+				otherLoadError.message,
+				if otherLoadError.traceback == "" then stack else `{otherLoadError.traceback}\n{stack}`
+			)
+		elseif err == nil or type(err) == "string" or type(err) == "number" then
+			loadError = LoadError.new(tostring(err), debug.traceback(nil, 2))
+		else
+			return err
+		end
+
+		lastLoadError = loadError
+		return loadError
 	end
 end
 
@@ -217,7 +240,7 @@ local function getModuleFunction(
 	tmpScript:Destroy()
 
 	if not ok then
-		if err:find(NON_ROBLOXSCRIPT_REQUIRE_ERROR, 1, true) then
+		if tostring(err):find(NON_ROBLOXSCRIPT_REQUIRE_ERROR, 1, true) then
 			local moduleFunction = getModuleFunctionWithLoadmodule(moduleScript, context)
 			if moduleFunction then
 				context.shouldUseLoadmodule = true
@@ -329,7 +352,20 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 			return table.unpack(exports, 1, exports.n)
 		end
 
-		return weHaveRequireAtHome(moduleScript, nil)
+		--[=[
+			A module's own syntax error is raised before anything traces it, so
+			it reaches this point as a string. Wrapping it here means every
+			string error a caller sees is a LoadError, traced or not.
+		]=]
+		local results = table.pack(pcall(weHaveRequireAtHome, moduleScript, nil))
+		if not results[1] then
+			local err = results[2]
+			if type(err) == "string" then
+				err = LoadError.new(err, "")
+			end
+			error(err, 0)
+		end
+		return table.unpack(results, 2, results.n)
 	end
 
 	local function clear()

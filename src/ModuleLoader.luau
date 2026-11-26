@@ -1,3 +1,4 @@
+local LoadError = require("./LoadError")
 local createModuleLoader = require("./createModuleLoader")
 local types = require("./types")
 
@@ -16,6 +17,7 @@ type ModuleLoaderImpl = {
 	new: () -> ModuleLoaderClass,
 	isLocked: (instance: Instance) -> boolean,
 	isSandboxed: () -> boolean,
+	isLoadError: (value: unknown) -> boolean,
 
 	require: (self: ModuleLoaderClass, moduleScript: ModuleScript) -> any,
 	cache: (self: ModuleLoaderClass, moduleScript: ModuleScript, result: any) -> (),
@@ -112,6 +114,36 @@ end
 ]=]
 function ModuleLoader.isSandboxed(): boolean
 	return _G.__MODULE_LOADER_SANDBOX__ ~= nil
+end
+
+--[=[
+	Checks whether an error raised by `ModuleLoader:require()` is a LoadError.
+
+	When a module fails to load, `require` raises a LoadError with the error's
+	`message` and, separately, the `traceback` the loader adds. A string error
+	always arrives as a LoadError. A module can also raise a value that isn't
+	a string, such as a table, and that value arrives as it was raised.
+	Converting a LoadError to a string gives the message followed by the
+	traceback.
+
+	```lua
+	local loader = ModuleLoader.new()
+	local ok, err = pcall(function()
+		return loader:require(script.Parent.ModuleScript)
+	end)
+
+	if not ok and ModuleLoader.isLoadError(err) then
+		print(err.message)
+	end
+	```
+
+	@function isLoadError
+	@within ModuleLoader
+	@param value unknown
+	@return boolean
+]=]
+function ModuleLoader.isLoadError(value: unknown): boolean
+	return LoadError.is(value)
 end
 
 --[=[
