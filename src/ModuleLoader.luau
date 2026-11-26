@@ -120,11 +120,11 @@ end
 	Checks whether an error raised by `ModuleLoader:require()` is a LoadError.
 
 	When a module fails to load, `require` raises a LoadError with the error's
-	`message` and, separately, the `traceback` the loader adds. A string error
-	always arrives as a LoadError. A module can also raise a value that isn't
-	a string, such as a table, and that value arrives as it was raised.
-	Converting a LoadError to a string gives the message followed by the
-	traceback.
+	`message` and, separately, the `traceback` the loader adds. A string,
+	number, or nil error always arrives as a LoadError. A module can also raise
+	a table or another value of its own, and that value arrives as it was
+	raised. Converting a LoadError to a string gives the message, then the
+	traceback when there is one.
 
 	```lua
 	local loader = ModuleLoader.new()

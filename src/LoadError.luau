@@ -1,11 +1,14 @@
 --[[
-	When a module fails to load, the loader raises a LoadError instead of a
-	plain string. It keeps the error's message apart from the traceback the
-	loader adds, so a caller can show the message on its own.
+	When a module fails to load, the loader usually raises a LoadError. It
+	keeps the error's message apart from the traceback the loader adds, so a
+	caller can show the message on its own. A module can also raise a table or
+	another value of its own, and that value reaches the caller as it was
+	raised.
 
-	Converting one to a string gives the message followed by the traceback,
-	the same text the loader raised before it had LoadErrors. So `tostring`
-	and string interpolation keep working for callers that only want text.
+	Converting a LoadError to a string gives its message, then its traceback on
+	the next line when it has one. That's the same text `debug.traceback`
+	returns for the message, so `tostring` and string interpolation work for
+	callers that only want text.
 ]]
 
 export type LoadError = {
@@ -13,8 +16,8 @@ export type LoadError = {
 	-- with 'Padding'", or the module's syntax error.
 	message: string,
 	-- Where the error happened, one stack frame per line. Empty when the
-	-- loader had no stack to add, such as for a syntax error in the module
-	-- that was required directly.
+	-- error happened before any module ran, such as a syntax error in the
+	-- module passed to `require`.
 	traceback: string,
 }
 

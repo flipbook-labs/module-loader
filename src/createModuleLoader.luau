@@ -87,14 +87,15 @@ local DEFAULT_DEPENDENCIES: ModuleLoaderDependencies = {
 	handler remembers the last LoadError it made and passes that one through as
 	it is, so the stack appears once instead of once per module.
 
-	Each loader creates its own handler, so a LoadError made by one loader is
-	never skipped by another. When another loader's LoadError reaches this
-	handler, it keeps the message and adds this loader's stack after the
-	traceback the LoadError already has.
+	Each loader creates one handler, shared by every module it requires. Only a
+	LoadError this handler made passes through untouched. When another
+	loader's LoadError reaches it, the handler keeps the message and adds its
+	own stack after the traceback the LoadError already has.
 
-	Strings, numbers, and nil become a LoadError's message. Any other value a
-	module raises, such as a table, passes through as it was raised, so code
-	that catches its own error objects still gets them back.
+	Strings, numbers, and nil become a LoadError's message through `tostring`,
+	so nil becomes "nil". Any other value a module raises, such as a table,
+	passes through as it was raised, so code that catches its own error objects
+	still gets them back.
 ]]
 type ErrorHandler = (err: unknown) -> unknown
 
@@ -108,6 +109,8 @@ local function createTraceOnce(): ErrorHandler
 			return err
 		end
 
+		-- Level 2 starts the stack at the code that raised the error, leaving
+		-- out this handler.
 		local loadError: unknown
 		if LoadError.is(err) then
 			local otherLoadError = err :: LoadError.LoadError
@@ -353,7 +356,8 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 		end
 
 		--[=[
-			A module's own syntax error is raised before anything traces it, so
+			An error raised before `moduleScript` runs, such as its syntax
+			error, happens outside every `xpcall`, so no handler traced it and
 			it reaches this point as a string. Wrapping it here means every
 			string error a caller sees is a LoadError, traced or not.
 		]=]
