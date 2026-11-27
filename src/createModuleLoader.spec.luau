@@ -323,6 +323,49 @@ describe("require", function()
 		expect(loader.require(outer)).toBe(true)
 	end)
 
+	test("loads a module again when a require inside an exported function failed earlier", function()
+		tree = createModuleTest({
+			Outer = [[
+				return function()
+					return require(script.Parent.Inner)
+				end
+			]],
+			Inner = [[
+				error("boom")
+			]],
+		})
+
+		local outer = tree:QueryDescendants("#Outer")[1] :: ModuleScript
+		local inner = tree:QueryDescendants("#Inner")[1] :: ModuleScript
+		local loadInner = loader.require(outer) :: () -> unknown
+
+		expect(loadInner).toThrow("boom")
+
+		inner.Source = "return true"
+
+		expect(loadInner()).toBe(true)
+	end)
+
+	test("loads a module again when its module caught the first failure", function()
+		tree = createModuleTest({
+			Outer = [[
+				pcall(require, script.Parent.Inner)
+				return require(script.Parent.Inner)
+			]],
+			Inner = [[
+				_G.innerLoads = (_G.innerLoads or 0) + 1
+				if _G.innerLoads == 1 then
+					error("first load fails")
+				end
+				return _G.innerLoads
+			]],
+		})
+
+		local outer = tree:QueryDescendants("#Outer")[1] :: ModuleScript
+
+		expect(loader.require(outer)).toBe(2)
+	end)
+
 	test("does not cache a module that errored, so a later require can succeed", function()
 		local moduleScript = Instance.new("ModuleScript")
 		moduleScript.Source = "error('boom')"

@@ -217,26 +217,36 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 	}
 
 	--[[
-		A module is in progress from the moment its source starts running until
-		it returns. Requiring a module that's in progress means the requires
-		have looped back to it, which is an error.
+		A module is in progress while its source runs. Requiring a module that's
+		in progress means the requires have looped back to it, which is an
+		error.
 
 		When a module raises an error, the loader doesn't catch it. The error
 		goes straight to the code that called `require`, and the failing module
 		is still on the stack when that caller's `xpcall` handler runs. So the
 		handler can call `debug.traceback` itself and get the message and the
-		stack separately. Since the loader never sees the error, it can't clear
-		the failed module's mark.
+		stack separately. Since the loader never sees the error, it can't remove
+		the failed module from this table.
 
-		To tell a loop apart from a leftover mark, every call to `require`
-		starts a new attempt, and each mark records the attempt that set it. A
-		mark from an earlier attempt belongs to a load that failed, so the
-		module is loaded again. One case still reads as a loop: a module that
-		catches a failed require with `pcall` and then requires the same module
-		again during the same attempt.
+		So each entry holds the function that runs the module's source, and a
+		loop is confirmed by finding that function on the current stack. An
+		entry whose function isn't on the stack was left behind by a load that
+		failed, and the module is loaded again.
 	]]
-	local inProgress = weak<<ModuleScript, number>>({})
-	local currentAttempt = 0
+	local inProgress = weak<<ModuleScript, () -> types.Packed<unknown>>>({})
+
+	local function isOnStack(fn: unknown): boolean
+		local level = 1
+		while true do
+			local frame = debug.info(level, "f")
+			if frame == nil then
+				return false
+			elseif frame == fn then
+				return true
+			end
+			level += 1
+		end
+	end
 
 	-- Plant the sandbox marker on the proxy globals so code evaluated through
 	-- this loader can detect they are running in a sandboxed context.
@@ -259,8 +269,6 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 	end
 
 	local function require(moduleScript: ModuleScript): ...unknown?
-		currentAttempt += 1
-
 		local function weHaveRequireAtHome(module: ModuleScript | string, caller: ModuleScript?)
 			local resolvedModule: ModuleScript
 			if type(module) == "string" then
@@ -277,10 +285,10 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 				return table.unpack(existingModule.exports, 1, existingModule.exports.n)
 			end
 
-			if inProgress[resolvedModule] == currentAttempt then
+			local running = inProgress[resolvedModule]
+			if running and isOnStack(running) then
 				error("Requested module was required recursively")
 			end
-			inProgress[resolvedModule] = currentAttempt
 
 			local moduleFunction = getModuleFunction(resolvedModule, { "_G" }, context)
 
@@ -288,11 +296,15 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 				return weHaveRequireAtHome(childModule, resolvedModule)
 			end
 
-			-- Notice how the arguments here map to the params in
-			-- `getModuleFunction`, which in this case is `script`, `require`,
-			-- and `_G` in the context of the loaded module.
-			local exports = table.pack(moduleFunction(resolvedModule, childRequire, globals))
+			local function runModule(): types.Packed<unknown>
+				-- Notice how the arguments here map to the params in
+				-- `getModuleFunction`, which in this case is `script`,
+				-- `require`, and `_G` in the context of the loaded module.
+				return table.pack(moduleFunction(resolvedModule, childRequire, globals))
+			end
 
+			inProgress[resolvedModule] = runModule
+			local exports = runModule()
 			inProgress[resolvedModule] = nil
 
 			if not changedConnections[resolvedModule] then
