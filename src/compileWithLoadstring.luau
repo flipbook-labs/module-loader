@@ -1,10 +1,10 @@
 local cleanLoadstringStack = require("@root/cleanLoadstringStack")
 local types = require("@root/types")
 
-type ModuleFunction = types.ModuleFunction
+type Chunk = types.Chunk
 
-local function loadString(source: string, chunkName: string): (ModuleFunction?, string?)
-	local ok, moduleFunction, errorMessage = pcall(loadstring, source, chunkName)
+local function loadString(source: string, chunkName: string): (Chunk?, string?)
+	local ok, chunk, errorMessage = pcall(loadstring, source, chunkName)
 
 	if not ok then
 		return nil, nil
@@ -14,7 +14,7 @@ local function loadString(source: string, chunkName: string): (ModuleFunction?, 
 		errorMessage = cleanLoadstringStack(errorMessage) :: string
 	end
 
-	return moduleFunction, errorMessage
+	return chunk, errorMessage
 end
 
 return loadString
