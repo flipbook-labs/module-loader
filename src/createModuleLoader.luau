@@ -265,21 +265,6 @@ end
 	@class ModuleLoader
 ]=]
 
---[=[
-	Creates a loader with its own cache.
-
-	A loader keeps what each module it requires returns, so requiring a module
-	twice through one loader runs it once. Two loaders never share results.
-
-	```lua
-	local loader = ModuleLoader.createModuleLoader()
-	local result = loader.require(script.Parent.ModuleScript)
-	```
-
-	@function createModuleLoader
-	@within ModuleLoader
-	@return ModuleLoader
-]=]
 function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoader
 	local moduleRegistry = createModuleRegistry()
 	local changedConnections = weak<<ModuleScript, RBXScriptConnection>>({})
