@@ -314,6 +314,52 @@ describe("require", function()
 		expect(loader.getLastError()).toBeNil()
 	end)
 
+	test("has no last error after a module caught a failed require and loaded", function()
+		tree = createModuleTest({
+			Outer = [[
+				pcall(require, script.Parent.Inner)
+				return true
+			]],
+			Inner = [[
+				error("boom")
+			]],
+		})
+
+		local outer = tree:QueryDescendants("#Outer")[1] :: ModuleScript
+
+		expect(loader.require(outer)).toBe(true)
+		expect(loader.getLastError()).toBeNil()
+	end)
+
+	test("records each failed require made by a function a module returned", function()
+		tree = createModuleTest({
+			Outer = [[
+				return function(name)
+					return require(script.Parent[name])
+				end
+			]],
+			First = [[
+				error("boom", 0)
+			]],
+			Second = [[
+				error("boom", 0)
+			]],
+		})
+
+		local outer = tree:QueryDescendants("#Outer")[1] :: ModuleScript
+		local requireByName = loader.require(outer) :: (name: string) -> unknown
+
+		pcall(requireByName, "First")
+		local firstError = loader.getLastError()
+		pcall(requireByName, "Second")
+		local secondError = loader.getLastError()
+
+		assert(firstError and secondError, "expected both failed requires to be recorded")
+		expect(firstError.traceback).toMatch("First")
+		expect(secondError.traceback).toMatch("Second")
+		expect(secondError.traceback).never.toMatch("First")
+	end)
+
 	test("records a syntax error in the module passed to require", function()
 		local moduleScript = Instance.new("ModuleScript")
 		moduleScript.Source = "local x = "

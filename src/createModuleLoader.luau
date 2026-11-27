@@ -298,7 +298,32 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 	end
 
 	local function require(moduleScript: ModuleScript): ...unknown?
-		local function weHaveRequireAtHome(module: ModuleScript | string, caller: ModuleScript?)
+		local weHaveRequireAtHome: (module: ModuleScript | string, caller: ModuleScript?) -> ...unknown
+
+		--[[
+			Some requires start a load of their own rather than continue one:
+			the call to this `require`, and a require made by a module that has
+			already finished loading, such as one inside a function the module
+			returns. A record left from before would describe a different
+			failure, and an equal error raised now would keep it, so each of
+			these loads starts without one. One that succeeds ends without one
+			too, even when a module inside it caught a failed require.
+
+			An error raised before the first module runs, such as its syntax
+			error, happens outside every module's `xpcall`. The `xpcall` here
+			records those too.
+		]]
+		local function loadOnItsOwn(module: ModuleScript | string, caller: ModuleScript?): ...unknown
+			context.lastError = nil
+			local results = table.pack(xpcall(weHaveRequireAtHome, recordError, module, caller))
+			if not results[1] then
+				error(results[2], 0)
+			end
+			context.lastError = nil
+			return table.unpack(results, 2, results.n)
+		end
+
+		weHaveRequireAtHome = function(module: ModuleScript | string, caller: ModuleScript?)
 			local resolvedModule: ModuleScript
 			if type(module) == "string" then
 				local relativeTo: Instance = if caller then caller else moduleScript
@@ -329,6 +354,9 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 			local moduleFunction = getModuleFunction(resolvedModule, { "_G" }, context)
 
 			local function childRequire(childModule: ModuleScript | string)
+				if moduleRegistry.getByInstance(resolvedModule) then
+					return loadOnItsOwn(childModule, resolvedModule)
+				end
 				return weHaveRequireAtHome(childModule, resolvedModule)
 			end
 
@@ -357,21 +385,7 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 			return table.unpack(exports, 1, exports.n)
 		end
 
-		--[[
-			A record left from an earlier require would describe a different
-			failure, and an equal error raised now would keep it. So every
-			require starts without one.
-
-			An error raised before `moduleScript` runs, such as its syntax
-			error, happens outside every module's `xpcall`. The `xpcall` here
-			records those too.
-		]]
-		context.lastError = nil
-		local results = table.pack(xpcall(weHaveRequireAtHome, recordError, moduleScript, nil))
-		if not results[1] then
-			error(results[2], 0)
-		end
-		return table.unpack(results, 2, results.n)
+		return loadOnItsOwn(moduleScript, nil)
 	end
 
 	local function getLastError(): LastError?
