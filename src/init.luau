@@ -3,6 +3,7 @@ local isSandboxed = require("@self/isSandboxed")
 local types = require("@self/types")
 
 export type ModuleLoader = types.PublicModuleLoader
+export type ModuleLoadError = types.ModuleLoadError
 
 --[=[
 	Creates a loader with its own cache.

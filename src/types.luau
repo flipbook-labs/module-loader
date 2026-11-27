@@ -16,13 +16,27 @@ export type ModuleRegistry = {
 }
 
 --[=[
+	An error a module raised while it loaded, and the stack where it raised it.
+
+	@interface ModuleLoadError
+	@within ModuleLoader
+	.err unknown -- The value the module raised, exactly as `require` raised it.
+	.traceback string -- The stack where the module raised it, one frame per line.
+]=]
+export type ModuleLoadError = {
+	err: unknown,
+	traceback: string,
+}
+
+--[=[
 	A loader made by `createModuleLoader`.
 
 	@interface ModuleLoader
 	@within ModuleLoader
-	.require (moduleScript: ModuleScript) -> ...unknown -- Requires a module, and every module it requires, without Roblox's require cache. Requiring it again returns the same result until `clear` is called.
+	.require (moduleScript: ModuleScript) -> ...unknown -- Requires a module, and every module it requires, without Roblox's require cache. Requiring it again returns the same result until `clear` is called. A module's error is raised exactly as the module raised it, without a traceback.
 	.cache (moduleScript: ModuleScript, ...unknown) -> () -- Sets the result `require` returns for a module before it loads, so loaded modules share a copy you already have, such as a UI library.
 	.clear () -> () -- Empties the loader's cache, so the next `require` runs each module again.
+	.getLastError () -> ModuleLoadError? -- Returns the error from the most recent failed `require` and the stack where the module raised it, or nil after a `require` that succeeds and after `clear`.
 	.loadedModuleChanged RBXScriptSignal -- Fires when a module required through this loader has its ancestry or `Source` changed.
 ]=]
 -- `createModuleLoader` returns more than these fields, such as the module
@@ -32,6 +46,7 @@ export type PublicModuleLoader = {
 	require: (moduleScript: ModuleScript) -> ...unknown?,
 	cache: (moduleScript: ModuleScript, ...unknown?) -> (),
 	clear: () -> (),
+	getLastError: () -> ModuleLoadError?,
 
 	loadedModuleChanged: RBXScriptSignal,
 }
@@ -43,6 +58,7 @@ export type ModuleLoader = {
 	loadModule: (moduleScript: ModuleScript) -> ...unknown?,
 	cache: (moduleScript: ModuleScript, ...unknown?) -> (),
 	clear: () -> (),
+	getLastError: () -> ModuleLoadError?,
 
 	loadedModuleChanged: RBXScriptSignal,
 }
