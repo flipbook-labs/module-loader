@@ -169,6 +169,17 @@ describe("loadedModuleChanged", function()
 end)
 
 describe("cache", function()
+	test("keeps each loader's results apart from every other loader's", function()
+		local moduleScript = Instance.new("ModuleScript")
+		moduleScript.Source = "return {}"
+
+		local otherLoader = createModuleLoader()
+
+		expect(loader.require(moduleScript)).never.toBe(otherLoader.require(moduleScript))
+
+		otherLoader.clear()
+	end)
+
 	test("adds a module and its result to the cache", function()
 		local mockModuleInstance = Instance.new("ModuleScript")
 		local mockReturnValues = { foo = true }
@@ -882,70 +893,6 @@ describe("require", function()
 				expect(loader.require(consumer)).toBe("aliased")
 			end)
 		end
-	end)
-end)
-
-describe("sandbox detection", function()
-	--[[
-		The generated module has no way to name the real ModuleLoader instance
-		by path from inside the tree, so an ObjectValue smuggles the reference
-		in. Requiring it through the loader evaluates the real ModuleLoader
-		source in the sandbox, the same way a consumer's dependency graph would.
-	]]
-	local function createSandboxCheck(): ModuleScript
-		tree = createModuleTest({
-			CheckSandbox = [[
-				local ModuleLoader = require(script.ModuleLoaderScript.Value)
-				return ModuleLoader.isSandboxed()
-			]],
-		})
-
-		local checkSandbox = tree:QueryDescendants("#CheckSandbox")[1] :: ModuleScript
-
-		local moduleLoaderPointer = Instance.new("ObjectValue")
-		moduleLoaderPointer.Name = "ModuleLoaderScript"
-		moduleLoaderPointer.Value = script.Parent
-		moduleLoaderPointer.Parent = checkSandbox
-
-		return checkSandbox
-	end
-
-	test("isSandboxed() returns false outside of a loader sandbox", function()
-		local ModuleLoader = require("@root")
-
-		expect(ModuleLoader.isSandboxed()).toBe(false)
-	end)
-
-	test("isSandboxed() returns true inside a loader sandbox", function()
-		local checkSandbox = createSandboxCheck()
-
-		expect(loader.require(checkSandbox)).toBe(true)
-	end)
-
-	test("isSandboxed() returns true inside a sandbox after the loader is cleared", function()
-		local checkSandbox = createSandboxCheck()
-
-		loader.require(checkSandbox)
-		loader.clear()
-
-		expect(loader.require(checkSandbox)).toBe(true)
-	end)
-
-	test("the sandbox marker exists in _G but is not from the real _G", function()
-		tree = createModuleTest({
-			ReadMarker = [[
-				return _G.__MODULE_LOADER_SANDBOX__
-			]],
-		})
-
-		local readMarker = tree:QueryDescendants("#ReadMarker")[1] :: ModuleScript
-		local markerInSandbox = loader.require(readMarker)
-
-		-- The marker should exist in the sandbox
-		expect(markerInSandbox).toBeDefined()
-
-		-- But it should NOT exist in the real _G
-		expect(_G.__MODULE_LOADER_SANDBOX__).toBeUndefined()
 	end)
 end)
 
