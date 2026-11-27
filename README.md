@@ -8,14 +8,14 @@ With Wally:
 
 ```toml
 [dependencies]
-ModuleLoader = "flipbook-labs/module-loader@0.13.0"
+ModuleLoader = "flipbook-labs/module-loader@1.0.0"
 ```
 
 With Lute, add this to `pkg.luau` and run `lute pkg install --vendor`:
 
 ```luau
 ["module-loader"] = {
-	rev = "v0.13.0",
+	rev = "v1.0.0",
 	sourceKind = "github",
 	source = "https://github.com/flipbook-labs/module-loader",
 },

@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.0.0
+
+> [!WARNING]
+> Action required: this release has breaking changes. Each one under [Breaking changes](#breaking-changes) says what changed.
+
+Breaking 3 · Internal 3
+
+### Breaking changes
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-cache-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-cache-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-cache-light.png" alt="Cache" height="18" align="texttop" /></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/flag-breaking-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/flag-breaking-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/flag-breaking-light.png" alt="Breaking" height="18" align="texttop" /></picture> Remove `isLocked` and `clearModule` from the `ModuleLoader` type, which declared them without an implementation. ([#94](https://github.com/flipbook-labs/module-loader/pull/94))
+
+Calling either one already errored at runtime, so only code that type-checks against them needs a change. Delete those calls, and use `clear` to empty the whole cache.
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-light.png" alt="Requiring" height="18" align="texttop" /></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/flag-breaking-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/flag-breaking-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/flag-breaking-light.png" alt="Breaking" height="18" align="texttop" /></picture> Replace the `ModuleLoader` class with functions: `createModuleLoader` makes a loader whose functions are called with `.`. ([#95](https://github.com/flipbook-labs/module-loader/pull/95))
+
+Call `ModuleLoader.createModuleLoader()` where you called `ModuleLoader.new()`, then `loader.require(module)`, `loader.cache(module, value)`, and `loader.clear()` in place of the `:` methods. `isSandboxed` stays on the package. The `ModuleLoader.Class` type is gone, so use `ModuleLoader.ModuleLoader` for a loader. A loader's `require` returns `unknown` instead of `any`, so typed callers narrow or cast what a module returns.
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-light.png" alt="Requiring" height="18" align="texttop" /></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/flag-breaking-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/flag-breaking-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/flag-breaking-light.png" alt="Breaking" height="18" align="texttop" /></picture> Raise a module's error without a traceback, and add `getLastError` to read the stack separately. ([#98](https://github.com/flipbook-labs/module-loader/pull/98))
+
+`require` raises a module's error exactly as the module raised it, instead of appending a traceback to the message. The loader records the stack where the module failed, and `loader.getLastError()` returns it:
+
+```luau
+local ok, err = pcall(loader.require, moduleScript)
+if not ok then
+	local lastError = loader.getLastError()
+	print(err) -- the module's message on its own
+	print(lastError and lastError.traceback)
+end
+```
+
+A caller that read the stack from the error string now gets only the message, so read `getLastError().traceback` instead.
+
+### Internal
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-light.png" alt="Tooling" height="18" align="texttop" /></picture> Move to Changewrite v0.16.0, AgentSkills v0.9.0, and CodeQuality v0.8.0, and turn long `--` comment runs into `--[[ ]]` blocks. ([#89](https://github.com/flipbook-labs/module-loader/pull/89))
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-contributing-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-contributing-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-contributing-light.png" alt="Contributing" height="18" align="texttop" /></picture> Apply the Greptile changelog length rule to `summary` and let `body` run longer. ([#91](https://github.com/flipbook-labs/module-loader/pull/91))
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-requiring-light.png" alt="Requiring" height="18" align="texttop" /></picture> Type compiled modules without `any`, so the type checker sees how the loader calls them. ([#96](https://github.com/flipbook-labs/module-loader/pull/96))
 
 ## v0.13.0
 
