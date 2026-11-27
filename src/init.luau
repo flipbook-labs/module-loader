@@ -6,6 +6,6 @@ export type ModuleLoader = types.PublicModuleLoader
 export type LastError = types.LastError
 
 return {
-	createModuleLoader = createModuleLoader :: () -> ModuleLoader,
+	createModuleLoader = createModuleLoader,
 	isSandboxed = isSandboxed,
 }
