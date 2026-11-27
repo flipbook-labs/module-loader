@@ -3,15 +3,18 @@ return {
 	category = "Changes",
 	kind = "requiring",
 	flags = { "Breaking" },
-	summary = "Raise a module's error without a traceback, so a caller's `xpcall` handler can read the message and stack separately.",
+	summary = "Raise a module's error without a traceback, and add `getLastError` to read the stack separately.",
 	body = [[
-`require` no longer catches a module's error or appends a traceback to it. The error reaches the caller as the module raised it, and the failing module is still on the stack when the caller's `xpcall` handler runs:
+`require` raises a module's error exactly as the module raised it, instead of appending a traceback to the message. The loader records the stack where the module failed, and `loader.getLastError()` returns it:
 
 ```luau
-local ok, result = xpcall(loader.require, function(err)
-	return { message = err, traceback = debug.traceback(nil, 2) }
-end, moduleScript)
+local ok, err = pcall(loader.require, moduleScript)
+if not ok then
+	local lastError = loader.getLastError()
+	print(err) -- the module's message on its own
+	print(lastError and lastError.traceback)
+end
 ```
 
-A caller that used `pcall` and read the stack from the error string now gets only the message. Switch to `xpcall` and call `debug.traceback` in the handler.]],
+A caller that read the stack from the error string now gets only the message, so read `getLastError().traceback` instead.]],
 }
