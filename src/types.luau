@@ -15,6 +15,14 @@ export type ModuleRegistry = {
 	getByFullName: (fullName: string) -> LoadedModule?,
 }
 
+-- What `getLastError` returns about the most recent failed `require`.
+export type LastError = {
+	-- The value the module raised, exactly as `require` raised it.
+	err: unknown,
+	-- The stack where the module raised it, one frame per line.
+	traceback: string,
+}
+
 export type ModuleLoader = {
 	_getModuleRegistry: () -> ModuleRegistry,
 
@@ -22,6 +30,7 @@ export type ModuleLoader = {
 	loadModule: (moduleScript: ModuleScript) -> ...unknown?,
 	cache: (moduleScript: ModuleScript, ...unknown?) -> (),
 	clear: () -> (),
+	getLastError: () -> LastError?,
 
 	loadedModuleChanged: RBXScriptSignal,
 }

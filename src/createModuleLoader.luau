@@ -23,6 +23,7 @@ type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
 type ModuleLoaderDependencies = types.ModuleLoaderDependencies
+type LastError = types.LastError
 type ResolveModulePath = types.ResolveModulePath
 
 type LoaderContext = {
@@ -37,6 +38,10 @@ type LoaderContext = {
 	shouldUseLoadmodule: boolean,
 
 	loadmoduleCleanupFns: { () -> () },
+
+	-- The error from the most recent failed `require`, kept for
+	-- `getLastError`.
+	lastError: LastError?,
 }
 
 -- Unique sentinel table for sandbox detection. When a loader evaluates modules,
@@ -71,6 +76,37 @@ local DEFAULT_DEPENDENCIES: ModuleLoaderDependencies = {
 		then bind(ScriptService.ResolveModulePath, ScriptService)
 		else nil,
 }
+
+--[[
+	Every require runs its module inside `xpcall`, and a failed require re-raises
+	the error into the module that required it. So an error deep in a chain of
+	requires passes through one `xpcall` per module in the chain.
+
+	The innermost handler runs while the failing module is still on the stack,
+	so the stack it records already lists every require above it. The error
+	itself passes on untouched: the handler returns it as it was raised, and
+	each re-raise uses `error(err, 0)`, which adds nothing to a message. The
+	outer handlers see the same error again and keep the record they already
+	have, so it holds the deepest stack. A caller reads the record with
+	`getLastError`.
+]]
+type ErrorHandler = (err: unknown) -> unknown
+
+local function createErrorRecorder(context: LoaderContext): ErrorHandler
+	return function(err: unknown): unknown
+		local lastError = context.lastError
+		if lastError and rawequal(lastError.err, err) then
+			return err
+		end
+		-- Level 2 starts the stack at the code that raised the error, leaving
+		-- out this handler.
+		context.lastError = {
+			err = err,
+			traceback = debug.traceback(nil, 2),
+		}
+		return err
+	end
+end
 
 local function makeModuleFunction(compiledOuter): ModuleFunction
 	return function(...)
@@ -214,34 +250,9 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 		dependencies = dependencies or DEFAULT_DEPENDENCIES,
 		shouldUseLoadmodule = false,
 		loadmoduleCleanupFns = {},
+		lastError = nil,
 	}
-
-	--[[
-		A module is in progress while its source runs. Requiring a module that's
-		in progress means the requires have looped back to it, which is an
-		error.
-
-		When a module raises an error, the loader doesn't catch it. The error
-		goes straight to the code that called `require`, and the failing module
-		is still on the stack when that caller's `xpcall` handler runs. So the
-		handler can call `debug.traceback` itself and get the message and the
-		stack separately. Since the loader never sees the error, it can't remove
-		the failed module from this table.
-
-		To tell a loop apart from an entry a failed load left behind, requires
-		are grouped into attempts, and each entry records the attempt that
-		added it. An entry from an earlier attempt belongs to a load that
-		failed, so the module is loaded again.
-
-		A call to the loader's `require` starts an attempt. So does a require
-		made by a module that has already finished loading, such as one inside
-		a function the module returns, because it runs after that module's own
-		load is over. One case still reads as a loop: a module that catches a
-		failed require with `pcall` and then requires the same module again
-		while it's still loading.
-	]]
-	local inProgress = weak<<ModuleScript, number>>({})
-	local currentAttempt = 0
+	local recordError = createErrorRecorder(context)
 
 	-- Plant the sandbox marker on the proxy globals so code evaluated through
 	-- this loader can detect they are running in a sandboxed context.
@@ -264,8 +275,6 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 	end
 
 	local function require(moduleScript: ModuleScript): ...unknown?
-		currentAttempt += 1
-
 		local function weHaveRequireAtHome(module: ModuleScript | string, caller: ModuleScript?)
 			local resolvedModule: ModuleScript
 			if type(module) == "string" then
@@ -278,30 +287,40 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 
 			local existingModule = moduleRegistry.getByInstance(resolvedModule)
 			if existingModule then
-				assert(existingModule.exports, `exports of existing module {resolvedModule} were not set`)
-				return table.unpack(existingModule.exports, 1, existingModule.exports.n)
+				if existingModule.isLoaded then
+					assert(existingModule.exports, `exports of existing module {resolvedModule} were not set`)
+					return table.unpack(existingModule.exports, 1, existingModule.exports.n)
+				else
+					error("Requested module was required recursively")
+				end
 			end
 
-			if inProgress[resolvedModule] == currentAttempt then
-				error("Requested module was required recursively")
-			end
-			inProgress[resolvedModule] = currentAttempt
+			local loadedModule: LoadedModule = {
+				instance = resolvedModule,
+				exports = nil,
+				isLoaded = false,
+			}
+
+			moduleRegistry.add(resolvedModule, loadedModule)
 
 			local moduleFunction = getModuleFunction(resolvedModule, { "_G" }, context)
 
 			local function childRequire(childModule: ModuleScript | string)
-				if moduleRegistry.getByInstance(resolvedModule) then
-					currentAttempt += 1
-				end
 				return weHaveRequireAtHome(childModule, resolvedModule)
 			end
 
-			-- Notice how the arguments here map to the params in
-			-- `getModuleFunction`, which in this case is `script`, `require`,
-			-- and `_G` in the context of the loaded module.
-			local exports = table.pack(moduleFunction(resolvedModule, childRequire, globals))
+			local exports: types.Packed<unknown>
+			local ok, err = xpcall(function()
+				-- Notice how the arguments here map to the params in
+				-- `getModuleFunction`, which in this case is `script`,
+				-- `require`, and `_G` in the context of the loaded module.
+				exports = table.pack(moduleFunction(resolvedModule, childRequire, globals))
+			end, recordError)
 
-			inProgress[resolvedModule] = nil
+			if not ok then
+				moduleRegistry.remove(resolvedModule)
+				error(err, 0)
+			end
 
 			if not changedConnections[resolvedModule] then
 				changedConnections[resolvedModule] = resolvedModule.Changed:Connect(function()
@@ -309,21 +328,36 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 				end)
 			end
 
-			moduleRegistry.add(resolvedModule, {
-				instance = resolvedModule,
-				exports = exports,
-				isLoaded = true,
-			})
+			loadedModule.exports = exports
+			loadedModule.isLoaded = true
 
 			return table.unpack(exports, 1, exports.n)
 		end
 
-		return weHaveRequireAtHome(moduleScript, nil)
+		--[[
+			A record left from an earlier require would describe a different
+			failure, and an equal error raised now would keep it. So every
+			require starts without one.
+
+			An error raised before `moduleScript` runs, such as its syntax
+			error, happens outside every module's `xpcall`. The `xpcall` here
+			records those too.
+		]]
+		context.lastError = nil
+		local results = table.pack(xpcall(weHaveRequireAtHome, recordError, moduleScript, nil))
+		if not results[1] then
+			error(results[2], 0)
+		end
+		return table.unpack(results, 2, results.n)
+	end
+
+	local function getLastError(): LastError?
+		return context.lastError
 	end
 
 	local function clear()
 		moduleRegistry.reset()
-		table.clear(inProgress)
+		context.lastError = nil
 
 		-- Clearing user-defined globals also wipes the sandbox marker, so it
 		-- has to be replanted for modules evaluated after the clear.
@@ -348,6 +382,7 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 		loadModule = require,
 		require = require,
 		clear = clear,
+		getLastError = getLastError,
 
 		loadedModuleChanged = loadedModuleChanged.Event,
 	}

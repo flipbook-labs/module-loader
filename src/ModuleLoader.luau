@@ -19,6 +19,7 @@ type ModuleLoaderImpl = {
 	require: (self: ModuleLoaderClass, moduleScript: ModuleScript) -> any,
 	cache: (self: ModuleLoaderClass, moduleScript: ModuleScript, result: any) -> (),
 	clear: (self: ModuleLoaderClass) -> (),
+	getLastError: (self: ModuleLoaderClass) -> types.LastError?,
 }
 
 --[[
@@ -42,8 +43,8 @@ export type ModuleLoaderClass = typeof(setmetatable({} :: ModuleLoaderProps, {} 
 	@class ModuleLoader
 ]=]
 -- Annotating the empty table fails analyze with "Table type 'ModuleLoader' not compatible with type
--- 'ModuleLoaderImpl' because the former is missing fields '__index', 'cache', 'clear', 'isSandboxed',
--- 'new', and 'require'", because the methods are assigned after this line.
+-- 'ModuleLoaderImpl' because the former is missing fields '__index', 'cache', 'clear', 'getLastError',
+-- 'isSandboxed', 'new', and 'require'", because the methods are assigned after this line.
 -- lute-lint-ignore(prefer_annotation)
 local ModuleLoader = {} :: ModuleLoaderImpl
 ModuleLoader.__index = ModuleLoader
@@ -172,6 +173,30 @@ end
 ]=]
 function ModuleLoader:clear()
 	self._loader.clear()
+end
+
+--[=[
+	Returns the error from the most recent failed `require`, and the stack
+	where the module raised it.
+
+	`require` raises a module's error exactly as the module raised it, without
+	a traceback. The loader records the stack before the error unwinds, so a
+	caller can show the message on its own and keep the stack for details.
+	Returns nil after a `require` that succeeds, and after `clear`.
+
+	```lua
+	local loader = ModuleLoader.new()
+	local ok, err = pcall(loader.require, loader, script.Parent.ModuleScript)
+
+	if not ok then
+		local lastError = loader:getLastError()
+		print(err)
+		print(lastError and lastError.traceback)
+	end
+	```
+]=]
+function ModuleLoader:getLastError(): types.LastError?
+	return self._loader.getLastError()
 end
 
 return ModuleLoader

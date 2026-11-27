@@ -261,7 +261,7 @@ describe("require", function()
 		expect(err).never.toMatch("\n")
 	end)
 
-	test("leaves the failing module on the stack for a caller's xpcall handler", function()
+	test("records where a nested module failed for getLastError", function()
 		tree = createModuleTest({
 			Outer = [[
 				require(script.Parent.Middle)
@@ -275,17 +275,44 @@ describe("require", function()
 		})
 
 		local outer = tree:QueryDescendants("#Outer")[1] :: ModuleScript
-		local message: unknown, traceback: string?
-		local ok = xpcall(loader.require, function(err)
-			message = err
-			traceback = debug.traceback(nil, 2)
-		end, outer)
+		local ok, err = pcall(loader.require, outer)
+		local lastError = loader.getLastError()
 
 		expect(ok).toBe(false)
-		expect(message).toMatch("Inner.*:%d+: boom$")
-		expect(traceback).toMatch("Inner")
-		expect(traceback).toMatch("Middle")
-		expect(traceback).toMatch("Outer")
+		assert(lastError, "expected the failed require to be recorded")
+		expect(lastError.err).toBe(err)
+		expect(lastError.traceback).toMatch("Inner")
+		expect(lastError.traceback).toMatch("Middle")
+		expect(lastError.traceback).toMatch("Outer")
+	end)
+
+	test("has no last error after a require that succeeds or a clear", function()
+		local failing = Instance.new("ModuleScript")
+		failing.Source = "error('boom')"
+		local passing = Instance.new("ModuleScript")
+		passing.Source = "return true"
+
+		pcall(loader.require, failing)
+		expect(loader.getLastError()).never.toBeNil()
+
+		loader.require(passing)
+		expect(loader.getLastError()).toBeNil()
+
+		pcall(loader.require, failing)
+		loader.clear()
+		expect(loader.getLastError()).toBeNil()
+	end)
+
+	test("records a syntax error in the module passed to require", function()
+		local moduleScript = Instance.new("ModuleScript")
+		moduleScript.Source = "local x = "
+
+		local ok, err = pcall(loader.require, moduleScript)
+		local lastError = loader.getLastError()
+
+		expect(ok).toBe(false)
+		assert(lastError, "expected the failed require to be recorded")
+		expect(lastError.err).toBe(err)
 	end)
 
 	test("passes a table a module raises through unchanged", function()
@@ -344,6 +371,26 @@ describe("require", function()
 		inner.Source = "return true"
 
 		expect(loadInner()).toBe(true)
+	end)
+
+	test("loads a module again when its module caught the first failure", function()
+		tree = createModuleTest({
+			Outer = [[
+				pcall(require, script.Parent.Inner)
+				return require(script.Parent.Inner)
+			]],
+			Inner = [[
+				_G.innerLoads = (_G.innerLoads or 0) + 1
+				if _G.innerLoads == 1 then
+					error("first load fails")
+				end
+				return _G.innerLoads
+			]],
+		})
+
+		local outer = tree:QueryDescendants("#Outer")[1] :: ModuleScript
+
+		expect(loader.require(outer)).toBe(2)
 	end)
 
 	test("does not cache a module that errored, so a later require can succeed", function()
@@ -423,6 +470,26 @@ describe("require", function()
 						Name = "ModuleB",
 						ModuleA = ModuleA,
 					}
+				]],
+			})
+
+			local moduleA = tree:QueryDescendants("#ModuleA")[1] :: ModuleScript
+
+			expect(function()
+				loader.require(moduleA)
+			end).toThrow("Requested module was required recursively")
+		end)
+
+		test("throws when a cycle runs through a function another module returned", function()
+			tree = createModuleTest({
+				ModuleA = [[
+					local requireA = require(script.Parent.ModuleB)
+					return requireA()
+				]],
+				ModuleB = [[
+					return function()
+						return require(script.Parent.ModuleA)
+					end
 				]],
 			})
 
