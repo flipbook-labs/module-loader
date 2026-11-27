@@ -14,12 +14,10 @@ type ModuleLoaderImpl = {
 	__index: ModuleLoaderImpl,
 
 	new: () -> ModuleLoaderClass,
-	isLocked: (instance: Instance) -> boolean,
 	isSandboxed: () -> boolean,
 
 	require: (self: ModuleLoaderClass, moduleScript: ModuleScript) -> any,
 	cache: (self: ModuleLoaderClass, moduleScript: ModuleScript, result: any) -> (),
-	clearModule: (self: ModuleLoaderClass, moduleScript: ModuleScript) -> (),
 	clear: (self: ModuleLoaderClass) -> (),
 }
 
@@ -44,8 +42,8 @@ export type ModuleLoaderClass = typeof(setmetatable({} :: ModuleLoaderProps, {} 
 	@class ModuleLoader
 ]=]
 -- Annotating the empty table fails analyze with "Table type 'ModuleLoader' not compatible with type
--- 'ModuleLoaderImpl' because the former is missing fields '__index', 'cache', 'clear', 'clearModule',
--- 'isLocked', 'isSandboxed', 'new', and 'require'", because the methods are assigned after this line.
+-- 'ModuleLoaderImpl' because the former is missing fields '__index', 'cache', 'clear', 'isSandboxed',
+-- 'new', and 'require'", because the methods are assigned after this line.
 -- lute-lint-ignore(prefer_annotation)
 local ModuleLoader = {} :: ModuleLoaderImpl
 ModuleLoader.__index = ModuleLoader
