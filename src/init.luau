@@ -1,4 +1,3 @@
-local ModuleLoadError = require("@self/ModuleLoadError")
 local createModuleLoader = require("@self/createModuleLoader")
 local isSandboxed = require("@self/isSandboxed")
 
@@ -21,8 +20,6 @@ export type ModuleLoader = {
 
 	loadedModuleChanged: RBXScriptSignal,
 }
-
-export type ModuleLoadError = ModuleLoadError.ModuleLoadError
 
 --[=[
 	ModuleScript loader that bypasses Roblox's require cache.
@@ -68,32 +65,5 @@ function ModuleLoader.createModuleLoader(): ModuleLoader
 end
 
 ModuleLoader.isSandboxed = isSandboxed
-
---[=[
-	Checks whether an error raised by a loader's `require` is a
-	ModuleLoadError.
-
-	When a module fails to load, `require` raises a ModuleLoadError with the
-	error's `message` and, separately, the `traceback` the loader adds. A
-	string, number, or nil error always arrives as a ModuleLoadError. A module
-	can also raise a table or another value of its own, and that value arrives
-	as it was raised. Converting a ModuleLoadError to a string gives the
-	message, then the traceback when there is one.
-
-	```lua
-	local loader = ModuleLoader.createModuleLoader()
-	local ok, err = pcall(loader.require, script.Parent.ModuleScript)
-
-	if not ok and ModuleLoader.isModuleLoadError(err) then
-		print(err.message)
-	end
-	```
-
-	@function isModuleLoadError
-	@within ModuleLoader
-	@param value unknown
-	@return boolean
-]=]
-ModuleLoader.isModuleLoadError = ModuleLoadError.is
 
 return ModuleLoader

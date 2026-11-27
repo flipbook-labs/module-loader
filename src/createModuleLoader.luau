@@ -7,7 +7,6 @@
 
 local ScriptService = game:GetService("ScriptService")
 
-local ModuleLoadError = require("@root/ModuleLoadError")
 local bind = require("@root/bind")
 local compileWithLoadstring = require("@root/compileWithLoadstring")
 local createModuleRegistry = require("@root/createModuleRegistry")
@@ -81,53 +80,27 @@ local DEFAULT_DEPENDENCIES: ModuleLoaderDependencies = {
 	requires passes through one `xpcall` per module in the chain.
 
 	The innermost handler runs while the failing module is still on the stack,
-	so the traceback it adds already lists every require above it. The handler
-	this creates turns the error into a ModuleLoadError carrying that traceback.
-	Each re-raise uses `error(err, 0)`, which passes the ModuleLoadError on
-	unchanged. The handler remembers the last ModuleLoadError it made and passes
-	that one through as it is, so the stack appears once instead of once per
-	module.
-
-	Each loader creates one handler, shared by every module it requires. Only a
-	ModuleLoadError this handler made passes through untouched. When another
-	loader's ModuleLoadError reaches it, the handler keeps the message and adds
-	its own stack after the traceback the ModuleLoadError already has.
-
-	Strings, numbers, and nil become a ModuleLoadError's message through
-	`tostring`, so nil becomes "nil". Any other value a module raises, such as a table,
-	passes through as it was raised, so code that catches its own error objects
-	still gets them back.
+	so the traceback it adds already lists every require above it. Each re-raise
+	uses `error(err, 0)`, which leaves the message exactly as it was. The
+	handler this creates remembers the last message it traced and passes that
+	message through unchanged, so the stack appears once instead of once per
+	module. Each loader creates its own handler, so a message traced by one
+	loader is never skipped by another.
 ]]
 type ErrorHandler = (err: unknown) -> unknown
 
 local function createTraceOnce(): ErrorHandler
-	local lastModuleLoadError: unknown
+	local lastTracedError: unknown
 
 	return function(err: unknown): unknown
-		-- `lastModuleLoadError` starts out nil, so a nil error would otherwise look
-		-- like one this handler already made.
-		if err ~= nil and err == lastModuleLoadError then
+		-- A nil error can't be told apart from nothing traced yet, so it always
+		-- gets a traceback.
+		if err ~= nil and err == lastTracedError then
 			return err
 		end
-
-		-- Level 2 starts the stack at the code that raised the error, leaving
-		-- out this handler.
-		local moduleLoadError: unknown
-		if ModuleLoadError.is(err) then
-			local otherModuleLoadError = err :: ModuleLoadError.ModuleLoadError
-			local stack = debug.traceback(nil, 2)
-			moduleLoadError = ModuleLoadError.new(
-				otherModuleLoadError.message,
-				if otherModuleLoadError.traceback == "" then stack else `{otherModuleLoadError.traceback}\n{stack}`
-			)
-		elseif err == nil or type(err) == "string" or type(err) == "number" then
-			moduleLoadError = ModuleLoadError.new(tostring(err), debug.traceback(nil, 2))
-		else
-			return err
-		end
-
-		lastModuleLoadError = moduleLoadError
-		return moduleLoadError
+		local traced = debug.traceback(err :: string, 2)
+		lastTracedError = traced
+		return traced
 	end
 end
 
@@ -244,7 +217,7 @@ local function getModuleFunction(
 	tmpScript:Destroy()
 
 	if not ok then
-		if tostring(err):find(NON_ROBLOXSCRIPT_REQUIRE_ERROR, 1, true) then
+		if err:find(NON_ROBLOXSCRIPT_REQUIRE_ERROR, 1, true) then
 			local moduleFunction = getModuleFunctionWithLoadmodule(moduleScript, context)
 			if moduleFunction then
 				context.shouldUseLoadmodule = true
@@ -356,21 +329,7 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 			return table.unpack(exports, 1, exports.n)
 		end
 
-		--[[
-			An error raised before `moduleScript` runs, such as its syntax
-			error, happens outside every `xpcall`, so no handler traced it and
-			it reaches this point as a string. Wrapping it here means every
-			string error a caller sees is a ModuleLoadError, traced or not.
-		]]
-		local results = table.pack(pcall(weHaveRequireAtHome, moduleScript, nil))
-		if not results[1] then
-			local err = results[2]
-			if type(err) == "string" then
-				err = ModuleLoadError.new(err, "")
-			end
-			error(err, 0)
-		end
-		return table.unpack(results, 2, results.n)
+		return weHaveRequireAtHome(moduleScript, nil)
 	end
 
 	local function clear()
