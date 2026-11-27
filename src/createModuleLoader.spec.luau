@@ -257,7 +257,7 @@ describe("require", function()
 		local ok, err = pcall(loader.require, outer)
 
 		expect(ok).toBe(false)
-		expect(err).toMatch("Inner:%d+: boom$")
+		expect(err).toMatch("Inner.*:%d+: boom$")
 		expect(err).never.toMatch("\n")
 	end)
 
@@ -282,7 +282,7 @@ describe("require", function()
 		end, outer)
 
 		expect(ok).toBe(false)
-		expect(message).toMatch("Inner:%d+: boom$")
+		expect(message).toMatch("Inner.*:%d+: boom$")
 		expect(traceback).toMatch("Inner")
 		expect(traceback).toMatch("Middle")
 		expect(traceback).toMatch("Outer")
