@@ -37,8 +37,6 @@ type LoaderContext = {
 	shouldUseLoadmodule: boolean,
 
 	loadmoduleCleanupFns: { () -> () },
-
-	traceOnce: ErrorHandler,
 }
 
 -- Unique sentinel table for sandbox detection. When a loader evaluates modules,
@@ -73,36 +71,6 @@ local DEFAULT_DEPENDENCIES: ModuleLoaderDependencies = {
 		then bind(ScriptService.ResolveModulePath, ScriptService)
 		else nil,
 }
-
---[[
-	Every require runs its module inside `xpcall`, and a failed require re-raises
-	the error into the module that required it. So an error deep in a chain of
-	requires passes through one `xpcall` per module in the chain.
-
-	The innermost handler runs while the failing module is still on the stack,
-	so the traceback it adds already lists every require above it. Each re-raise
-	uses `error(err, 0)`, which leaves the message exactly as it was. The
-	handler this creates remembers the last message it traced and passes that
-	message through unchanged, so the stack appears once instead of once per
-	module. Each loader creates its own handler, so a message traced by one
-	loader is never skipped by another.
-]]
-type ErrorHandler = (err: unknown) -> unknown
-
-local function createTraceOnce(): ErrorHandler
-	local lastTracedError: unknown
-
-	return function(err: unknown): unknown
-		-- A nil error can't be told apart from nothing traced yet, so it always
-		-- gets a traceback.
-		if err ~= nil and err == lastTracedError then
-			return err
-		end
-		local traced = debug.traceback(err :: string, 2)
-		lastTracedError = traced
-		return traced
-	end
-end
 
 local function makeModuleFunction(compiledOuter): ModuleFunction
 	return function(...)
@@ -180,7 +148,7 @@ local function getModuleFunction(
 	local chunkFn, syntaxErrorMessage = context.dependencies.compile(newSource, moduleScript:GetFullName())
 
 	if chunkFn then
-		local ok, result = xpcall(chunkFn, context.traceOnce)
+		local ok, result = pcall(chunkFn)
 		if ok and typeof(result) == "function" then
 			-- I don't think there's a way to narrow this further but we know by
 			-- this point we we're getting back the newSource result so I think
@@ -210,14 +178,14 @@ local function getModuleFunction(
 	end
 
 	local createModuleFunction: ModuleFactory
-	local ok, err = xpcall(function()
+	local ok, err = pcall(function()
 		createModuleFunction = context.dependencies.require(tmpScript) :: ModuleFactory
-	end, context.traceOnce)
+	end)
 
 	tmpScript:Destroy()
 
 	if not ok then
-		if err:find(NON_ROBLOXSCRIPT_REQUIRE_ERROR, 1, true) then
+		if tostring(err):find(NON_ROBLOXSCRIPT_REQUIRE_ERROR, 1, true) then
 			local moduleFunction = getModuleFunctionWithLoadmodule(moduleScript, context)
 			if moduleFunction then
 				context.shouldUseLoadmodule = true
@@ -246,8 +214,29 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 		dependencies = dependencies or DEFAULT_DEPENDENCIES,
 		shouldUseLoadmodule = false,
 		loadmoduleCleanupFns = {},
-		traceOnce = createTraceOnce(),
 	}
+
+	--[[
+		A module is in progress from the moment its source starts running until
+		it returns. Requiring a module that's in progress means the requires
+		have looped back to it, which is an error.
+
+		When a module raises an error, the loader doesn't catch it. The error
+		goes straight to the code that called `require`, and the failing module
+		is still on the stack when that caller's `xpcall` handler runs. So the
+		handler can call `debug.traceback` itself and get the message and the
+		stack separately. Since the loader never sees the error, it can't clear
+		the failed module's mark.
+
+		To tell a loop apart from a leftover mark, every call to `require`
+		starts a new attempt, and each mark records the attempt that set it. A
+		mark from an earlier attempt belongs to a load that failed, so the
+		module is loaded again. One case still reads as a loop: a module that
+		catches a failed require with `pcall` and then requires the same module
+		again during the same attempt.
+	]]
+	local inProgress = weak<<ModuleScript, number>>({})
+	local currentAttempt = 0
 
 	-- Plant the sandbox marker on the proxy globals so code evaluated through
 	-- this loader can detect they are running in a sandboxed context.
@@ -270,6 +259,8 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 	end
 
 	local function require(moduleScript: ModuleScript): ...unknown?
+		currentAttempt += 1
+
 		local function weHaveRequireAtHome(module: ModuleScript | string, caller: ModuleScript?)
 			local resolvedModule: ModuleScript
 			if type(module) == "string" then
@@ -282,21 +273,14 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 
 			local existingModule = moduleRegistry.getByInstance(resolvedModule)
 			if existingModule then
-				if existingModule.isLoaded then
-					assert(existingModule.exports, `exports of existing module {resolvedModule} were not set`)
-					return table.unpack(existingModule.exports, 1, existingModule.exports.n)
-				else
-					error("Requested module was required recursively")
-				end
+				assert(existingModule.exports, `exports of existing module {resolvedModule} were not set`)
+				return table.unpack(existingModule.exports, 1, existingModule.exports.n)
 			end
 
-			local loadedModule: LoadedModule = {
-				instance = resolvedModule,
-				exports = nil,
-				isLoaded = false,
-			}
-
-			moduleRegistry.add(resolvedModule, loadedModule)
+			if inProgress[resolvedModule] == currentAttempt then
+				error("Requested module was required recursively")
+			end
+			inProgress[resolvedModule] = currentAttempt
 
 			local moduleFunction = getModuleFunction(resolvedModule, { "_G" }, context)
 
@@ -304,18 +288,12 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 				return weHaveRequireAtHome(childModule, resolvedModule)
 			end
 
-			local exports: types.Packed<unknown>
-			local ok, err = xpcall(function()
-				-- Notice how the arguments here map to the params in
-				-- `getModuleFunction`, which in this case is `script`,
-				-- `require`, and `_G` in the context of the loaded module.
-				exports = table.pack(moduleFunction(resolvedModule, childRequire, globals))
-			end, context.traceOnce)
+			-- Notice how the arguments here map to the params in
+			-- `getModuleFunction`, which in this case is `script`, `require`,
+			-- and `_G` in the context of the loaded module.
+			local exports = table.pack(moduleFunction(resolvedModule, childRequire, globals))
 
-			if not ok then
-				moduleRegistry.remove(resolvedModule)
-				error(err, 0)
-			end
+			inProgress[resolvedModule] = nil
 
 			if not changedConnections[resolvedModule] then
 				changedConnections[resolvedModule] = resolvedModule.Changed:Connect(function()
@@ -323,8 +301,11 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 				end)
 			end
 
-			loadedModule.exports = exports
-			loadedModule.isLoaded = true
+			moduleRegistry.add(resolvedModule, {
+				instance = resolvedModule,
+				exports = exports,
+				isLoaded = true,
+			})
 
 			return table.unpack(exports, 1, exports.n)
 		end
@@ -334,6 +315,7 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 
 	local function clear()
 		moduleRegistry.reset()
+		table.clear(inProgress)
 
 		-- Clearing user-defined globals also wipes the sandbox marker, so it
 		-- has to be replanted for modules evaluated after the clear.
