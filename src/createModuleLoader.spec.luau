@@ -959,14 +959,14 @@ describe("sandbox detection", function()
 
 		local moduleLoaderPointer = Instance.new("ObjectValue")
 		moduleLoaderPointer.Name = "ModuleLoaderScript"
-		moduleLoaderPointer.Value = script.Parent.ModuleLoader
+		moduleLoaderPointer.Value = script.Parent
 		moduleLoaderPointer.Parent = checkSandbox
 
 		return checkSandbox
 	end
 
 	test("isSandboxed() returns false outside of a loader sandbox", function()
-		local ModuleLoader = require("@root/ModuleLoader")
+		local ModuleLoader = require("@root")
 
 		expect(ModuleLoader.isSandboxed()).toBe(false)
 	end)

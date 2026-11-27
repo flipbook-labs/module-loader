@@ -3,17 +3,15 @@ local describe = JestGlobals.describe
 local expect = JestGlobals.expect
 local test = JestGlobals.test
 
-local ModuleLoader = require("./ModuleLoader")
+local ModuleLoader = require("@root")
 
 describe("isModuleLoadError", function()
 	test("accepts the error `require` raises when a module fails to load", function()
-		local loader = ModuleLoader.new()
+		local loader = ModuleLoader.createModuleLoader()
 		local moduleScript = Instance.new("ModuleScript")
 		moduleScript.Source = "error('boom')"
 
-		local ok, err = pcall(function()
-			return loader:require(moduleScript)
-		end)
+		local ok, err = pcall(loader.require, moduleScript)
 
 		expect(ok).toBe(false)
 		expect(ModuleLoader.isModuleLoadError(err)).toBe(true)
