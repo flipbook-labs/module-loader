@@ -23,7 +23,7 @@ type ModuleLoader = types.ModuleLoader
 type ModuleRegistry = types.ModuleRegistry
 type ModuleFunction = types.ModuleFunction
 type ModuleLoaderDependencies = types.ModuleLoaderDependencies
-type LastError = types.LastError
+type ModuleLoadError = types.ModuleLoadError
 type ResolveModulePath = types.ResolveModulePath
 
 type LoaderContext = {
@@ -41,7 +41,7 @@ type LoaderContext = {
 
 	-- The error from the most recent failed `require`, kept for
 	-- `getLastError`.
-	lastError: LastError?,
+	lastError: ModuleLoadError?,
 }
 
 -- Unique sentinel table for sandbox detection. When a loader evaluates modules,
@@ -388,7 +388,7 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 		return loadOnItsOwn(moduleScript, nil)
 	end
 
-	local function getLastError(): LastError?
+	local function getLastError(): ModuleLoadError?
 		return context.lastError
 	end
 
