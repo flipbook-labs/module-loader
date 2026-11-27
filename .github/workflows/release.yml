@@ -164,7 +164,7 @@ jobs:
 
   publish-wally:
     needs: release
-    if: needs.release.outputs.release_created == 'true'
+    if: ${{ !cancelled() && needs.release.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment:
@@ -175,7 +175,7 @@ jobs:
         with:
           ref: ${{ needs.release.outputs.tag }}
 
-      - uses: CompeyDev/setup-rokit@v0.2.1
+      - uses: CompeyDev/setup-rokit@1d9390883f7ebce19d48f5b8d006e11d387c92ab # v0.2.1
         with:
           version: v1.2.0
 
