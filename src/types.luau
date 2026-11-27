@@ -26,13 +26,16 @@ export type ModuleLoader = {
 	loadedModuleChanged: RBXScriptSignal,
 }
 
--- `unknown` here fails the type checks in createModuleLoader, which passes module functions around.
--- lute-lint-ignore(no_any)
-export type ModuleFunction = (...any) -> ...unknown?
+-- A module's code, compiled but not yet run.
+export type ModuleChunk = () -> ...unknown
+
+-- A module's code wrapped so the loader can hand it its own `script`,
+-- `require`, and `_G`.
+export type ModuleFunction = (script: ModuleScript, require: unknown, globals: unknown) -> ...unknown?
 
 -- Roblox signature for `debug.loadmodule`: the module's chunk, or nil and an
 -- error message, plus a function that releases the chunk.
-export type LoadModule = (moduleScript: ModuleScript) -> ((() -> ...unknown)?, string?, (() -> ())?)
+export type LoadModule = (moduleScript: ModuleScript) -> (ModuleChunk?, string?, (() -> ())?)
 
 -- Resolves a string require, such as `./Sibling` or `@alias/Module`, relative
 -- to the module that called `require`.
@@ -41,7 +44,7 @@ export type ResolveModulePath = (relativeTo: Instance, path: string) -> Instance
 -- The engine calls a loader makes. Specs replace them to simulate security
 -- contexts that Open Cloud Luau Execution can't reproduce.
 export type ModuleLoaderDependencies = {
-	compile: (source: string, chunkName: string) -> (ModuleFunction?, string?),
+	compile: (source: string, chunkName: string) -> (ModuleChunk?, string?),
 	require: (moduleScript: ModuleScript) -> unknown,
 	loadmodule: LoadModule?,
 	-- When nil, string requires go through ModuleLoader's own path parser.
