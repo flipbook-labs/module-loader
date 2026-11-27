@@ -228,25 +228,20 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 		stack separately. Since the loader never sees the error, it can't remove
 		the failed module from this table.
 
-		So each entry holds the function that runs the module's source, and a
-		loop is confirmed by finding that function on the current stack. An
-		entry whose function isn't on the stack was left behind by a load that
-		failed, and the module is loaded again.
-	]]
-	local inProgress = weak<<ModuleScript, () -> types.Packed<unknown>>>({})
+		To tell a loop apart from an entry a failed load left behind, requires
+		are grouped into attempts, and each entry records the attempt that
+		added it. An entry from an earlier attempt belongs to a load that
+		failed, so the module is loaded again.
 
-	local function isOnStack(fn: unknown): boolean
-		local level = 1
-		while true do
-			local frame = debug.info(level, "f")
-			if frame == nil then
-				return false
-			elseif frame == fn then
-				return true
-			end
-			level += 1
-		end
-	end
+		A call to the loader's `require` starts an attempt. So does a require
+		made by a module that has already finished loading, such as one inside
+		a function the module returns, because it runs after that module's own
+		load is over. One case still reads as a loop: a module that catches a
+		failed require with `pcall` and then requires the same module again
+		while it's still loading.
+	]]
+	local inProgress = weak<<ModuleScript, number>>({})
+	local currentAttempt = 0
 
 	-- Plant the sandbox marker on the proxy globals so code evaluated through
 	-- this loader can detect they are running in a sandboxed context.
@@ -269,6 +264,8 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 	end
 
 	local function require(moduleScript: ModuleScript): ...unknown?
+		currentAttempt += 1
+
 		local function weHaveRequireAtHome(module: ModuleScript | string, caller: ModuleScript?)
 			local resolvedModule: ModuleScript
 			if type(module) == "string" then
@@ -285,26 +282,25 @@ function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoad
 				return table.unpack(existingModule.exports, 1, existingModule.exports.n)
 			end
 
-			local running = inProgress[resolvedModule]
-			if running and isOnStack(running) then
+			if inProgress[resolvedModule] == currentAttempt then
 				error("Requested module was required recursively")
 			end
+			inProgress[resolvedModule] = currentAttempt
 
 			local moduleFunction = getModuleFunction(resolvedModule, { "_G" }, context)
 
 			local function childRequire(childModule: ModuleScript | string)
+				if moduleRegistry.getByInstance(resolvedModule) then
+					currentAttempt += 1
+				end
 				return weHaveRequireAtHome(childModule, resolvedModule)
 			end
 
-			local function runModule(): types.Packed<unknown>
-				-- Notice how the arguments here map to the params in
-				-- `getModuleFunction`, which in this case is `script`,
-				-- `require`, and `_G` in the context of the loaded module.
-				return table.pack(moduleFunction(resolvedModule, childRequire, globals))
-			end
+			-- Notice how the arguments here map to the params in
+			-- `getModuleFunction`, which in this case is `script`, `require`,
+			-- and `_G` in the context of the loaded module.
+			local exports = table.pack(moduleFunction(resolvedModule, childRequire, globals))
 
-			inProgress[resolvedModule] = runModule
-			local exports = runModule()
 			inProgress[resolvedModule] = nil
 
 			if not changedConnections[resolvedModule] then
