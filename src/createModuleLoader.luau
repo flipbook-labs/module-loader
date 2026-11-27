@@ -238,6 +238,44 @@ local function weak<K, V>(tab: { [K]: V }): { [K]: V }
 	return weakTab :: { [K]: V }
 end
 
+--[=[
+	ModuleScript loader that bypasses Roblox's require cache.
+
+	Roblox caches what a module returns the first time it's required, so a
+	change to the module only takes effect after the place reloads. A loader
+	ignores that cache: require a module, change it, clear the loader, and
+	require it again to run the new code.
+
+	```lua
+	local ModuleLoader = require(ReplicatedStorage.Packages.ModuleLoader)
+
+	local loader = ModuleLoader.createModuleLoader()
+	local result = loader.require(module)
+
+	loader.loadedModuleChanged:Connect(function()
+		loader.clear()
+		result = loader.require(module)
+	end)
+	```
+
+	@class ModuleLoader
+]=]
+
+--[=[
+	Creates a loader with its own cache.
+
+	A loader keeps what each module it requires returns, so requiring a module
+	twice through one loader runs it once. Two loaders never share results.
+
+	```lua
+	local loader = ModuleLoader.createModuleLoader()
+	local result = loader.require(script.Parent.ModuleScript)
+	```
+
+	@function createModuleLoader
+	@within ModuleLoader
+	@return ModuleLoader
+]=]
 function createModuleLoader(dependencies: ModuleLoaderDependencies?): ModuleLoader
 	local moduleRegistry = createModuleRegistry()
 	local changedConnections = weak<<ModuleScript, RBXScriptConnection>>({})
