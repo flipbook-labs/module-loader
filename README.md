@@ -1,6 +1,6 @@
 # ModuleLoader
 
-ModuleLoader requires ModuleScripts without Roblox's `require` cache. Change a module, require it again, and the new code runs without restarting the place. Storyteller and Flipbook use it to reload stories. The [API reference](https://flipbook-labs.github.io/module-loader/api/ModuleLoader) covers every method.
+ModuleLoader requires ModuleScripts without Roblox's `require` cache. Change a module, require it again, and the new code runs without restarting the place. Storyteller and Flipbook use it to reload stories. The [API reference](https://flipbook-labs.github.io/module-loader/api/ModuleLoader) covers every function.
 
 ## Install
 
@@ -28,8 +28,8 @@ Require a ModuleScript through a loader instead of `require`:
 ```luau
 local ModuleLoader = require("@pkg/ModuleLoader")
 
-local loader = ModuleLoader.new()
-local result = loader:require(game:GetService("ReplicatedStorage").Stories.Button)
+local loader = ModuleLoader.createModuleLoader()
+local result = loader.require(game:GetService("ReplicatedStorage").Stories.Button)
 ```
 
 ## Reloading
@@ -39,13 +39,13 @@ local result = loader:require(game:GetService("ReplicatedStorage").Stories.Butto
 ```luau
 local ModuleLoader = require("@pkg/ModuleLoader")
 
-local loader = ModuleLoader.new()
+local loader = ModuleLoader.createModuleLoader()
 local module = game:GetService("ReplicatedStorage").Stories.Button
-local result = loader:require(module)
+local result = loader.require(module)
 
 loader.loadedModuleChanged:Connect(function()
-	loader:clear()
-	result = loader:require(module)
+	loader.clear()
+	result = loader.require(module)
 end)
 ```
 

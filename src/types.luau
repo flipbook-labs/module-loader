@@ -15,6 +15,27 @@ export type ModuleRegistry = {
 	getByFullName: (fullName: string) -> LoadedModule?,
 }
 
+--[=[
+	A loader made by `createModuleLoader`.
+
+	@interface ModuleLoader
+	@within ModuleLoader
+	.require (moduleScript: ModuleScript) -> ...unknown -- Requires a module, and every module it requires, without Roblox's require cache. Requiring it again returns the same result until `clear` is called.
+	.cache (moduleScript: ModuleScript, ...unknown) -> () -- Sets the result `require` returns for a module before it loads, so loaded modules share a copy you already have, such as a UI library.
+	.clear () -> () -- Empties the loader's cache, so the next `require` runs each module again.
+	.loadedModuleChanged RBXScriptSignal -- Fires when a module required through this loader has its ancestry or `Source` changed.
+]=]
+-- `createModuleLoader` returns more than these fields, such as the module
+-- registry its specs read. The package exports this narrower type so those
+-- stay out of the public API.
+export type PublicModuleLoader = {
+	require: (moduleScript: ModuleScript) -> ...unknown?,
+	cache: (moduleScript: ModuleScript, ...unknown?) -> (),
+	clear: () -> (),
+
+	loadedModuleChanged: RBXScriptSignal,
+}
+
 export type ModuleLoader = {
 	_getModuleRegistry: () -> ModuleRegistry,
 
