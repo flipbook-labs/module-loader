@@ -9,7 +9,7 @@
 	environment or in `.env`, it signs in with that token first, which replaces
 	any token `wally login` saved before. Otherwise it uses the saved one.
 ]]
-local FlipbookBatteries = require("@lpm/flipbook-batteries@v0.13.1")
+local FlipbookBatteries = require("@lpm/flipbook-batteries@v0.14.0")
 local process = require("@std/process")
 
 local cli = require("@scripts/batteries/cli")
