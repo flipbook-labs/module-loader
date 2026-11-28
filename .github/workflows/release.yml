@@ -179,6 +179,9 @@ jobs:
         with:
           version: v1.2.0
 
+      - name: Install packages
+        run: lute run install
+
       - name: Download dist
         uses: actions/download-artifact@v7
         with:
@@ -188,7 +191,4 @@ jobs:
       - name: Publish
         env:
           WALLY_REGISTRY_TOKEN: ${{ secrets.WALLY_REGISTRY_TOKEN }}
-        run: |
-          set -euo pipefail
-          wally login --token "$WALLY_REGISTRY_TOKEN"
-          wally publish
+        run: lute run publish wally
