@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.0.1
+
+Internal 2
+
+### Internal
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-release-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-release-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-release-light.png" alt="Release" height="18" align="texttop" /></picture> Record each Wally publish as a deployment to the `wally` environment. ([#99](https://github.com/flipbook-labs/module-loader/pull/99))
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-dark.svg" /><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-light.svg" /><img src="https://raw.githubusercontent.com/flipbook-labs/module-loader/main/.changes/assets/kind-tooling-light.png" alt="Tooling" height="18" align="texttop" /></picture> Replace `try-in-flipbook` and `try-in-storyteller` with `lute run try-in`, which also reaches Flipbook's copy through Storyteller. ([#101](https://github.com/flipbook-labs/module-loader/pull/101))
+
 ## v1.0.0
 
 > [!WARNING]
