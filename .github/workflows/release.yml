@@ -84,6 +84,7 @@ jobs:
       should_publish: ${{ steps.changewrite.outputs.should_publish }}
       version: ${{ steps.changewrite.outputs.version }}
       tag: ${{ steps.changewrite.outputs.tag }}
+      release_created: ${{ steps.changewrite.outputs.release_created }}
     concurrency:
       group: release-pr-${{ github.ref }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -108,23 +109,12 @@ jobs:
       - name: Install packages
         run: lute run install
 
-      - name: Login to Wally registry
-        if: github.event_name != 'pull_request'
-        run: wally login --token ${{ secrets.WALLY_REGISTRY_TOKEN }}
-
       - name: Download release assets
         if: github.event_name != 'pull_request'
         uses: actions/download-artifact@v7
         with:
           name: release-asset
           path: assets
-
-      - name: Download dist
-        if: github.event_name != 'pull_request'
-        uses: actions/download-artifact@v7
-        with:
-          name: dist
-          path: dist
 
       - uses: flipbook-labs/changewrite@v0.16.0
         id: changewrite
@@ -137,8 +127,6 @@ jobs:
           prepare-only: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'debug:release-pr') }}
           post-draft-hook: |
             "$CHANGEWRITE_BIN" attach --tag "$CHANGEWRITE_TAG" --files assets/*.rbxm
-          post-publish-hook: |
-            wally publish
           pr-title: ${{ github.event_name == 'pull_request' && '[DEBUG] Publish v{{version}}' || 'Publish v{{version}}' }}
           pr-body: |
             >[!IMPORTANT]
@@ -149,8 +137,8 @@ jobs:
             > 1. Create and push tag `{{tag}}`
             > 2. Create a draft GitHub release for that tag
             > 3. Build and attach the model file to the release
-            > 4. Publish the package to Wally
-            > 5. Publish the release
+            > 4. Publish the release
+            > 5. Publish the package to Wally
 
             <details>
             <summary><b>GitHub Release preview</b></summary>
@@ -173,3 +161,34 @@ jobs:
         with:
           locked: false
           url: ${{ env.RUN_URL }}
+
+  publish-wally:
+    needs: release
+    if: ${{ !cancelled() && needs.release.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: wally
+      url: https://wally.run/package/flipbook-labs/module-loader?version=${{ needs.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+
+      - uses: CompeyDev/setup-rokit@1d9390883f7ebce19d48f5b8d006e11d387c92ab # v0.2.1
+        with:
+          version: v1.2.0
+
+      - name: Install packages
+        run: lute run install
+
+      - name: Download dist
+        uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist
+
+      - name: Publish
+        env:
+          WALLY_REGISTRY_TOKEN: ${{ secrets.WALLY_REGISTRY_TOKEN }}
+        run: lute run publish wally
