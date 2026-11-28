@@ -1,4 +1,4 @@
-local FlipbookBatteries = require("@lpm/flipbook-batteries@v0.13.1")
+local FlipbookBatteries = require("@lpm/flipbook-batteries@v0.14.0")
 local process = require("@std/process")
 local system = require("@std/system")
 
