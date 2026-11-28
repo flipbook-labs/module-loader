@@ -20,7 +20,7 @@ local result = process.run({
 assert(result.ok, "lute pkg install failed")
 
 do
-	local FlipbookBatteries = require("@lpm/flipbook-batteries@v0.13.1")
+	local FlipbookBatteries = require("@lpm/flipbook-batteries@v0.14.0")
 
 	local run = FlipbookBatteries.run
 
